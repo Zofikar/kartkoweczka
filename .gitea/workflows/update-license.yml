@@ -1,0 +1,53 @@
+name: Update Open Source Licenses
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-licenses:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install FOSSA CLI
+        run: |
+          curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash
+
+      - name: Generate FOSSA Attribution Report
+        env:
+          FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
+        run: |
+          fossa analyze || echo "Fossa analyze skipped or failed, attempting report generation..."
+          
+          echo "Waiting for Fossa analysis to complete..."
+          fossa test
+          
+          fossa report attribution --format markdown > THIRD_PARTY_LICENSES.md
+          fossa report attribution --format html > public/licenses.html
+
+      - name: Create Pull Request via Git & Gitea API
+        env:
+          API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "Gitea Actions Bot"
+          git config --global user.email "GiteaAction@gitea.internal"
+          
+          BRANCH_NAME="chore/update-licenses-${{ github.run_number }}"
+          git checkout -b "$BRANCH_NAME"
+          
+          git add THIRD_PARTY_LICENSES.md public/licenses.html
+          
+          if git diff --staged --quiet; then
+            echo "No license changes detected. Skipping PR creation."
+            exit 0
+          fi
+          
+          git commit -m "docs: update third-party license reports"
+          git push origin "$BRANCH_NAME"
+          
+          curl -X POST \
+            -H "Authorization: token $API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"head\":\"$BRANCH_NAME\",\"base\":\"main\",\"title\":\"Update Third-Party License Notices\",\"body\":\"Automated update triggered via workflow_dispatch.\"}" \
+            "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/pulls"

@@ -1,0 +1,5 @@
+version: 3
+project:
+  id: gitea.internal/Pawel/Kartkoweczka
+  name: Pawel/Kartkoweczka
+  url: https://gitea.internal/Pawel/Kartkoweczka
