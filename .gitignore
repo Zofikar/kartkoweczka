@@ -25,3 +25,7 @@ dist-ssr
 
 .env*
 !.env.example
+
+# AI Bits that I'm not gonna share
+AGENTS.md
+.agents

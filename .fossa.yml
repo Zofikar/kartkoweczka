@@ -10,4 +10,4 @@ targets:
       path: .
 
 telemetry:
-  scope: "off"
+  scope: 'off'
