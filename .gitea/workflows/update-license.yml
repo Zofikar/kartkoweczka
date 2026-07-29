@@ -10,9 +10,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Restore FOSSA CLI cache
+        id: cache-fossa
+        uses: actions/cache@v4
+        with:
+          path: .fossa-bin/
+          key: fossa-cli-${{ runner.os }}
+
       - name: Install FOSSA CLI
+        if: steps.cache-fossa.outputs.cache-hit != 'true'
         run: |
-          curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash
+          mkdir -p .fossa-bin
+          curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash -s -- -b .fossa-bin
+
+      - name: Add FOSSA to PATH
+        run: echo "$PWD/.fossa-bin" >> $GITHUB_PATH
 
       - name: Generate FOSSA Attribution Report
         env:
@@ -30,6 +42,11 @@ jobs:
         env:
           API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if [ -z "$(git diff --unified=0 THIRD_PARTY_LICENSES.md | grep -Ev '^(diff|index|\+{3}|\-{3}|@@|[+-][0-9]{2}/[0-9]{2}/[0-9]{2} \| [0-9a-f]{40})')" ]; then
+            echo "No license changes detected. Skipping PR creation."
+            exit 0
+          fi
+          
           git config --global user.name "Gitea Actions Bot"
           git config --global user.email "GiteaAction@gitea.internal"
           
@@ -37,11 +54,6 @@ jobs:
           git checkout -b "$BRANCH_NAME"
           
           git add THIRD_PARTY_LICENSES.md public/licenses.html
-          
-          if git diff --staged --quiet; then
-            echo "No license changes detected. Skipping PR creation."
-            exit 0
-          fi
           
           git commit -m "docs: update third-party license reports"
           git push origin "$BRANCH_NAME"

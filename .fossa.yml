@@ -3,3 +3,11 @@ project:
   id: gitea.internal/Pawel/Kartkoweczka
   name: Pawel/Kartkoweczka
   url: https://gitea.internal/Pawel/Kartkoweczka
+
+targets:
+  only:
+    - type: yarn
+      path: .
+
+telemetry:
+  scope: "off"
