@@ -31,33 +31,48 @@ jobs:
           FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
         run: |
           fossa analyze || echo "Fossa analyze skipped or failed, attempting report generation..."
-          
+
           echo "Waiting for Fossa analysis to complete..."
           fossa test
-          
+
           fossa report attribution --format markdown > THIRD_PARTY_LICENSES.md
           fossa report attribution --format html > public/licenses.html
 
-      - name: Create Pull Request via Git & Gitea API
-        env:
-          API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check changes
+        if: success()
+        id: check-changes
         run: |
           if [ -z "$(git diff --unified=0 THIRD_PARTY_LICENSES.md | grep -Ev '^(diff|index|\+{3}|\-{3}|@@|[+-][0-9]{2}/[0-9]{2}/[0-9]{2} \| [0-9a-f]{40})')" ]; then
             echo "No license changes detected. Skipping PR creation."
-            exit 0
+            echo "changes_detected=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes_detected=true" >> $GITHUB_OUTPUT
           fi
-          
+
+      - name: Setup Project
+        if: success() && steps.check-changes.outputs.changes_detected == 'true'
+        uses: ./.gitea/actions/setup/action.yaml
+
+      - name: Format Licenses
+        if: success() && steps.check-changes.outputs.changes_detected == 'true'
+        run: yarn run format
+
+      - name: Create Pull Request via Git & Gitea API
+        if: success() && steps.check-changes.outputs.changes_detected == 'true'
+        env:
+          API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
           git config --global user.name "Gitea Actions Bot"
           git config --global user.email "GiteaAction@gitea.internal"
-          
+
           BRANCH_NAME="chore/update-licenses-${{ github.run_number }}"
           git checkout -b "$BRANCH_NAME"
-          
+
           git add THIRD_PARTY_LICENSES.md public/licenses.html
-          
+
           git commit -m "docs: update third-party license reports"
           git push origin "$BRANCH_NAME"
-          
+
           curl -X POST \
             -H "Authorization: token $API_TOKEN" \
             -H "Content-Type: application/json" \
