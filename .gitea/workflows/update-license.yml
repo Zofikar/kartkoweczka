@@ -51,7 +51,7 @@ jobs:
 
       - name: Setup Project
         if: success() && steps.check-changes.outputs.changes_detected == 'true'
-        uses: ./.gitea/actions/setup/action.yaml
+        uses: ./.gitea/actions/setup
 
       - name: Format Licenses
         if: success() && steps.check-changes.outputs.changes_detected == 'true'

@@ -1,33 +1,23 @@
 <script lang="ts">
-    import {Route, Router} from 'svelte-navigator';
+	import { Router } from 'sv-router';
+	import './router';
 	import { isRunningAsPWA } from './utils/pwaCheck';
-	import { onMount, type Component } from 'svelte';
+	import { onMount } from 'svelte';
 	import Nav from './lib/components/Nav.svelte';
 	import Footer from './lib/components/Footer.svelte';
 	import Sidebar from './lib/components/Sidebar.svelte';
 	import LockScreen from './lib/components/LockScreen.svelte';
-	import HomePage from './pages/home/page.svelte';
+	import { routes } from './router';
 
 	interface BeforeInstallPromptEvent extends Event {
 		prompt: () => Promise<void>;
 		userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 	}
 
-	interface PageEntry {
-		id: string;
-		label: string;
-		path: string;
-		component: Component;
-	}
-
 	let isPWA = $state(import.meta.env.DEV || isRunningAsPWA());
 	let deferredPrompt = $state<BeforeInstallPromptEvent | null>(null);
 	let isLight = $state(false);
 	let sidebarOpen = $state(false);
-
-	const pages: PageEntry[] = [
-		{ id: 'home', label: 'Strona główna', path: '/', component: HomePage },
-	];
 
 	onMount(() => {
 		try {
@@ -69,24 +59,20 @@
 	}
 </script>
 
-<Router basepath={import.meta.env.BASE_URL}>
-	<Nav
-		brandName="Kartkówka"
-		{isLight}
-		ontoggletheme={toggleTheme}
-		onmenutoggle={() => (sidebarOpen = !sidebarOpen)}
-	/>
-	<div id="main-container">
-		<Sidebar {pages} mobileOpen={sidebarOpen} onclose={() => (sidebarOpen = false)} />
-		<main>
-			{#if isPWA}
-				{#each pages as page (page.id)}
-					<Route path={page.path} component={page.component} />
-				{/each}
-			{:else}
-				<LockScreen deferredPrompt={!!deferredPrompt} oninstall={handleInstall} />
-			{/if}
-		</main>
-	</div>
-	<Footer />
-</Router>
+<Nav
+	brandName="Kartkówka"
+	{isLight}
+	ontoggletheme={toggleTheme}
+	onmenutoggle={() => (sidebarOpen = !sidebarOpen)}
+/>
+<div id="main-container">
+	<Sidebar pages={routes} mobileOpen={sidebarOpen} onclose={() => (sidebarOpen = false)} />
+	<main>
+		{#if isPWA}
+			<Router />
+		{:else}
+			<LockScreen deferredPrompt={!!deferredPrompt} oninstall={handleInstall} />
+		{/if}
+	</main>
+</div>
+<Footer />

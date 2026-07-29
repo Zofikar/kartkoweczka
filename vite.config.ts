@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 import { githubPagesSpa } from '@sctg/vite-plugin-github-pages-spa';
+import path from 'path';
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -9,6 +10,12 @@ export default defineConfig(({ mode }) => {
 
 	return {
 		base: env.VITE_BASE_PATH,
+		resolve: {
+			alias: {
+				'@': path.resolve(__dirname, './src/'),
+				$lib: path.resolve(__dirname, './src/lib'),
+			},
+		},
 		plugins: [
 			svelte(),
 			VitePWA({

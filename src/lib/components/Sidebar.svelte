@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { useLocation, Link } from 'svelte-navigator';
 	import List from '../ui/List/List.svelte';
 	import ListItem from '../ui/List/ListItem.svelte';
 	import { onMount } from 'svelte';
+
+	import { isActive, p } from '@/router';
 
 	interface PageEntry {
 		id: string;
@@ -18,8 +19,6 @@
 	}
 
 	let { pages = [], mobileOpen = false, onclose, ...restProps }: Props = $props();
-
-	const location = useLocation();
 
 	let isMobile = $state(false);
 
@@ -43,17 +42,17 @@
 		<div class="sidebar-overlay" onclick={handleNav} role="presentation">
 			<aside
 				class="sidebar sidebar-drawer sidebar-drawer-open"
-				onclick={(e: Event) => e.stopPropagation()}
+				onclick={(e) => e.stopPropagation()}
 				{...restProps}
 			>
 				<nav aria-label="Nawigacja główna">
 					<List>
 						{#each pages as page (page.id)}
-							<Link to={page.path} class="sidebar-link" onclick={handleNav}>
-								<ListItem active={$location.pathname === page.path}>
+							<a href={p(page.path)} class="sidebar-link" onclick={handleNav}>
+								<ListItem active={isActive(page.path)}>
 									{page.label}
 								</ListItem>
-							</Link>
+							</a>
 						{/each}
 					</List>
 				</nav>
@@ -65,11 +64,11 @@
 		<nav aria-label="Nawigacja główna">
 			<List>
 				{#each pages as page (page.id)}
-					<Link to={page.path} class="sidebar-link">
-						<ListItem active={$location.pathname === page.path}>
+					<a href={p(page.path)} class="sidebar-link">
+						<ListItem active={isActive(page.path)}>
 							{page.label}
 						</ListItem>
-					</Link>
+					</a>
 				{/each}
 			</List>
 		</nav>
