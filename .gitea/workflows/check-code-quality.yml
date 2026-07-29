@@ -3,46 +3,46 @@ name: Code Quality Check
 on:
   push:
     paths:
-      - "**.svelte"
-      - "**.ts"
-      - "**.tsx"
-      - "**.js"
-      - "**.jsx"
-      - "**.mjs"
-      - "**.cjs"
-      - "**.json"
-      - "**.css"
-      - "**.html"
-      - "*.yaml"
-      - "*.yml"
-      - "svelte.config.js"
-      - "vite.config.ts"
-      - "eslint.config.js"
-      - "tsconfig.json"
-      - "tsconfig.app.json"
-      - "tsconfig.node.json"
-      - ".prettierrc"
+      - '**.svelte'
+      - '**.ts'
+      - '**.tsx'
+      - '**.js'
+      - '**.jsx'
+      - '**.mjs'
+      - '**.cjs'
+      - '**.json'
+      - '**.css'
+      - '**.html'
+      - '*.yaml'
+      - '*.yml'
+      - 'svelte.config.js'
+      - 'vite.config.ts'
+      - 'eslint.config.js'
+      - 'tsconfig.json'
+      - 'tsconfig.app.json'
+      - 'tsconfig.node.json'
+      - '.prettierrc'
   pull_request:
     paths:
-      - "**.svelte"
-      - "**.ts"
-      - "**.tsx"
-      - "**.js"
-      - "**.jsx"
-      - "**.mjs"
-      - "**.cjs"
-      - "**.json"
-      - "**.css"
-      - "**.html"
-      - "*.yaml"
-      - "*.yml"
-      - "svelte.config.js"
-      - "vite.config.ts"
-      - "eslint.config.js"
-      - "tsconfig.json"
-      - "tsconfig.app.json"
-      - "tsconfig.node.json"
-      - ".prettierrc"
+      - '**.svelte'
+      - '**.ts'
+      - '**.tsx'
+      - '**.js'
+      - '**.jsx'
+      - '**.mjs'
+      - '**.cjs'
+      - '**.json'
+      - '**.css'
+      - '**.html'
+      - '*.yaml'
+      - '*.yml'
+      - 'svelte.config.js'
+      - 'vite.config.ts'
+      - 'eslint.config.js'
+      - 'tsconfig.json'
+      - 'tsconfig.app.json'
+      - 'tsconfig.node.json'
+      - '.prettierrc'
 
 jobs:
   lint:

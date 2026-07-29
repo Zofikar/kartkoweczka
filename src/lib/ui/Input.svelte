@@ -1,12 +1,15 @@
 <script lang="ts">
+	let inputId = $state(crypto.randomUUID());
+
 	interface Props {
 		type?: 'text' | 'number' | 'email' | 'password';
 		value?: string;
-		oninput?: (e: InputEvent) => void;
+		oninput?: (e: Event) => void;
 		label?: string;
 		placeholder?: string;
 		disabled?: boolean;
 		error?: string;
+		id?: string;
 		[k: string]: unknown;
 	}
 
@@ -18,16 +21,18 @@
 		placeholder,
 		disabled = false,
 		error,
+		id,
 		...restProps
 	}: Props = $props();
 </script>
 
 <div class="input-group" class:input-group--error={!!error}>
 	{#if label}
-		<label class="input-label">{label}</label>
+		<label class="input-label" for={id || inputId}>{label}</label>
 	{/if}
 	<input
 		class="input"
+		id={id || inputId}
 		{type}
 		{value}
 		{placeholder}

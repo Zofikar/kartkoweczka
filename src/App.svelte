@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Router, Route } from 'svelte-navigator';
+    import {Route, Router} from 'svelte-navigator';
 	import { isRunningAsPWA } from './utils/pwaCheck';
-	import { onMount } from 'svelte';
+	import { onMount, type Component } from 'svelte';
 	import Nav from './lib/components/Nav.svelte';
 	import Footer from './lib/components/Footer.svelte';
 	import Sidebar from './lib/components/Sidebar.svelte';
@@ -17,7 +17,7 @@
 		id: string;
 		label: string;
 		path: string;
-		component: Function;
+		component: Component;
 	}
 
 	let isPWA = $state(import.meta.env.DEV || isRunningAsPWA());
@@ -80,7 +80,7 @@
 		<Sidebar {pages} mobileOpen={sidebarOpen} onclose={() => (sidebarOpen = false)} />
 		<main>
 			{#if isPWA}
-				{#each pages as page}
+				{#each pages as page (page.id)}
 					<Route path={page.path} component={page.component} />
 				{/each}
 			{:else}

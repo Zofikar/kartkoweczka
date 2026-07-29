@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Link, useLocation } from 'svelte-navigator';
+	import { useLocation, Link } from 'svelte-navigator';
 	import List from '../ui/List/List.svelte';
 	import ListItem from '../ui/List/ListItem.svelte';
 	import { onMount } from 'svelte';
@@ -48,7 +48,7 @@
 			>
 				<nav aria-label="Nawigacja główna">
 					<List>
-						{#each pages as page}
+						{#each pages as page (page.id)}
 							<Link to={page.path} class="sidebar-link" onclick={handleNav}>
 								<ListItem active={$location.pathname === page.path}>
 									{page.label}
@@ -64,7 +64,7 @@
 	<aside class="sidebar" {...restProps}>
 		<nav aria-label="Nawigacja główna">
 			<List>
-				{#each pages as page}
+				{#each pages as page (page.id)}
 					<Link to={page.path} class="sidebar-link">
 						<ListItem active={$location.pathname === page.path}>
 							{page.label}
