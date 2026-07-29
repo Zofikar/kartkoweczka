@@ -70,7 +70,7 @@ jobs:
 
           git add THIRD_PARTY_LICENSES.md public/licenses.html
 
-          git commit -m "docs: update third-party license reports"
+          git commit -m "docs: update third-party license reports [skip ci]"
           git push origin "$BRANCH_NAME"
 
           curl -X POST \
