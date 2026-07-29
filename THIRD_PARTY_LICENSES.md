@@ -12,27 +12,34 @@ Date generated | Revision ID
 ---
 
 ## Declared License
+
 No declared license found for Pawel/Kartkoweczka
 
 ## First Party Licenses
+
 **No licenses found.**
 
 ## Dependencies
 
-Package|Licenses|Concluded Licenses
--------|--------|------------------
-**[dedent-js (1.0.1)](#dedent-js-101)**|MIT|-
-**[lower-case (2.0.2)](#lower-case-202)**|MIT|-
-**[no-case (3.0.4)](#no-case-304)**|MIT|-
-**[pascal-case (3.1.2)](#pascal-case-312)**|MIT|-
-**[svelte-navigator (3.2.2)](#svelte-navigator-322)**|MIT|-
-**[svelte2tsx (0.1.193)](#svelte2tsx-01193)**|MIT|-
-**[tslib (2.8.1)](#tslib-281)**|0BSD|-
+| Package                                               | Licenses | Concluded Licenses |
+| ----------------------------------------------------- | -------- | ------------------ |
+| **[dedent-js (1.0.1)](#dedent-js-101)**               | MIT      | -                  |
+| **[lower-case (2.0.2)](#lower-case-202)**             | MIT      | -                  |
+| **[no-case (3.0.4)](#no-case-304)**                   | MIT      | -                  |
+| **[pascal-case (3.1.2)](#pascal-case-312)**           | MIT      | -                  |
+| **[svelte-navigator (3.2.2)](#svelte-navigator-322)** | MIT      | -                  |
+| **[svelte2tsx (0.1.193)](#svelte2tsx-01193)**         | MIT      | -                  |
+| **[tslib (2.8.1)](#tslib-281)**                       | 0BSD     | -                  |
+
 ### [svelte-navigator (3.2.2)](https://github.com/mefechoel/svelte-navigator#readme)
+
 Simple, accessible routing for Svelte
 **Usage**: Direct
+
 #### Declared Licenses
+
 MIT
+
 ```
 The MIT License (MIT)
 
@@ -62,6 +69,7 @@ SOFTWARE.
 ```
 
 **License Header:**
+
 ```
 The MIT License (MIT)
 
@@ -91,10 +99,12 @@ SOFTWARE.
 ```
 
 #### Copyrights
-  License: MIT
+
+License: MIT
 Copyright (c) 2020 present Michel Strelow
-Copyright (c)  for portions of project svelte-navigator are held by [EmilTholin,
-Copyright (c)  for project
+Copyright (c) for portions of project svelte-navigator are held by [EmilTholin,
+Copyright (c) for project
+
 ### Package Info
 
 **Authors**: mefechoel@gmail.com, svelte.navigator@gmail.com
@@ -107,10 +117,14 @@ Copyright (c)  for project
 ---
 
 ### [svelte2tsx (0.1.193)](https://github.com/sveltejs/language-tools/tree/master/packages/svelte2tsx)
+
 Convert Svelte components to TSX for type checking
 **Usage**: Transitive
+
 #### Declared Licenses
+
 MIT
+
 ```
 MIT License
 
@@ -137,6 +151,7 @@ SOFTWARE.
 ```
 
 **License Header:**
+
 ```
 MIT License
 
@@ -163,8 +178,10 @@ SOFTWARE.
 ```
 
 #### Copyrights
-  License: MIT
+
+License: MIT
 Copyright (c) 2019 David Pershouse
+
 ### Package Info
 
 **Authors**: dpershouse@gmail.com, orta.therox@gmail.com, sholthausen@web.de, svelte-language-tools-deploy@orta.io
@@ -177,10 +194,14 @@ Copyright (c) 2019 David Pershouse
 ---
 
 ### [dedent-js (1.0.1)](https://www.npmjs.com/package/dedent-js)
+
 Remove indentation from multiline strings
 **Usage**: Transitive
+
 #### Declared Licenses
+
 MIT
+
 ```
 Copyright (c) 2015 Martin Kolárik
 
@@ -205,6 +226,7 @@ THE SOFTWARE.
 ```
 
 **License Header:**
+
 ```
 Copyright (c) 2015 Martin Kolárik
 
@@ -229,9 +251,11 @@ THE SOFTWARE.
 ```
 
 #### Copyrights
-  License: MIT
+
+License: MIT
 Copyright (c) 2015 Martin Kolárik
 Copyright (c) 2015 Martin Kolárik. Released under the MIT license.
+
 ### Package Info
 
 **Authors**: martin@kolarik.sk
@@ -244,10 +268,14 @@ Copyright (c) 2015 Martin Kolárik. Released under the MIT license.
 ---
 
 ### [pascal-case (3.1.2)](https://github.com/blakeembrey/change-case/tree/master/packages/pascal-case#readme)
+
 Transform into a string of capitalized words without separators
 **Usage**: Transitive
+
 #### Declared Licenses
+
 MIT
+
 ```
 The MIT License (MIT)
 
@@ -274,6 +302,7 @@ THE SOFTWARE.
 ```
 
 **License Header:**
+
 ```
 The MIT License (MIT)
 
@@ -300,8 +329,10 @@ THE SOFTWARE.
 ```
 
 #### Copyrights
-  License: MIT
+
+License: MIT
 Copyright (c) 2014 Blake Embrey (hello@blakeembrey.com)
+
 ### Package Info
 
 **Authors**: hello@blakeembrey.com
@@ -314,10 +345,14 @@ Copyright (c) 2014 Blake Embrey (hello@blakeembrey.com)
 ---
 
 ### [no-case (3.0.4)](https://www.npmjs.com/package/no-case)
+
 Transform any case string into a lower case string with a space between each word
 **Usage**: Transitive
+
 #### Declared Licenses
+
 MIT
+
 ```
 The MIT License (MIT)
 
@@ -344,6 +379,7 @@ THE SOFTWARE.
 ```
 
 **License Header:**
+
 ```
 The MIT License (MIT)
 
@@ -370,8 +406,10 @@ THE SOFTWARE.
 ```
 
 #### Copyrights
-  License: MIT
+
+License: MIT
 Copyright (c) 2014 Blake Embrey (hello@blakeembrey.com)
+
 ### Package Info
 
 **Authors**: hello@blakeembrey.com
@@ -384,10 +422,14 @@ Copyright (c) 2014 Blake Embrey (hello@blakeembrey.com)
 ---
 
 ### [tslib (2.8.1)](https://www.typescriptlang.org/)
+
 Runtime library for TypeScript helper functions
 **Usage**: Transitive
+
 #### Declared Licenses
+
 0BSD
+
 ```
 Copyright (c) Microsoft Corporation.
 
@@ -404,6 +446,7 @@ PERFORMANCE OF THIS SOFTWARE.
 ```
 
 **License Header:**
+
 ```
 Copyright (c) Microsoft Corporation.
 
@@ -420,8 +463,10 @@ PERFORMANCE OF THIS SOFTWARE.
 ```
 
 #### Copyrights
-  License: 0BSD
-Copyright (c)  Microsoft Corporation.
+
+License: 0BSD
+Copyright (c) Microsoft Corporation.
+
 ### Package Info
 
 **Authors**: andrew@wheream.io, mineyalc@microsoft.com, nathan@shively-sanders.com, rbuckton@chronicles.org, shkamat@microsoft.com, typescript-design@microsoft.com, typescript@microsoft.com, wwigham@gmail.com
@@ -434,10 +479,14 @@ Copyright (c)  Microsoft Corporation.
 ---
 
 ### [lower-case (2.0.2)](https://github.com/blakeembrey/change-case/tree/master/packages/lower-case#readme)
+
 Transforms the string to lower case
 **Usage**: Transitive
+
 #### Declared Licenses
+
 MIT
+
 ```
 The MIT License (MIT)
 
@@ -464,6 +513,7 @@ THE SOFTWARE.
 ```
 
 **License Header:**
+
 ```
 The MIT License (MIT)
 
@@ -490,8 +540,10 @@ THE SOFTWARE.
 ```
 
 #### Copyrights
-  License: MIT
+
+License: MIT
 Copyright (c) 2014 Blake Embrey (hello@blakeembrey.com)
+
 ### Package Info
 
 **Authors**: hello@blakeembrey.com
