@@ -8,6 +8,7 @@
 	import Sidebar from './lib/components/Sidebar.svelte';
 	import LockScreen from './lib/components/LockScreen.svelte';
 	import { routes } from './router';
+	import { initializeDatabase } from '@/db/dbStore';
 
 	interface BeforeInstallPromptEvent extends Event {
 		prompt: () => Promise<void>;
@@ -19,7 +20,7 @@
 	let isLight = $state(false);
 	let sidebarOpen = $state(false);
 
-	onMount(() => {
+	onMount(async () => {
 		try {
 			const stored = localStorage.getItem('theme');
 			if (stored === 'light') {
@@ -34,6 +35,8 @@
 			e.preventDefault();
 			deferredPrompt = e as BeforeInstallPromptEvent;
 		});
+
+		await initializeDatabase();
 	});
 
 	function toggleTheme() {
