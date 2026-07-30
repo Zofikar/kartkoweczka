@@ -391,6 +391,5 @@ src/db/drizzle/              # Auto-generated SQL migration files
 
 ## References
 
-- [`.memory-bank.md`](../.memory-bank.md) — Condensed quick-reference version of this document
 - [`FEATURE_LIST.md`](../FEATURE_LIST.md) — MVP feature scope
 - [`src/db/db.ts`](../src/db/db.ts) — PGlite initialization and migration runner
