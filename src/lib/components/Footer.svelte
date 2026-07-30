@@ -17,7 +17,12 @@
 		Copyright &copy; {copyrightYear}
 		{copyrightHolder}
 	</span>
-	<a href="{import.meta.env.BASE_URL}/licenses.html" class="footer-link">Licencje stron trzecich</a>
+	<a
+		href="{import.meta.env.BASE_URL}/licenses.html"
+		class="footer-link"
+		target="_blank"
+		rel="noopener">Licencje stron trzecich</a
+	>
 </footer>
 
 <style>
