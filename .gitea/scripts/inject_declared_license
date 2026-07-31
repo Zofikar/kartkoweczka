@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+
+import pathlib
+import json
+import re
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
+
+DECLARED_LICENSE_MD_PATH = REPO_ROOT / "LICENSE"
+PACKAGE_JSON_PATH = REPO_ROOT / "package.json"
+
+LICENSES_HTML_PATH = REPO_ROOT / "public" / "licenses.html"
+LICENSES_MD_PATH = REPO_ROOT / "THIRD_PARTY_LICENSES.md"
+
+licenses_html = LICENSES_HTML_PATH.read_text()
+interesting_part_start = licenses_html.find(r'"report-section">')
+interesting_part_end = licenses_html[interesting_part_start:].find(r'</section>')
+interesting_part = licenses_html[interesting_part_start:interesting_part_start+interesting_part_end]
+
+license_text = DECLARED_LICENSE_MD_PATH.read_text()
+license_copyright_year, license_copyright_holder = re.findall(r'Copyright[^\n]+?(\d{4}(?:\-\d{4})?)[^\n]+?(\w+\s\w+)', license_text)[0]
+package_json = json.loads(PACKAGE_JSON_PATH.read_text())
+package_declared_license = package_json.get("license", "")
+package_name = package_json.get("name", "")
+package_version = package_json.get("version", "")
+
+declared_license_html = f"""<div class="license-signature">MIT</div>
+
+                    <div class="info-row">
+                        <span class="info-label">License Text</span>
+                        <div class="license-value">
+												<span
+                                                        id="declared-{package_name}${package_version}-{package_declared_license}-0-0"
+                                                        class="license-text clampable-text clampable-text--clamped-3"
+                                                >{license_text}</span>
+
+                            <button
+                                    class="text-toggle"
+                                    onclick="toggleLicenseText('declared-{package_name}${package_version}-{package_declared_license}-0-0', this)"
+                            >
+                                Read more
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="info-row">
+                        <span class="info-label">License Header</span>
+                        <div class="license-value">
+												<span
+                                                        id="declared-header-{package_name}${package_version}-0"
+                                                        class="license-text clampable-text clampable-text--clamped-3"
+                                                >{license_text}</span>
+
+                            <button
+                                    class="text-toggle"
+                                    onclick="toggleLicenseText('declared-header-{package_name}${package_version}-0', this)"
+                            >
+                                Read more
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="info-row">
+                        <span class="info-label">Copyright(s)</span>
+                        <div class="license-value">
+                            <div class="license-copyright">{license_copyright_year} {license_copyright_holder}</div>
+                        </div>
+                    </div>"""
+
+interesting_part = interesting_part.replace(r'''<div class="license-signature">No declared licenses found.</div>''', declared_license_html)
+
+with open(LICENSES_HTML_PATH, "w") as f:
+    f.write(licenses_html[:interesting_part_start] + interesting_part + licenses_html[interesting_part_start+interesting_part_end:])
+
+
+md_text = LICENSES_MD_PATH.read_text()
+
+declared_license_md = f"""{package_declared_license}
+
+```
+{license_text}
+```
+
+**License Header:**
+
+```
+{license_text}
+```"""
+
+md_text = md_text.replace(r'''No declared license found for Pawel/Kartkoweczka''', declared_license_md)
+with open(LICENSES_MD_PATH, "w") as f:
+    f.write(md_text)
