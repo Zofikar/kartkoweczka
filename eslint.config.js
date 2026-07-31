@@ -8,9 +8,11 @@ import { defineConfig, includeIgnoreFile } from 'eslint/config';
 import path from 'path';
 
 const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
+const prettierIgnorePath = path.resolve(import.meta.dirname, '.prettierignore');
 
 export default defineConfig(
 	includeIgnoreFile(gitignorePath),
+	includeIgnoreFile(prettierIgnorePath),
 	js.configs.recommended,
 	ts.configs.recommended,
 	svelte.configs.recommended,

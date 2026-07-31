@@ -1,8 +1,8 @@
-import {isTauri} from "@tauri-apps/api/core";
+import { isTauri } from '@tauri-apps/api/core';
 
 export function isRunningAsPWA() {
-    if (import.meta.env.DEV) return true;
-    if (isTauri()) return true;
+	if (import.meta.env.DEV) return true;
+	if (isTauri()) return true;
 
 	if (typeof window === 'undefined') return false;
 

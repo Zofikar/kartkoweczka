@@ -4,10 +4,7 @@ import * as schema from './schema';
 
 export async function initDb() {
 	const dbName = 'app.db';
-	let client: PGlite;
-
-    client = new PGlite(`idb://${dbName}`);
-	console.log(`Created database client: ${client.dataDir}`);
+	const client = new PGlite(`idb://${dbName}`);
 
 	await client.waitReady;
 	await runMigrations(client);
