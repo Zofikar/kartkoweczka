@@ -17,6 +17,7 @@
 		"@eslint/js": "^10.0.1",
 		"@sctg/vite-plugin-github-pages-spa": "^0.2.0",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
+		"@tauri-apps/cli": "^2.11.4",
 		"@tsconfig/svelte": "^5.0.8",
 		"@types/node": "^24.13.2",
 		"drizzle-kit": "^0.31.10",
@@ -36,6 +37,7 @@
 	"dependencies": {
 		"@electric-sql/pglite": "^0.5.4",
 		"@tauri-apps/api": "^2.11.1",
+		"@tauri-apps/plugin-fs": "^2.5.1",
 		"drizzle-orm": "^0.45.2",
 		"sv-router": "^0.18.0",
 		"uuid": "^14.0.1"

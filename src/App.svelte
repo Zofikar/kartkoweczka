@@ -15,7 +15,7 @@
 		userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 	}
 
-	let isPWA = $state(import.meta.env.DEV || isRunningAsPWA());
+	let isPWA = $state(isRunningAsPWA());
 	let deferredPrompt = $state<BeforeInstallPromptEvent | null>(null);
 	let isLight = $state(false);
 	let sidebarOpen = $state(false);

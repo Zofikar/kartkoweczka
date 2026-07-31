@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { isTauri } from '@tauri-apps/api/core';
+
 	interface Props {
 		copyrightYear?: number;
 		copyrightHolder?: string;
@@ -10,6 +12,20 @@
 		copyrightHolder = 'Pawel Chwalczyk',
 		...restProps
 	}: Props = $props();
+
+    async function handleClick(e: MouseEvent) {
+        if (isTauri()) {
+            e.preventDefault();
+            const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+
+            new WebviewWindow('licenses', {
+                url: `${import.meta.env.BASE_URL}/licenses.html`,
+                title: 'Licencje',
+                width: 800,
+                height: 600,
+            });
+        }
+    }
 </script>
 
 <footer class="primary footer-bar" {...restProps}>
@@ -21,7 +37,8 @@
 		href="{import.meta.env.BASE_URL}/licenses.html"
 		class="footer-link"
 		target="_blank"
-		rel="noopener">Licencje stron trzecich</a
+        onclick={handleClick}
+		rel="noopener">Licencje</a
 	>
 </footer>
 

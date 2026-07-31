@@ -1,20 +1,12 @@
 import { drizzle } from 'drizzle-orm/pglite';
 import { PGlite } from '@electric-sql/pglite';
-import { appDataDir, join } from '@tauri-apps/api/path';
 import * as schema from './schema';
-
-const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 export async function initDb() {
 	const dbName = 'app.db';
 	let client: PGlite;
 
-	if (isTauri) {
-		const baseDir = await appDataDir();
-		client = new PGlite(await join(baseDir, dbName));
-	} else {
-		client = new PGlite(`idb://${dbName}`);
-	}
+    client = new PGlite(`idb://${dbName}`);
 	console.log(`Created database client: ${client.dataDir}`);
 
 	await client.waitReady;
