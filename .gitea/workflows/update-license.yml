@@ -35,7 +35,7 @@ jobs:
           echo "Waiting for Fossa analysis to complete..."
           fossa test
 
-          fossa report attribution --format markdown > THIRD_PARTY_LICENSES.md
+          fossa report attribution --format markdown > LICENSES.md
           fossa report attribution --format html > public/licenses.html
 
           ./.gitea/scripts/inject_declared_license
@@ -52,7 +52,7 @@ jobs:
         if: success()
         id: check-changes
         run: |
-          if [ -z "$(git diff --unified=0 THIRD_PARTY_LICENSES.md | grep -Ev '^(diff|index|\+{3}|\-{3}|@@|[+-][0-9]{2}/[0-9]{2}/[0-9]{2} \| [0-9a-f]{40})')" ]; then
+          if [ -z "$(git diff --unified=0 LICENSES.md | grep -Ev '^(diff|index|\+{3}|\-{3}|@@|[+-][0-9]{2}/[0-9]{2}/[0-9]{2} \| [0-9a-f]{40})')" ]; then
             echo "No license changes detected. Skipping PR creation."
             echo "changes_detected=false" >> $GITHUB_OUTPUT
           else
@@ -70,7 +70,7 @@ jobs:
           BRANCH_NAME="chore/update-licenses-${{ github.run_number }}"
           git checkout -b "$BRANCH_NAME"
 
-          git add THIRD_PARTY_LICENSES.md public/licenses.html
+          git add LICENSES.md public/licenses.html
 
           git commit -m "docs: update third-party license reports [skip ci]"
           git push origin "$BRANCH_NAME"
