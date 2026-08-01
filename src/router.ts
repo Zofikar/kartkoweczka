@@ -1,6 +1,7 @@
 import { createRouter } from 'sv-router';
 import type { Component } from 'svelte';
 import HomePage from './pages/home/page.svelte';
+import QuestionsPage from './pages/questions/page.svelte';
 
 interface PageEntry {
 	id: string;
@@ -11,6 +12,7 @@ interface PageEntry {
 
 export const routes: PageEntry[] = [
 	{ id: 'home', label: 'Strona główna', path: '/', component: HomePage },
+	{ id: 'questions', label: 'Pytania', path: '/questions', component: QuestionsPage },
 ];
 
 const routesMap = routes.reduce(
