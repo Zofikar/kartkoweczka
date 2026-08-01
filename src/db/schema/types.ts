@@ -9,4 +9,7 @@ export interface SnapshotQuestion {
 	type: QuestionType;
 	content: string;
 	answers: SnapshotAnswer[];
+	image?: string | null;
+	imageWidth?: number | null;
+	imageHeight?: number | null;
 }

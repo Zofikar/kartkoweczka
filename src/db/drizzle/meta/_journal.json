@@ -8,6 +8,13 @@
 			"when": 1785446108234,
 			"tag": "0000_lovely_nehzno",
 			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1785513175288,
+			"tag": "0001_amused_proteus",
+			"breakpoints": true
 		}
 	]
 }

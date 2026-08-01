@@ -18,6 +18,9 @@ export const questions = pgTable('questions', {
 	id: uuid('id').primaryKey().$defaultFn(generateId),
 	content: text('content').notNull(),
 	type: text('type').notNull().$type<'choice' | 'true_false'>(),
+	image: text('image'),
+	imageWidth: integer('image_width'),
+	imageHeight: integer('image_height'),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
