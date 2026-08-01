@@ -17,6 +17,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@arnog/colors@npm:^0.5.0":
+  version: 0.5.0
+  resolution: "@arnog/colors@npm:0.5.0"
+  checksum: 10c0/24405b0313b09ac695a2ac97b527c981c4a438b2e25740619e6d813f0ca7aaccfeee04e123c96420e66a6ce8b3d4d9b22b7b108ef187c039cdf3a5d9a728fa99
+  languageName: node
+  linkType: hard
+
 "@babel/code-frame@npm:^7.29.7":
   version: 7.29.7
   resolution: "@babel/code-frame@npm:7.29.7"
@@ -1132,6 +1139,17 @@ __metadata:
     "@babel/helper-string-parser": "npm:^7.29.7"
     "@babel/helper-validator-identifier": "npm:^7.29.7"
   checksum: 10c0/b6623994c69717fa27294f5fa46d59140338e2d86c6c1c13085c84ef7d53086ee357fbf4fe9abe3dd3da75734dc77c4c0df2f90fb29e667558bb3b3fb705e88f
+  languageName: node
+  linkType: hard
+
+"@cortex-js/compute-engine@npm:0.58.0":
+  version: 0.58.0
+  resolution: "@cortex-js/compute-engine@npm:0.58.0"
+  dependencies:
+    "@arnog/colors": "npm:^0.5.0"
+    complex-esm: "npm:^2.1.1-esm1"
+    decimal.js: "npm:^10.6.0"
+  checksum: 10c0/9b699bb9c288be0a6152fb8aa7c6a11c4f55c23b878f777a210caf075ac068e1b028e9cc01547d57cf428e8fa808d40f1cd57d03aecb25ad6d1afe4dab6f4564
   languageName: node
   linkType: hard
 
@@ -2966,10 +2984,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"commander@npm:^8.3.0":
+  version: 8.3.0
+  resolution: "commander@npm:8.3.0"
+  checksum: 10c0/8b043bb8322ea1c39664a1598a95e0495bfe4ca2fad0d84a92d7d1d8d213e2a155b441d2470c8e08de7c4a28cf2bc6e169211c49e1b21d9f7edc6ae4d9356060
+  languageName: node
+  linkType: hard
+
 "common-tags@npm:^1.8.0":
   version: 1.8.2
   resolution: "common-tags@npm:1.8.2"
   checksum: 10c0/23efe47ff0a1a7c91489271b3a1e1d2a171c12ec7f9b35b29b2fce51270124aff0ec890087e2bc2182c1cb746e232ab7561aaafe05f1e7452aea733d2bfe3f63
+  languageName: node
+  linkType: hard
+
+"complex-esm@npm:^2.1.1-esm1":
+  version: 2.1.1-esm1
+  resolution: "complex-esm@npm:2.1.1-esm1"
+  checksum: 10c0/65725286ea8513785333a9d710ee5fafb6e32a24bc12648ba6ba62ab3c8cc380d79d7a8f542159c7fb5134364eb294e5446dd5e6b83aaffdb4dfeb27a227bc89
   languageName: node
   linkType: hard
 
@@ -3058,6 +3090,13 @@ __metadata:
     supports-color:
       optional: true
   checksum: 10c0/d79136ec6c83ecbefd0f6a5593da6a9c91ec4d7ddc4b54c883d6e71ec9accb5f67a1a5e96d00a328196b5b5c86d365e98d8a3a70856aaf16b4e7b1985e67f5a6
+  languageName: node
+  linkType: hard
+
+"decimal.js@npm:^10.6.0":
+  version: 10.6.0
+  resolution: "decimal.js@npm:10.6.0"
+  checksum: 10c0/07d69fbcc54167a340d2d97de95f546f9ff1f69d2b45a02fd7a5292412df3cd9eb7e23065e532a318f5474a2e1bccf8392fdf0443ef467f97f3bf8cb0477e5aa
   languageName: node
   linkType: hard
 
@@ -4661,6 +4700,8 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-plugin-svelte: "npm:^3.22.0"
     globals: "npm:^17.8.0"
+    katex: "npm:^0.18.1"
+    mathlive: "npm:^0.110.0"
     prettier: "npm:^3.9.6"
     prettier-plugin-svelte: "npm:^4.1.1"
     sv-router: "npm:^0.18.0"
@@ -4673,6 +4714,17 @@ __metadata:
     vite-plugin-pwa: "npm:^1.3.0"
   languageName: unknown
   linkType: soft
+
+"katex@npm:^0.18.1":
+  version: 0.18.1
+  resolution: "katex@npm:0.18.1"
+  dependencies:
+    commander: "npm:^8.3.0"
+  bin:
+    katex: cli.js
+  checksum: 10c0/287994eef74096044127f0adde40b284c5dd914e7642212d957da5b62ed8312ace8c87701ddf0cf06ce484aa6ba72f4344376fa3f2d785e5ee65bfa1141f7fc2
+  languageName: node
+  linkType: hard
 
 "keyv@npm:^4.5.4":
   version: 4.5.4
@@ -4886,6 +4938,15 @@ __metadata:
   version: 1.1.0
   resolution: "math-intrinsics@npm:1.1.0"
   checksum: 10c0/7579ff94e899e2f76ab64491d76cf606274c874d8f2af4a442c016bd85688927fcfca157ba6bf74b08e9439dc010b248ce05b96cc7c126a354c3bae7fcb48b7f
+  languageName: node
+  linkType: hard
+
+"mathlive@npm:^0.110.0":
+  version: 0.110.0
+  resolution: "mathlive@npm:0.110.0"
+  dependencies:
+    "@cortex-js/compute-engine": "npm:0.58.0"
+  checksum: 10c0/9e6d6b9fbdb2d7316c179238c68bdbf6d50845934ef52d60e57b1c109a1816e9d89fdc3ebc1b7a32b43d01884ab15648a1b4f249840c5a48167e3c08ceadfd9b
   languageName: node
   linkType: hard
 

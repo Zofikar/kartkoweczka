@@ -11,7 +11,8 @@
 		"preview": "vite preview",
 		"check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
 		"lint": "prettier --check . && eslint .",
-		"format": "prettier --write ."
+		"format": "prettier --write .",
+		"db:generate": "drizzle-kit generate"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
@@ -39,6 +40,8 @@
 		"@tauri-apps/api": "^2.11.1",
 		"@tauri-apps/plugin-fs": "^2.5.1",
 		"drizzle-orm": "^0.45.2",
+		"katex": "^0.18.1",
+		"mathlive": "^0.110.0",
 		"sv-router": "^0.18.0",
 		"uuid": "^14.0.1"
 	}
