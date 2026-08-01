@@ -5,6 +5,7 @@
 		type?: 'text' | 'number' | 'email' | 'password';
 		value?: string;
 		oninput?: (e: Event) => void;
+		onchange?: (e: Event) => void;
 		label?: string;
 		placeholder?: string;
 		disabled?: boolean;
@@ -15,8 +16,9 @@
 
 	let {
 		type = 'text',
-		value = '',
+		value = $bindable(''),
 		oninput,
+		onchange,
 		label,
 		placeholder,
 		disabled = false,
@@ -34,10 +36,11 @@
 		class="input"
 		id={id || inputId}
 		{type}
-		{value}
+		bind:value
 		{placeholder}
 		{disabled}
 		{oninput}
+		{onchange}
 		aria-invalid={!!error}
 		{...restProps}
 	/>

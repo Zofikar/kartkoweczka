@@ -1,3 +1,6 @@
+@import 'mathlive/static.css';
+@import 'mathlive/fonts.css';
+
 :root[data-theme='light'] {
 	--text: #040316;
 	--background: #fbfbfe;
