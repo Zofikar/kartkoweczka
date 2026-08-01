@@ -10,7 +10,7 @@ DECLARED_LICENSE_MD_PATH = REPO_ROOT / "LICENSE"
 PACKAGE_JSON_PATH = REPO_ROOT / "package.json"
 
 LICENSES_HTML_PATH = REPO_ROOT / "public" / "licenses.html"
-LICENSES_MD_PATH = REPO_ROOT / "THIRD_PARTY_LICENSES.md"
+LICENSES_MD_PATH = REPO_ROOT / "LICENSES.md"
 
 licenses_html = LICENSES_HTML_PATH.read_text()
 interesting_part_start = licenses_html.find(r'"report-section">')
@@ -18,7 +18,7 @@ interesting_part_end = licenses_html[interesting_part_start:].find(r'</section>'
 interesting_part = licenses_html[interesting_part_start:interesting_part_start+interesting_part_end]
 
 license_text = DECLARED_LICENSE_MD_PATH.read_text()
-license_copyright_year, license_copyright_holder = re.findall(r'Copyright[^\n]+?(\d{4}(?:\-\d{4})?)[^\n]+?(\w+\s\w+)', license_text)[0]
+license_copyright_year, license_copyright_holder = re.findall(r'Copyright[^\n]+?(\d{4}(?:-\d{4})?)[^\n]+?(\w+\s\w+)', license_text)[0]
 package_json = json.loads(PACKAGE_JSON_PATH.read_text())
 package_declared_license = package_json.get("license", "")
 package_name = package_json.get("name", "")
