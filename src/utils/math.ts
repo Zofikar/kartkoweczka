@@ -1,51 +1,92 @@
 import { convertLatexToMarkup } from 'mathlive';
 
-export function renderLatex(text: string): string {
-	if (!text) return '';
+const MATH_DELIMITER = '$$';
 
-	// If text has no $ delimiters but has LaTeX commands like \sqrt, \frac,
-	// wrap it in inline math delimiters for rendering.
-	if (!/[$]/.test(text) && /\\[a-zA-Z]+/.test(text)) {
-		return `\\(${text}\\)`;
+const AMPERSAND = String.fromCharCode(38);
+
+export function renderDocumentToHtml(content: string | null | undefined): string {
+	if (!content) return '';
+
+	const migrated = migrateToPlainFormat(content);
+
+	if (!migrated.includes(MATH_DELIMITER)) {
+		return convertLatexToMarkup(wrapLatexIfNeeded(escapeHtml(migrated)));
 	}
 
-	// Let MathLive handle all $...$ and $$...$$ and \(...\) and \[...\] patterns
-	return text;
+	const parts: string[] = [];
+	let remaining = migrated;
+
+	while (remaining.length > 0) {
+		const startIdx = remaining.indexOf(MATH_DELIMITER);
+		if (startIdx === -1) {
+			parts.push(escapeHtml(remaining));
+			break;
+		}
+
+		if (startIdx > 0) {
+			parts.push(escapeHtml(remaining.slice(0, startIdx)));
+		}
+
+		const afterStart = remaining.slice(startIdx + MATH_DELIMITER.length);
+		const endIdx = afterStart.indexOf(MATH_DELIMITER);
+		if (endIdx === -1) {
+			parts.push(escapeHtml(remaining.slice(startIdx)));
+			break;
+		}
+
+		const latex = afterStart.slice(0, endIdx).trim();
+		if (latex) {
+			parts.push(convertLatexToMarkup(`\\(${latex}\\)`));
+		}
+
+		remaining = afterStart.slice(endIdx + MATH_DELIMITER.length);
+	}
+
+	return parts.join('');
 }
 
-export function renderLatexToHtml(text: string): string {
-	return convertLatexToMarkup(renderLatex(text));
+function escapeHtml(text: string): string {
+	return text
+		.replace(RegExp(AMPERSAND, 'g'), AMPERSAND + 'amp;')
+		.replace(/</g, AMPERSAND + 'lt;')
+		.replace(/>/g, AMPERSAND + 'gt;')
+		.replace(/"/g, AMPERSAND + 'quot;')
+		.replace(/'/g, AMPERSAND + '#039;');
 }
 
-// ── Rich content segments (text + inline math) ───────────────────────────────
+function wrapLatexIfNeeded(text: string): string {
+	if (!text) return '';
+	if (/[$]/.test(text) || !/\\[a-zA-Z]+/.test(text)) {
+		return text;
+	}
+	return `\\(${text}\\)`;
+}
 
-export interface ContentSegment {
+export function migrateToPlainFormat(content: string | null | undefined): string {
+	const segments = parseToSegments(content);
+	if (segments.length === 0) return '';
+	if (segments.length === 1 && segments[0].type === 'text') {
+		return segments[0].value;
+	}
+	return segments
+		.map((seg) =>
+			seg.type === 'math' ? `${MATH_DELIMITER}${seg.value}${MATH_DELIMITER}` : seg.value
+		)
+		.join('');
+}
+
+interface ContentSegment {
 	type: 'text' | 'math';
 	value: string;
 }
 
-export type RichContent = ContentSegment[];
-
-/**
- * Serialize rich content segments to a JSON string for storage.
- * Returns plain text if there's only one text segment (backwards compat).
- */
-export function serializeRichContent(segments: RichContent): string {
-	// If it's just a single text segment, return the plain text
-	if (segments.length === 1 && segments[0].type === 'text') {
-		return segments[0].value;
-	}
-	return JSON.stringify(segments);
-}
-
-/**
- * Parse a stored content string back into segments.
- * If content is plain text (no JSON array), wrap it as a single text segment.
- */
-export function parseRichContent(content: string | null | undefined): RichContent {
+function parseToSegments(content: string | null | undefined): ContentSegment[] {
 	if (!content) return [];
 
-	// Try JSON parse
+	if (content.includes(MATH_DELIMITER)) {
+		return parseDelimitedSegments(content);
+	}
+
 	if (content.startsWith('[')) {
 		try {
 			const parsed = JSON.parse(content);
@@ -59,60 +100,44 @@ export function parseRichContent(content: string | null | undefined): RichConten
 				);
 			}
 		} catch {
-			// fall through to plain text
+			/* legacy JSON that failed to parse — treat as plain text */
 		}
 	}
 
-	// Plain text content
 	return [{ type: 'text', value: content }];
 }
 
-/**
- * Convert rich content segments to a single LaTeX-compatible string.
- * Text segments pass through, math segments get wrapped in \(...\) delimiters.
- */
-export function richContentToLatex(segments: RichContent): string {
-	return segments
-		.map((seg) => {
-			if (seg.type === 'math') {
-				return `\\(${seg.value}\\)`;
+function parseDelimitedSegments(content: string): ContentSegment[] {
+	const segments: ContentSegment[] = [];
+	let remaining = content;
+
+	while (remaining.length > 0) {
+		const startIdx = remaining.indexOf(MATH_DELIMITER);
+		if (startIdx === -1) {
+			if (remaining.length > 0) {
+				segments.push({ type: 'text', value: remaining });
 			}
-			return seg.value;
-		})
-		.join('');
-}
+			break;
+		}
 
-function escapeHtml(text: string): string {
-	const A = String.fromCharCode(38);
-	return text
-		.replace(RegExp(A, 'g'), A + 'amp;')
-		.replace(/</g, A + 'lt;')
-		.replace(/>/g, A + 'gt;')
-		.replace(/"/g, A + 'quot;')
-		.replace(/'/g, A + '#039;');
-}
+		if (startIdx > 0) {
+			segments.push({ type: 'text', value: remaining.slice(0, startIdx) });
+		}
 
-/**
- * Render rich content segments to HTML for display.
- * Text segments are HTML-escaped, math segments are rendered via convertLatexToMarkup.
- * Handles both legacy plain-text and new rich-content formats.
- */
-export function renderRichContentToHtml(content: string | null | undefined): string {
-	const segments = parseRichContent(content);
+		const afterStart = remaining.slice(startIdx + MATH_DELIMITER.length);
+		const endIdx = afterStart.indexOf(MATH_DELIMITER);
+		if (endIdx === -1) {
+			segments.push({ type: 'text', value: remaining.slice(startIdx) });
+			break;
+		}
 
-	// If it's a single text segment, render it as LaTeX (handles $...$ delimiters in legacy text)
-	if (segments.length === 1 && segments[0].type === 'text') {
-		return renderLatexToHtml(segments[0].value);
+		const latex = afterStart.slice(0, endIdx).trim();
+		if (latex) {
+			segments.push({ type: 'math', value: latex });
+		}
+
+		remaining = afterStart.slice(endIdx + MATH_DELIMITER.length);
 	}
 
-	// For rich content, escape text segments and render math segments.
-	// Join with a space so text and formulas don't run together.
-	return segments
-		.map((seg) => {
-			if (seg.type === 'math') {
-				return convertLatexToMarkup(`\\(${seg.value}\\)`);
-			}
-			return escapeHtml(seg.value);
-		})
-		.join('');
+	return segments;
 }
