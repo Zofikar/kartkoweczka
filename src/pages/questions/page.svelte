@@ -8,30 +8,27 @@
 	import QuestionDisplay from '@/lib/components/QuestionDisplay.svelte';
 	import QuestionEdit from '@/lib/components/QuestionEdit.svelte';
 	import {
-		loadAllQuestionsWithAnswers,
 		createQuestion,
-		updateQuestion,
 		deleteQuestion,
-		type QuestionWithAnswers,
+		loadAllQuestionsWithAnswers,
 		type QuestionEditData,
+		type QuestionWithAnswers,
+		updateQuestion,
 	} from './service';
 
 	let database = $state<Awaited<ReturnType<typeof import('@/db/db').initDb>> | null>(null);
 	let questions = $state<QuestionWithAnswers[]>([]);
 	let loading = $state(true);
 
-	// "editingId": if set, that question card shows QuestionEdit instead of QuestionDisplay.
-	// When editingId is 'new', we show a blank QuestionEdit card at the top for creation.
 	let editingId = $state<string | null>(null);
 
 	onMount(() => {
-		const unsubscribe = db.subscribe(async (d) => {
+		return db.subscribe(async (d) => {
 			if (d && !database) {
 				database = d;
 				await refreshQuestions();
 			}
 		});
-		return unsubscribe;
 	});
 
 	async function refreshQuestions() {

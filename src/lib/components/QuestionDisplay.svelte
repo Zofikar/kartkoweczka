@@ -4,7 +4,7 @@
 	import Divider from '@/lib/ui/Divider.svelte';
 	import Text from '@/lib/ui/Text.svelte';
 	import type { QuestionWithAnswers } from '@/pages/questions/service';
-	import { renderRichContentToHtml } from '@/utils/math';
+	import { renderDocumentToHtml } from '@/utils/math';
 
 	interface Props {
 		question: QuestionWithAnswers;
@@ -14,15 +14,14 @@
 
 	let { question, onedit, ondelete }: Props = $props();
 
-	let renderedContent = $derived(renderRichContentToHtml(question.content));
+	let renderedContent = $derived(renderDocumentToHtml(question.content));
 	let renderedAnswers = $derived(
 		question.answers.map((a) => ({
 			...a,
-			renderedContent: renderRichContentToHtml(a.content),
+			renderedContent: renderDocumentToHtml(a.content),
 		}))
 	);
 
-	// Image style
 	let imageStyle = $derived.by(() => {
 		const style: Record<string, string> = {
 			maxWidth: '100%',

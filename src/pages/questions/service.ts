@@ -3,11 +3,23 @@ import { questions, answers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import type { QuestionType } from '@/db/schema/types';
 
-export type QuestionRow = typeof questions.$inferSelect;
-export type AnswerRow = typeof answers.$inferSelect;
+export interface QuestionWithAnswers {
+	id: string;
+	content: string;
+	type: QuestionType;
+	image: string | null;
+	imageWidth: number | null;
+	imageHeight: number | null;
+	createdAt: Date;
+	updatedAt: Date;
+	answers: AnswerWithId[];
+}
 
-export interface QuestionWithAnswers extends QuestionRow {
-	answers: AnswerRow[];
+interface AnswerWithId {
+	id: string;
+	questionId: string;
+	content: string;
+	isCorrect: boolean;
 }
 
 export interface QuestionEditData {
@@ -22,20 +34,9 @@ export interface QuestionEditData {
 export async function loadAllQuestionsWithAnswers(
 	db: Awaited<ReturnType<typeof initDb>>
 ): Promise<QuestionWithAnswers[]> {
-	const allQuestions = await db.query.questions.findMany({
+	return db.query.questions.findMany({
 		with: { answers: true },
 		orderBy: (q, { desc }) => [desc(q.updatedAt)],
-	});
-	return allQuestions;
-}
-
-export async function getQuestionWithAnswers(
-	db: Awaited<ReturnType<typeof initDb>>,
-	id: string
-): Promise<QuestionWithAnswers | undefined> {
-	return db.query.questions.findFirst({
-		where: eq(questions.id, id),
-		with: { answers: true },
 	});
 }
 

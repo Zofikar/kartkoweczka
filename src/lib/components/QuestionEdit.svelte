@@ -1,5 +1,4 @@
 <script lang="ts">
-	import 'mathlive';
 	import Button from '@/lib/ui/Button.svelte';
 	import Divider from '@/lib/ui/Divider.svelte';
 	import Heading from '@/lib/ui/Heading.svelte';
@@ -8,10 +7,10 @@
 	import type { QuestionEditData, QuestionWithAnswers } from '@/pages/questions/service';
 	import type { QuestionType } from '@/db/schema/types';
 	import ImageUpload from './ImageUpload.svelte';
-	import { type RichContent, parseRichContent, serializeRichContent } from '@/utils/math';
+	import RichMathEditor from './RichMathEditor.svelte';
+	import { migrateToPlainFormat } from '@/utils/math';
 
 	interface Props {
-		/** Pass existing question to edit, or undefined for a new question */
 		question?: QuestionWithAnswers | null;
 		onsave?: (data: QuestionEditData) => void;
 		oncancel?: () => void;
@@ -19,11 +18,8 @@
 
 	let { question = null, onsave, oncancel }: Props = $props();
 
-	// ── editable fields ──────────────────────────────────────────────────────
-
 	interface EditableAnswer {
 		key: string;
-		/** stored content (text or JSON segments) */
 		content: string;
 		isCorrect: boolean;
 	}
@@ -32,7 +28,7 @@
 		return (
 			q?.answers.map((a) => ({
 				key: a.id,
-				content: a.content,
+				content: migrateToPlainFormat(a.content),
 				isCorrect: a.isCorrect,
 			})) ?? []
 		);
@@ -45,156 +41,17 @@
 	let imageWidth = $state<number | null>(null);
 	let imageHeight = $state<number | null>(null);
 
-	// ── contenteditable element refs ──────────────────────────────────────────
+	let contentEditorRef = $state<ReturnType<typeof RichMathEditor> | undefined>();
+	let answerEditorRefs = $state<Record<string, ReturnType<typeof RichMathEditor> | undefined>>({});
 
-	let contentEditor: HTMLElement | undefined = $state();
-	let answerEditorEls: Record<string, HTMLElement | undefined> = $state({});
-
-	// Sync editable state from question prop
 	$effect(() => {
-		content = question?.content ?? '';
+		content = migrateToPlainFormat(question?.content);
 		type = question?.type ?? 'choice';
 		answerList = defaultAnswers(question);
 		image = question?.image ?? null;
 		imageWidth = question?.imageWidth ?? null;
 		imageHeight = question?.imageHeight ?? null;
-
-		// Rebuild contenteditable DOM after next tick
-		queueMicrotask(() => {
-			if (contentEditor) {
-				rebuildContentEditor(contentEditor, content);
-			}
-			for (const [key, el] of Object.entries(answerEditorEls)) {
-				const answer = answerList.find((a) => a.key === key);
-				if (el && answer) {
-					rebuildContentEditor(el, answer.content);
-				}
-			}
-		});
 	});
-
-	// ── contenteditable DOM helpers ───────────────────────────────────────────
-
-	function rebuildContentEditor(container: HTMLElement, storedContent: string) {
-		// Clear existing content
-		while (container.firstChild) {
-			container.removeChild(container.firstChild);
-		}
-
-		const segments = parseRichContent(storedContent);
-		for (const seg of segments) {
-			if (seg.type === 'text') {
-				container.appendChild(document.createTextNode(seg.value));
-			} else {
-				const mf = document.createElement('math-field') as HTMLElement & { value: string };
-				mf.setAttribute('default-mode', 'inline-math');
-				mf.setAttribute('read-only', '');
-				mf.style.display = 'inline-block';
-				mf.style.verticalAlign = 'middle';
-				mf.value = seg.value;
-				container.appendChild(mf);
-				// Add a space after math-field for cursor placement
-				container.appendChild(document.createTextNode('\u00A0'));
-			}
-		}
-	}
-
-	function serializeEditor(container: HTMLElement): RichContent {
-		const segments: RichContent = [];
-		let buffer = '';
-
-		const flush = () => {
-			const cleaned = buffer.replace(/\u00A0/g, ' ');
-			// Only skip truly empty text segments (no characters at all).
-			// Preserve all whitespace so the user's spacing (newlines, spaces)
-			// between text and formulas is retained.
-			if (cleaned.length > 0) {
-				segments.push({ type: 'text', value: cleaned });
-			}
-			buffer = '';
-		};
-
-		container.childNodes.forEach((node) => {
-			if (node.nodeType === Node.TEXT_NODE) {
-				buffer += node.textContent ?? '';
-			} else if (node.nodeName === 'MATH-FIELD') {
-				flush();
-				const mf = node as HTMLElement & { value: string };
-				if (mf.value?.trim()) {
-					segments.push({ type: 'math', value: mf.value });
-				}
-			} else {
-				// For other elements (like <br>), treat as text
-				if (node.nodeName === 'BR') {
-					buffer += '\n';
-				} else {
-					buffer += node.textContent ?? '';
-				}
-			}
-		});
-		flush();
-		return segments;
-	}
-
-	function insertFormula(editorEl: HTMLElement) {
-		editorEl.focus();
-		const sel = window.getSelection();
-		let range = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
-		if (!range || !editorEl.contains(range.commonAncestorContainer)) {
-			range = document.createRange();
-			range.selectNodeContents(editorEl);
-			range.collapse(false);
-		}
-
-		const mf = document.createElement('math-field') as HTMLElement & { value: string };
-		mf.setAttribute('default-mode', 'inline-math');
-		mf.style.display = 'inline-block';
-		mf.style.verticalAlign = 'middle';
-		mf.value = '';
-
-		range.deleteContents();
-		range.insertNode(mf);
-
-		const space = document.createTextNode('\u00A0');
-		mf.after(space);
-
-		// Move cursor after the space
-		range.setStartAfter(space);
-		range.collapse(true);
-		sel?.removeAllRanges();
-		sel?.addRange(range);
-
-		mf.focus();
-	}
-
-	// ── answer management helpers ─────────────────────────────────────────────
-
-	/**
-	 * Serialize an answer editor back to stored content string,
-	 * and update the answerList entry.
-	 */
-	function syncAnswerContent(key: string) {
-		const el = answerEditorEls[key];
-		if (!el) return;
-		const segments = serializeEditor(el);
-		const stored = serializeRichContent(segments);
-		answerList = answerList.map((a) => (a.key === key ? { ...a, content: stored } : a));
-	}
-
-	// ── debounced sync on input ──────────────────────────────────────────────
-
-	function onEditorInput(editorEl: HTMLElement, answerKey?: string) {
-		if (answerKey) {
-			// Update content directly from serialized state
-			syncAnswerContent(answerKey);
-		} else {
-			// Content editor
-			const segments = serializeEditor(editorEl);
-			content = serializeRichContent(segments);
-		}
-	}
-
-	// ── mode‑specific defaults ───────────────────────────────────────────────
 
 	function applyTypeDefaults(newType: QuestionType) {
 		type = newType;
@@ -208,22 +65,18 @@
 		}
 	}
 
-	// ── answer management (CHOICE only) ──────────────────────────────────────
-
 	function addAnswer() {
 		answerList = [...answerList, { key: crypto.randomUUID(), content: '', isCorrect: false }];
 	}
 
 	function removeAnswer(key: string) {
 		answerList = answerList.filter((a) => a.key !== key);
-		delete answerEditorEls[key];
+		delete answerEditorRefs[key];
 	}
 
 	function toggleCorrect(key: string) {
 		answerList = answerList.map((a) => (a.key === key ? { ...a, isCorrect: !a.isCorrect } : a));
 	}
-
-	// ── TRUE/FALSE toggle ────────────────────────────────────────────────────
 
 	function setTrueFalseAnswer(correct: boolean) {
 		answerList = answerList.map((a) => ({
@@ -231,8 +84,6 @@
 			isCorrect: correct ? a.content === 'Prawda' : a.content === 'Fałsz',
 		}));
 	}
-
-	// ── image change handler ─────────────────────────────────────────────────
 
 	function onImageChange(data: {
 		image: string | null;
@@ -244,54 +95,48 @@
 		imageHeight = data.imageHeight;
 	}
 
-	// ── submit ───────────────────────────────────────────────────────────────
-
 	let saving = $state(false);
 	let error = $state('');
 
 	async function handleSave() {
 		error = '';
 
-		// Serialize content editor
-		if (contentEditor) {
-			const segments = serializeEditor(contentEditor);
-			content = serializeRichContent(segments);
-		}
+		const currentContent = contentEditorRef?.getValue() ?? content;
 
-		if (!content.trim()) {
+		if (!currentContent.trim()) {
 			error = 'Treść pytania jest wymagana.';
 			return;
 		}
 
-		// Sync all answer editors
+		let answers: { content: string; isCorrect: boolean }[] = [];
 		for (const answer of answerList) {
-			syncAnswerContent(answer.key);
+			const ref = answerEditorRefs[answer.key];
+			const answerContent = ref?.getValue() ?? answer.content;
+			if (answerContent.trim()) {
+				answers.push({ content: answerContent.trim(), isCorrect: answer.isCorrect });
+			}
 		}
 
-		const filledAnswers = answerList.filter((a) => a.content.trim() !== '');
-		if (filledAnswers.length === 0) {
+		if (answers.length === 0) {
 			error = 'Dodaj co najmniej jedną odpowiedź.';
 			return;
 		}
 
-		if (type === 'choice' && !answerList.some((a) => a.isCorrect)) {
+		if (type === 'choice' && !answers.some((a) => a.isCorrect)) {
 			error = 'Zaznacz co najmniej jedną poprawną odpowiedź.';
 			return;
 		}
 
-		if (type === 'true_false' && !answerList.some((a) => a.isCorrect)) {
+		if (type === 'true_false' && !answers.some((a) => a.isCorrect)) {
 			error = 'Wskaż, która odpowiedź jest poprawna.';
 			return;
 		}
 
 		saving = true;
 		onsave?.({
-			content: content.trim(),
+			content: currentContent.trim(),
 			type,
-			answers: filledAnswers.map((a) => ({
-				content: a.content.trim(),
-				isCorrect: a.isCorrect,
-			})),
+			answers,
 			image,
 			imageWidth,
 			imageHeight,
@@ -302,38 +147,16 @@
 <article class="question-edit">
 	<Heading level={4}>{question ? 'Edytuj pytanie' : 'Nowe pytanie'}</Heading>
 
-	<!-- Content editor -->
 	<div class="edit-field">
 		<label class="field-label" for="q-content">Treść pytania</label>
-		<div class="rich-editor-wrapper">
-			<div
-				id="q-content"
-				class="rich-editor"
-				contenteditable="true"
-				bind:this={contentEditor}
-				oninput={() => contentEditor && onEditorInput(contentEditor)}
-				onkeydown={(e) => {
-					if (e.key === 'Enter' && !e.shiftKey) {
-						e.preventDefault();
-					}
-				}}
-				role="textbox"
-				aria-multiline="true"
-				aria-label="Treść pytania"
-				tabindex="0"
-			></div>
-			<button
-				type="button"
-				class="insert-formula-btn"
-				onclick={() => contentEditor && insertFormula(contentEditor)}
-				title="Wstaw wzór matematyczny"
-			>
-				∑
-			</button>
-		</div>
+		<RichMathEditor
+			bind:this={contentEditorRef}
+			bind:value={content}
+			id="q-content"
+			aria-label="Treść pytania"
+		/>
 	</div>
 
-	<!-- Image upload -->
 	<div class="edit-field">
 		<span class="field-label">Obraz</span>
 		<ImageUpload bind:image bind:imageWidth bind:imageHeight onchange={onImageChange} />
@@ -402,37 +225,12 @@
 							<span class="check-label">Poprawna</span>
 						</label>
 						<div class="answer-input-wrapper">
-							<div class="rich-editor-wrapper rich-editor-wrapper--answer">
-								<div
-									class="rich-editor rich-editor--answer"
-									contenteditable="true"
-									bind:this={answerEditorEls[answer.key]}
-									oninput={() => {
-										const el = answerEditorEls[answer.key];
-										if (el) onEditorInput(el, answer.key);
-									}}
-									onkeydown={(e) => {
-										if (e.key === 'Enter' && !e.shiftKey) {
-											e.preventDefault();
-										}
-									}}
-									role="textbox"
-									aria-multiline="true"
-									aria-label="Treść odpowiedzi"
-									tabindex="0"
-								></div>
-								<button
-									type="button"
-									class="insert-formula-btn insert-formula-btn--sm"
-									onclick={() => {
-										const el = answerEditorEls[answer.key];
-										if (el) insertFormula(el);
-									}}
-									title="Wstaw wzór matematyczny"
-								>
-									∑
-								</button>
-							</div>
+							<RichMathEditor
+								bind:this={answerEditorRefs[answer.key]}
+								bind:value={answer.content}
+								size="sm"
+								aria-label="Treść odpowiedzi"
+							/>
 						</div>
 						<IconButton
 							ariaLabel="Usuń odpowiedź"
@@ -480,86 +278,6 @@
 		font-size: var(--font-sm);
 		font-weight: var(--font-medium);
 		color: var(--text);
-	}
-
-	/* Rich editor wrapper (contenteditable + insert button) */
-	.rich-editor-wrapper {
-		display: flex;
-		gap: var(--space-1);
-		align-items: flex-start;
-	}
-
-	.rich-editor-wrapper--answer {
-		width: 100%;
-	}
-
-	.rich-editor {
-		flex: 1;
-		min-height: 44px;
-		padding: var(--space-2) var(--space-3);
-		font-family: var(--font-sans);
-		font-size: var(--font-base);
-		color: var(--text);
-		background-color: var(--background);
-		border: 2px solid var(--background-muted);
-		border-radius: var(--radius-md);
-		outline: none;
-		line-height: 1.6;
-		overflow-wrap: break-word;
-		white-space: pre-wrap;
-	}
-
-	.rich-editor:focus {
-		border-color: var(--primary);
-	}
-
-	.rich-editor--answer {
-		min-height: 38px;
-		font-size: var(--font-base);
-		padding: var(--space-1) var(--space-2);
-	}
-
-	/* Inline math-fields inside the editor */
-	.rich-editor :global(math-field) {
-		display: inline-block;
-		vertical-align: middle;
-		margin: 0 2px;
-		border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
-		border-radius: var(--radius-sm);
-		padding: 1px 4px;
-		background: color-mix(in srgb, var(--primary) 8%, var(--background));
-		font-size: var(--font-base);
-	}
-
-	.insert-formula-btn {
-		flex-shrink: 0;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 36px;
-		height: 44px;
-		border: 2px solid var(--background-muted);
-		border-radius: var(--radius-md);
-		background: var(--background);
-		color: var(--text-muted);
-		font-size: var(--font-lg);
-		font-family: var(--font-sans);
-		cursor: pointer;
-		transition: all 150ms ease;
-		padding: 0;
-		line-height: 1;
-	}
-
-	.insert-formula-btn:hover {
-		border-color: var(--primary);
-		color: var(--primary);
-		background: color-mix(in srgb, var(--primary) 5%, var(--background));
-	}
-
-	.insert-formula-btn--sm {
-		width: 30px;
-		height: 38px;
-		font-size: var(--font-base);
 	}
 
 	.mode-switch {
