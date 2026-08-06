@@ -34,7 +34,7 @@ export function computeMaxImageLines(
 	imageNaturalWidth: number,
 	imageNaturalHeight: number,
 	placement: 'over' | 'left' | 'right',
-	answersCount: number,
+	answersCount: number
 ): number {
 	if (imageNaturalWidth <= 0 || imageNaturalHeight <= 0) {
 		return placement === 'over' ? OVER_PLACEMENT_MAX_LINES : Math.max(4, answersCount);

@@ -7,10 +7,12 @@
 	import type { MathfieldElement } from 'mathlive';
 	import { convertLatexToMarkup } from 'mathlive';
 	import type { Blot } from 'parchment';
+	import Button from '@/lib/ui/Button.svelte';
+	import IconButton from '@/lib/ui/IconButton.svelte';
 
 	interface Props {
 		value?: string;
-		size?: 'normal' | 'sm';
+		size?: 'sm' | 'md' | 'lg';
 		class?: string;
 		onchange?: (value: string) => void;
 		id?: string;
@@ -19,7 +21,7 @@
 
 	let {
 		value = $bindable(''),
-		size = 'normal',
+		size = 'md',
 		class: className = '',
 		onchange,
 		id,
@@ -251,12 +253,15 @@
 			tabindex="0"
 		></div>
 	</div>
-	<button
-		type="button"
-		class="insert-formula-btn insert-formula-btn--{size}"
+	<IconButton
+		variant="outline"
+		{size}
+		ariaLabel="Wstaw wzór matematyczny"
 		onclick={openPopoverForNew}
-		title="Wstaw wzór matematyczny">∑</button
+		title="Wstaw wzór matematyczny"
 	>
+		∑
+	</IconButton>
 
 	{#if showPopover}
 		<div class="math-popover" role="dialog" aria-label="Edytor wzoru matematycznego">
@@ -271,12 +276,8 @@
 				default-mode="inline-math"
 			></math-field>
 			<div class="math-popover-actions">
-				<button type="button" class="popover-btn popover-btn--cancel" onclick={cancelPopover}
-					>Anuluj</button
-				>
-				<button type="button" class="popover-btn popover-btn--confirm" onclick={confirmPopover}
-					>Wstaw wzór</button
-				>
+				<Button variant="ghost" size="sm" onclick={cancelPopover}>Anuluj</Button>
+				<Button variant="primary" size="sm" onclick={confirmPopover}>Wstaw wzór</Button>
 			</div>
 		</div>
 	{/if}
@@ -291,13 +292,12 @@
 	}
 	.rich-editor {
 		flex: 1;
-		min-height: 44px;
+		min-width: 0;
 		font-family: var(--font-sans);
-		font-size: var(--font-base);
 		color: var(--text);
 		background-color: var(--background);
-		border: 2px solid var(--background-muted);
-		border-radius: var(--radius-md);
+		border: var(--control-border-w) solid var(--background-muted);
+		border-radius: var(--control-radius);
 		outline: none;
 		transition: border-color 150ms ease;
 	}
@@ -305,22 +305,34 @@
 		border-color: var(--primary);
 	}
 	.rich-editor--sm {
-		min-height: 38px;
+		min-height: var(--control-h-sm);
+		font-size: var(--control-font-sm);
+	}
+	.rich-editor--md {
+		min-height: var(--control-h-md);
+		font-size: var(--control-font-md);
+	}
+	.rich-editor--lg {
+		min-height: var(--control-h-lg);
+		font-size: var(--control-font-lg);
 	}
 	.quill-container {
 		min-height: inherit;
 	}
 	.rich-editor :global(.ql-editor) {
-		padding: var(--space-2) var(--space-3);
-		line-height: 1.6;
+		padding: var(--space-2) var(--control-px-md);
+		line-height: 1.5;
 		font-family: var(--font-sans);
-		font-size: var(--font-base);
+		font-size: inherit;
 		color: var(--text);
 	}
 	.rich-editor--sm :global(.ql-editor) {
-		padding: var(--space-1) var(--space-2);
-		font-size: var(--font-base);
+		padding: var(--space-1) var(--control-px-sm);
 	}
+	.rich-editor--lg :global(.ql-editor) {
+		padding: var(--space-3) var(--control-px-lg);
+	}
+
 	.rich-editor :global(.ql-editor).ql-blank::before {
 		font-style: normal;
 		color: var(--text-muted);
@@ -345,35 +357,6 @@
 	}
 	:global(.ql-math-chip):hover {
 		background: color-mix(in srgb, var(--primary) 15%, var(--background));
-	}
-
-	.insert-formula-btn {
-		flex-shrink: 0;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 36px;
-		height: 44px;
-		border: 2px solid var(--background-muted);
-		border-radius: var(--radius-md);
-		background: var(--background);
-		color: var(--text-muted);
-		font-size: var(--font-lg);
-		font-family: var(--font-sans);
-		cursor: pointer;
-		transition: all 150ms ease;
-		padding: 0;
-		line-height: 1;
-	}
-	.insert-formula-btn:hover {
-		border-color: var(--primary);
-		color: var(--primary);
-		background: color-mix(in srgb, var(--primary) 5%, var(--background));
-	}
-	.insert-formula-btn--sm {
-		width: 30px;
-		height: 38px;
-		font-size: var(--font-base);
 	}
 
 	.math-popover {
@@ -401,30 +384,5 @@
 		display: flex;
 		justify-content: flex-end;
 		gap: var(--space-2);
-	}
-	.popover-btn {
-		padding: var(--space-1) var(--space-3);
-		border-radius: var(--radius-sm);
-		font-family: var(--font-sans);
-		font-size: var(--font-sm);
-		font-weight: var(--font-medium);
-		cursor: pointer;
-		border: none;
-		transition: all 150ms ease;
-	}
-	.popover-btn--cancel {
-		background: var(--background-muted);
-		color: var(--text-muted);
-	}
-	.popover-btn--cancel:hover {
-		background: var(--background-muted);
-		color: var(--text);
-	}
-	.popover-btn--confirm {
-		background: var(--primary);
-		color: var(--primary-text);
-	}
-	.popover-btn--confirm:hover {
-		opacity: 0.9;
 	}
 </style>

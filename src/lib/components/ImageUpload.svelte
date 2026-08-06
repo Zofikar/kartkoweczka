@@ -39,19 +39,12 @@
 	 * natural dimensions, current placement, and answer count.
 	 */
 	let maxLines = $derived(
-		computeMaxImageLines(
-			naturalWidth,
-			naturalHeight,
-			effectivePlacement,
-			answersCount,
-		),
+		computeMaxImageLines(naturalWidth, naturalHeight, effectivePlacement, answersCount)
 	);
 
 	/** Clamp stored imageHeight so the slider never exceeds the computed max. */
 	let clampedHeight = $derived(
-		imageHeight != null
-			? Math.max(0, Math.min(imageHeight, maxLines))
-			: 0,
+		imageHeight != null ? Math.max(0, Math.min(imageHeight, maxLines)) : 0
 	);
 
 	function notify() {
@@ -141,37 +134,38 @@
 				</label>
 				<fieldset class="placement-fieldset">
 					<legend class="control-label-text">Położenie obrazu</legend>
-					<div class="placement-options" role="radiogroup" aria-label="Położenie obrazu względem odpowiedzi">
-						<label class="placement-option" class:placement-option--active={imagePlacement === 'over' || !imagePlacement}>
-							<input
-								type="radio"
-								name="image-placement"
-								value="over"
-								checked={imagePlacement === 'over' || !imagePlacement}
-								onchange={() => onPlacementChange('over')}
-							/>
-							<span>Nad</span>
-						</label>
-						<label class="placement-option" class:placement-option--active={imagePlacement === 'left'}>
-							<input
-								type="radio"
-								name="image-placement"
-								value="left"
-								checked={imagePlacement === 'left'}
-								onchange={() => onPlacementChange('left')}
-							/>
-							<span>Lewo</span>
-						</label>
-						<label class="placement-option" class:placement-option--active={imagePlacement === 'right'}>
-							<input
-								type="radio"
-								name="image-placement"
-								value="right"
-								checked={imagePlacement === 'right'}
-								onchange={() => onPlacementChange('right')}
-							/>
-							<span>Prawo</span>
-						</label>
+					<div
+						class="placement-options"
+						role="radiogroup"
+						aria-label="Położenie obrazu względem odpowiedzi"
+					>
+						<Button
+							variant={imagePlacement === 'over' || !imagePlacement ? 'primary' : 'ghost'}
+							size="sm"
+							role="radio"
+							aria-checked={imagePlacement === 'over' || !imagePlacement}
+							onclick={() => onPlacementChange('over')}
+						>
+							Nad
+						</Button>
+						<Button
+							variant={imagePlacement === 'left' ? 'primary' : 'ghost'}
+							size="sm"
+							role="radio"
+							aria-checked={imagePlacement === 'left'}
+							onclick={() => onPlacementChange('left')}
+						>
+							Lewo
+						</Button>
+						<Button
+							variant={imagePlacement === 'right' ? 'primary' : 'ghost'}
+							size="sm"
+							role="radio"
+							aria-checked={imagePlacement === 'right'}
+							onclick={() => onPlacementChange('right')}
+						>
+							Prawo
+						</Button>
 					</div>
 				</fieldset>
 				<div class="image-actions">
@@ -257,34 +251,8 @@
 
 	.placement-options {
 		display: flex;
-		gap: 0;
-		border-radius: var(--radius-md);
-		overflow: hidden;
-		border: 2px solid var(--background-muted);
-		align-self: flex-start;
-	}
-
-	.placement-option {
-		padding: var(--space-1) var(--space-2);
-		font-family: var(--font-sans);
-		font-size: var(--font-xs);
-		font-weight: var(--font-medium);
-		background: var(--background);
-		color: var(--text-muted);
-		cursor: pointer;
-		transition: all 150ms ease;
-		display: flex;
-		align-items: center;
 		gap: var(--space-1);
-	}
-
-	.placement-option input[type='radio'] {
-		display: none;
-	}
-
-	.placement-option--active {
-		background: var(--primary);
-		color: var(--primary-text);
+		align-self: flex-start;
 	}
 
 	.image-actions {
