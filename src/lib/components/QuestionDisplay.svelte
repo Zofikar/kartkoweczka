@@ -22,8 +22,6 @@
 		}))
 	);
 
-	let placement = $derived(question.imagePlacement ?? 'over');
-
 	let imageStyle = $derived.by(() => {
 		const style: Record<string, string> = {
 			maxWidth: '100%',
@@ -40,11 +38,11 @@
 	});
 </script>
 
-<article class="question-display" class:question-display--side={placement === 'left' || placement === 'right'}>
+<article class="question-display">
 	<header class="question-header">
 		<div class="question-meta">
 			<Badge variant={question.type === 'choice' ? 'primary' : 'accent'}>
-				{question.type === 'choice' ? 'Wielokrotny wybór' : 'Prawda / Fałsz'}
+				{question.type === 'choice' ? 'Jednokrotny wybór' : 'Prawda / Fałsz'}
 			</Badge>
 		</div>
 		<div class="question-actions">
@@ -53,24 +51,18 @@
 		</div>
 	</header>
 
-	<div class="question-body" class:question-body--side={placement === 'left' || placement === 'right'}>
-		{#if question.image && placement === 'left'}
-			<div class="question-image-wrapper question-image-wrapper--side">
-				<img class="question-image" src={question.image} alt="Obraz do pytania" style={imageStyle} />
-			</div>
-		{/if}
-
+	<div class="question-body">
 		<div class="question-text-section">
-			{#if question.image && placement === 'over'}
-				<div class="question-image-wrapper">
-					<img class="question-image" src={question.image} alt="Obraz do pytania" style={imageStyle} />
-				</div>
-			{/if}
-
 			<div class="question-content">
 				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 				{@html renderedContent}
 			</div>
+
+			{#if question.image}
+				<div class="question-image-wrapper">
+					<img class="question-image" src={question.image} alt="Obraz do pytania" style={imageStyle} />
+				</div>
+			{/if}
 
 			<Divider />
 
@@ -96,12 +88,6 @@
 				<Text variant="muted">Brak odpowiedzi dla tego pytania.</Text>
 			{/if}
 		</div>
-
-		{#if question.image && placement === 'right'}
-			<div class="question-image-wrapper question-image-wrapper--side">
-				<img class="question-image" src={question.image} alt="Obraz do pytania" style={imageStyle} />
-			</div>
-		{/if}
 	</div>
 </article>
 
@@ -137,12 +123,6 @@
 		gap: var(--space-3);
 	}
 
-	.question-body--side {
-		flex-direction: row;
-		align-items: flex-start;
-		gap: var(--space-4);
-	}
-
 	.question-text-section {
 		flex: 1;
 		display: flex;
@@ -154,11 +134,6 @@
 	.question-image-wrapper {
 		display: flex;
 		justify-content: flex-start;
-	}
-
-	.question-image-wrapper--side {
-		flex-shrink: 0;
-		max-width: 40%;
 	}
 
 	.question-image {

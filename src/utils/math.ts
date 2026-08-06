@@ -10,7 +10,10 @@ export function renderDocumentToHtml(content: string | null | undefined): string
 	const migrated = migrateToPlainFormat(content);
 
 	if (!migrated.includes(MATH_DELIMITER)) {
-		return convertLatexToMarkup(wrapLatexIfNeeded(escapeHtml(migrated)));
+		if (/\\[a-zA-Z]+/.test(migrated)) {
+			return convertLatexToMarkup(wrapLatexIfNeeded(escapeHtml(migrated)));
+		}
+		return escapeHtml(migrated);
 	}
 
 	const parts: string[] = [];

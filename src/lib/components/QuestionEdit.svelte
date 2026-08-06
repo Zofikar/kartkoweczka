@@ -74,8 +74,8 @@
 		delete answerEditorRefs[key];
 	}
 
-	function toggleCorrect(key: string) {
-		answerList = answerList.map((a) => (a.key === key ? { ...a, isCorrect: !a.isCorrect } : a));
+	function setCorrect(key: string) {
+		answerList = answerList.map((a) => ({ ...a, isCorrect: a.key === key }));
 	}
 
 	function setTrueFalseAnswer(correct: boolean) {
@@ -123,7 +123,7 @@
 		}
 
 		if (type === 'choice' && !answers.some((a) => a.isCorrect)) {
-			error = 'Zaznacz co najmniej jedną poprawną odpowiedź.';
+			error = 'Wskaż poprawną odpowiedź.';
 			return;
 		}
 
@@ -172,7 +172,7 @@
 				aria-checked={type === 'choice'}
 				onclick={() => applyTypeDefaults('choice')}
 			>
-				Wielokrotny wybór
+				Jednokrotny wybór
 			</button>
 			<button
 				class="mode-btn"
@@ -218,9 +218,10 @@
 					<li class="answer-edit-row">
 						<label class="correct-check">
 							<input
-								type="checkbox"
+								type="radio"
+								name="correct-answer"
 								checked={answer.isCorrect}
-								onchange={() => toggleCorrect(answer.key)}
+								onchange={() => setCorrect(answer.key)}
 							/>
 							<span class="check-label">Poprawna</span>
 						</label>
@@ -336,7 +337,7 @@
 		padding-top: var(--space-2);
 	}
 
-	.correct-check input[type='checkbox'] {
+	.correct-check input[type='radio'] {
 		width: 16px;
 		height: 16px;
 		cursor: pointer;
