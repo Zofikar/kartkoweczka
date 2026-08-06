@@ -34,11 +34,12 @@
 
 <style>
 	.icon-button {
+		box-sizing: border-box;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		border: 2px solid transparent;
-		border-radius: var(--radius-md);
+		border: var(--control-border-w) solid transparent;
+		border-radius: var(--control-radius);
 		font-family: var(--font-sans);
 		cursor: pointer;
 		transition: all 150ms ease;
@@ -51,19 +52,20 @@
 		outline-offset: 2px;
 	}
 
+	/* Square — width matches the unified control height */
 	.icon-button--sm {
-		width: 32px;
-		height: 32px;
-		font-size: var(--font-base);
+		width: var(--control-h-sm);
+		height: var(--control-h-sm);
+		font-size: var(--control-font-md);
 	}
 	.icon-button--md {
-		width: 40px;
-		height: 40px;
-		font-size: var(--font-lg);
+		width: var(--control-h-md);
+		height: var(--control-h-md);
+		font-size: var(--control-font-lg);
 	}
 	.icon-button--lg {
-		width: 48px;
-		height: 48px;
+		width: var(--control-h-lg);
+		height: var(--control-h-lg);
 		font-size: var(--font-xl);
 	}
 

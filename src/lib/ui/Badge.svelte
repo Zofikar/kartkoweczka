@@ -3,14 +3,15 @@
 
 	interface Props {
 		variant?: 'primary' | 'secondary' | 'accent';
+		size?: 'sm' | 'md';
 		children?: Snippet;
 		[k: string]: unknown;
 	}
 
-	let { variant = 'primary', children, ...restProps }: Props = $props();
+	let { variant = 'primary', size = 'md', children, ...restProps }: Props = $props();
 </script>
 
-<span class="badge badge--{variant}" {...restProps}>
+<span class="badge badge--{variant} badge--{size}" {...restProps}>
 	{@render children?.()}
 </span>
 
@@ -18,12 +19,21 @@
 	.badge {
 		display: inline-flex;
 		align-items: center;
+		gap: var(--space-1);
 		font-family: var(--font-sans);
-		font-size: var(--font-xs);
 		font-weight: var(--font-medium);
-		padding: var(--space-1) var(--space-2);
 		border-radius: var(--radius-full);
-		line-height: 1;
+		line-height: 1.4;
+	}
+
+	.badge--sm {
+		font-size: var(--font-xs);
+		padding: 2px var(--space-2);
+	}
+
+	.badge--md {
+		font-size: var(--font-sm);
+		padding: var(--space-1) var(--space-3);
 	}
 
 	.badge--primary {

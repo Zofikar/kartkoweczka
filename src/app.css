@@ -75,6 +75,22 @@
 
 	/* ---- Font Stack ---- */
 	--font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif, serif;
+
+	/* ---- Control Size Scale (unified heights for buttons, inputs, selects, etc.) ---- */
+	--control-h-sm: 32px;
+	--control-h-md: 40px;
+	--control-h-lg: 48px;
+
+	--control-px-sm: var(--space-3);
+	--control-px-md: var(--space-4);
+	--control-px-lg: var(--space-6);
+
+	--control-font-sm: var(--font-sm);
+	--control-font-md: var(--font-base);
+	--control-font-lg: var(--font-lg);
+
+	--control-border-w: 2px;
+	--control-radius: var(--radius-md);
 }
 
 body {

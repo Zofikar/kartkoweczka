@@ -1,9 +1,12 @@
 <script lang="ts">
+	import Field from './Field.svelte';
+
 	let inputId = $state(crypto.randomUUID());
 
 	interface Props {
 		type?: 'text' | 'number' | 'email' | 'password';
 		value?: string;
+		size?: 'sm' | 'md' | 'lg';
 		oninput?: (e: Event) => void;
 		onchange?: (e: Event) => void;
 		label?: string;
@@ -17,6 +20,7 @@
 	let {
 		type = 'text',
 		value = $bindable(''),
+		size = 'md',
 		oninput,
 		onchange,
 		label,
@@ -28,12 +32,10 @@
 	}: Props = $props();
 </script>
 
-<div class="input-group" class:input-group--error={!!error}>
-	{#if label}
-		<label class="input-label" for={id || inputId}>{label}</label>
-	{/if}
+<Field {label} {error} forId={id || inputId}>
 	<input
-		class="input"
+		class="input input--{size}"
+		class:input--error={!!error}
 		id={id || inputId}
 		{type}
 		bind:value
@@ -44,36 +46,38 @@
 		aria-invalid={!!error}
 		{...restProps}
 	/>
-	{#if error}
-		<span class="input-error">{error}</span>
-	{/if}
-</div>
+</Field>
 
 <style>
-	.input-group {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-1);
-	}
-
-	.input-label {
-		font-family: var(--font-sans);
-		font-size: var(--font-sm);
-		font-weight: var(--font-medium);
-		color: var(--text);
-	}
-
 	.input {
+		box-sizing: border-box;
+		width: 100%;
 		font-family: var(--font-sans);
-		font-size: var(--font-base);
-		padding: var(--space-2) var(--space-3);
 		background-color: var(--background);
 		color: var(--text);
-		border: 2px solid var(--background-muted);
-		border-radius: var(--radius-md);
+		border: var(--control-border-w) solid var(--background-muted);
+		border-radius: var(--control-radius);
 		transition: border-color 150ms ease;
 		outline: none;
-		line-height: 1.5;
+		line-height: 1;
+	}
+
+	.input--sm {
+		height: var(--control-h-sm);
+		padding: 0 var(--control-px-sm);
+		font-size: var(--control-font-sm);
+	}
+
+	.input--md {
+		height: var(--control-h-md);
+		padding: 0 var(--control-px-md);
+		font-size: var(--control-font-md);
+	}
+
+	.input--lg {
+		height: var(--control-h-lg);
+		padding: 0 var(--control-px-lg);
+		font-size: var(--control-font-lg);
 	}
 
 	.input::placeholder {
@@ -89,13 +93,7 @@
 		cursor: not-allowed;
 	}
 
-	.input-group--error .input {
+	.input--error {
 		border-color: var(--accent);
-	}
-
-	.input-error {
-		font-family: var(--font-sans);
-		font-size: var(--font-sm);
-		color: var(--accent);
 	}
 </style>

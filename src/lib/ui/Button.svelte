@@ -28,18 +28,20 @@
 
 <style>
 	.button {
+		box-sizing: border-box;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 		gap: var(--space-2);
-		border: 2px solid transparent;
-		border-radius: var(--radius-md);
+		border: var(--control-border-w) solid transparent;
+		border-radius: var(--control-radius);
 		font-family: var(--font-sans);
 		font-weight: var(--font-medium);
 		cursor: pointer;
 		transition: all 150ms ease;
 		text-decoration: none;
 		line-height: 1;
+		white-space: nowrap;
 	}
 
 	.button:focus-visible {
@@ -47,18 +49,21 @@
 		outline-offset: 2px;
 	}
 
-	/* Sizes */
+	/* Sizes — fixed heights keep every control aligned */
 	.button--sm {
-		padding: var(--space-1) var(--space-3);
-		font-size: var(--font-sm);
+		height: var(--control-h-sm);
+		padding: 0 var(--control-px-sm);
+		font-size: var(--control-font-sm);
 	}
 	.button--md {
-		padding: var(--space-2) var(--space-4);
-		font-size: var(--font-base);
+		height: var(--control-h-md);
+		padding: 0 var(--control-px-md);
+		font-size: var(--control-font-md);
 	}
 	.button--lg {
-		padding: var(--space-3) var(--space-6);
-		font-size: var(--font-lg);
+		height: var(--control-h-lg);
+		padding: 0 var(--control-px-lg);
+		font-size: var(--control-font-lg);
 	}
 
 	/* Variants */
