@@ -8,7 +8,12 @@
 	import type { QuestionType, ImagePlacement } from '@/db/schema/types';
 	import ImageUpload from './ImageUpload.svelte';
 	import RichMathEditor from './RichMathEditor.svelte';
+	import TagSelect from './TagSelect.svelte';
+	import Modal from '@/lib/ui/Modal.svelte';
 	import { migrateToPlainFormat } from '@/utils/math';
+	import { loadAllTags } from '@/pages/questions/service';
+	import { db } from '@/db/dbStore';
+	import { onMount } from 'svelte';
 
 	interface Props {
 		question?: QuestionWithAnswers | null;
@@ -41,17 +46,110 @@
 	let imageHeight = $state<number | null>(null);
 	let imagePlacement = $state<ImagePlacement | null>(null);
 
+	let originalContent = $state('');
+	let originalType = $state<QuestionType>('choice');
+	let originalAnswerList = $state<EditableAnswer[]>([]);
+	let originalImage = $state<string | null>(null);
+	let originalImageHeight = $state<number | null>(null);
+	let originalImagePlacement = $state<ImagePlacement | null>(null);
+
 	let contentEditorRef = $state<ReturnType<typeof RichMathEditor> | undefined>();
 	let answerEditorRefs = $state<Record<string, ReturnType<typeof RichMathEditor> | undefined>>({});
 
-	$effect(() => {
-		content = migrateToPlainFormat(question?.content);
-		type = question?.type ?? 'choice';
-		answerList = defaultAnswers(question);
-		image = question?.image ?? null;
-		imageHeight = question?.imageHeight ?? null;
-		imagePlacement = question?.imagePlacement ?? null;
+	let selectedTags = $state<string[]>([]);
+	let originalSelectedTags = $state<string[]>([]);
+	let allTags = $state<string[]>([]);
+	let tagsLoaded = $state(false);
+
+	onMount(() => {
+		return db.subscribe(async (d) => {
+			if (d && !tagsLoaded) {
+				allTags = await loadAllTags(d);
+				tagsLoaded = true;
+			}
+		});
 	});
+
+	$effect(() => {
+		const c = migrateToPlainFormat(question?.content);
+		const t = question?.type ?? 'choice';
+		const a = defaultAnswers(question);
+		const img = question?.image ?? null;
+		const imgH = question?.imageHeight ?? null;
+		const imgP = question?.imagePlacement ?? null;
+		const tags = question?.tags ?? [];
+
+		content = c;
+		type = t;
+		answerList = a;
+		image = img;
+		imageHeight = imgH;
+		imagePlacement = imgP;
+		selectedTags = [...tags];
+
+		originalContent = c;
+		originalType = t;
+		originalAnswerList = a.map((a) => ({ ...a }));
+		originalImage = img;
+		originalImageHeight = imgH;
+		originalImagePlacement = imgP;
+		originalSelectedTags = [...tags];
+	});
+
+	function answersEqual(a: EditableAnswer[], b: EditableAnswer[]): boolean {
+		if (a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) {
+			if (a[i].key !== b[i].key) return false;
+			if (a[i].content !== b[i].content) return false;
+			if (a[i].isCorrect !== b[i].isCorrect) return false;
+		}
+		return true;
+	}
+
+	function tagsEqual(a: string[], b: string[]): boolean {
+		if (a.length !== b.length) return false;
+		const sortedA = [...a].sort();
+		const sortedB = [...b].sort();
+		for (let i = 0; i < sortedA.length; i++) {
+			if (sortedA[i] !== sortedB[i]) return false;
+		}
+		return true;
+	}
+
+	let isDirty = $derived(
+		content !== originalContent ||
+			type !== originalType ||
+			!answersEqual(answerList, originalAnswerList) ||
+			image !== originalImage ||
+			imageHeight !== originalImageHeight ||
+			imagePlacement !== originalImagePlacement ||
+			!tagsEqual(selectedTags, originalSelectedTags)
+	);
+
+	let answersDirty = $derived(!answersEqual(answerList, originalAnswerList));
+
+	let pendingTypeChange = $state<QuestionType | null>(null);
+	let showCancelConfirm = $state(false);
+
+	function requestTypeChange(newType: QuestionType) {
+		if (newType === type) return;
+		if (answersDirty) {
+			pendingTypeChange = newType;
+		} else {
+			applyTypeDefaults(newType);
+		}
+	}
+
+	function confirmTypeChange() {
+		if (pendingTypeChange) {
+			applyTypeDefaults(pendingTypeChange);
+			pendingTypeChange = null;
+		}
+	}
+
+	function cancelTypeChange() {
+		pendingTypeChange = null;
+	}
 
 	function applyTypeDefaults(newType: QuestionType) {
 		type = newType;
@@ -63,6 +161,23 @@
 		} else if (answerList.length === 0) {
 			answerList = [];
 		}
+	}
+
+	function requestCancel() {
+		if (isDirty) {
+			showCancelConfirm = true;
+		} else {
+			oncancel?.();
+		}
+	}
+
+	function confirmCancel() {
+		showCancelConfirm = false;
+		oncancel?.();
+	}
+
+	function dismissCancel() {
+		showCancelConfirm = false;
 	}
 
 	function addAnswer() {
@@ -140,6 +255,7 @@
 			image,
 			imageHeight,
 			imagePlacement: imagePlacement ?? undefined,
+			tags: selectedTags,
 		});
 	}
 </script>
@@ -159,30 +275,36 @@
 
 	<div class="edit-field">
 		<span class="field-label">Obraz</span>
-		<ImageUpload bind:image bind:imageHeight bind:imagePlacement answersCount={answerList.length} onchange={onImageChange} />
+		<ImageUpload
+			bind:image
+			bind:imageHeight
+			bind:imagePlacement
+			answersCount={answerList.length}
+			onchange={onImageChange}
+		/>
 	</div>
 
 	<div class="edit-field">
 		<span class="field-label" id="mode-label">Typ pytania</span>
 		<div class="mode-switch" role="radiogroup" aria-labelledby="mode-label">
-			<button
-				class="mode-btn"
-				class:mode-btn--active={type === 'choice'}
+			<Button
+				variant={type === 'choice' ? 'primary' : 'ghost'}
+				size="sm"
 				role="radio"
 				aria-checked={type === 'choice'}
-				onclick={() => applyTypeDefaults('choice')}
+				onclick={() => requestTypeChange('choice')}
 			>
 				Jednokrotny wybór
-			</button>
-			<button
-				class="mode-btn"
-				class:mode-btn--active={type === 'true_false'}
+			</Button>
+			<Button
+				variant={type === 'true_false' ? 'primary' : 'ghost'}
+				size="sm"
 				role="radio"
 				aria-checked={type === 'true_false'}
-				onclick={() => applyTypeDefaults('true_false')}
+				onclick={() => requestTypeChange('true_false')}
 			>
 				Prawda / Fałsz
-			</button>
+			</Button>
 		</div>
 	</div>
 
@@ -249,17 +371,44 @@
 		{/if}
 	</div>
 
+	<div class="edit-field">
+		<TagSelect
+			label="Tagi"
+			selected={selectedTags}
+			{allTags}
+			onselect={(tags) => (selectedTags = tags)}
+		/>
+	</div>
+
 	{#if error}
 		<span class="edit-error">{error}</span>
 	{/if}
 
 	<div class="edit-actions">
-		<Button variant="ghost" onclick={oncancel}>Anuluj</Button>
+		<Button variant="ghost" onclick={requestCancel}>Anuluj</Button>
 		<Button variant="primary" onclick={handleSave} disabled={saving}>
 			{saving ? 'Zapisywanie...' : question ? 'Zapisz zmiany' : 'Utwórz pytanie'}
 		</Button>
 	</div>
 </article>
+
+<Modal open={pendingTypeChange !== null} onclose={cancelTypeChange} title="Zmiana typu pytania">
+	<p class="confirm-text">
+		Zmiana typu pytania spowoduje utratę wprowadzonych odpowiedzi. Czy na pewno chcesz kontynuować?
+	</p>
+	{#snippet footer()}
+		<Button variant="ghost" onclick={cancelTypeChange}>Anuluj</Button>
+		<Button variant="accent" onclick={confirmTypeChange}>Zmień typ</Button>
+	{/snippet}
+</Modal>
+
+<Modal open={showCancelConfirm} onclose={dismissCancel} title="Niezapisane zmiany">
+	<p class="confirm-text">Masz niezapisane zmiany. Czy na pewno chcesz anulować edycję?</p>
+	{#snippet footer()}
+		<Button variant="ghost" onclick={dismissCancel}>Wróć do edycji</Button>
+		<Button variant="accent" onclick={confirmCancel}>Anuluj edycję</Button>
+	{/snippet}
+</Modal>
 
 <style>
 	.question-edit {
@@ -283,28 +432,8 @@
 
 	.mode-switch {
 		display: flex;
-		gap: 0;
-		border-radius: var(--radius-md);
-		overflow: hidden;
-		border: 2px solid var(--background-muted);
+		gap: var(--space-1);
 		width: fit-content;
-	}
-
-	.mode-btn {
-		padding: var(--space-1) var(--space-3);
-		font-family: var(--font-sans);
-		font-size: var(--font-sm);
-		font-weight: var(--font-medium);
-		border: none;
-		background: var(--background);
-		color: var(--text-muted);
-		cursor: pointer;
-		transition: all 150ms ease;
-	}
-
-	.mode-btn--active {
-		background: var(--primary);
-		color: var(--primary-text);
 	}
 
 	.answers-section {
@@ -401,5 +530,13 @@
 		font-family: var(--font-sans);
 		font-size: var(--font-sm);
 		color: var(--accent);
+	}
+
+	.confirm-text {
+		font-family: var(--font-sans);
+		font-size: var(--font-base);
+		color: var(--text);
+		line-height: 1.5;
+		margin: 0;
 	}
 </style>

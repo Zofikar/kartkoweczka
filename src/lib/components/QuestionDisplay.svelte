@@ -10,9 +10,10 @@
 		question: QuestionWithAnswers;
 		onedit?: () => void;
 		ondelete?: () => void;
+		disableEdit?: boolean;
 	}
 
-	let { question, onedit, ondelete }: Props = $props();
+	let { question, onedit, ondelete, disableEdit = false }: Props = $props();
 
 	let renderedContent = $derived(renderDocumentToHtml(question.content));
 	let renderedAnswers = $derived(
@@ -46,7 +47,7 @@
 			</Badge>
 		</div>
 		<div class="question-actions">
-			<Button variant="outline" size="sm" onclick={onedit}>Edytuj</Button>
+			<Button variant="outline" size="sm" onclick={onedit} disabled={disableEdit}>Edytuj</Button>
 			<Button variant="accent" size="sm" onclick={ondelete}>Usuń</Button>
 		</div>
 	</header>
@@ -60,7 +61,12 @@
 
 			{#if question.image}
 				<div class="question-image-wrapper">
-					<img class="question-image" src={question.image} alt="Obraz do pytania" style={imageStyle} />
+					<img
+						class="question-image"
+						src={question.image}
+						alt="Obraz do pytania"
+						style={imageStyle}
+					/>
 				</div>
 			{/if}
 
@@ -86,6 +92,14 @@
 
 			{#if question.answers.length === 0}
 				<Text variant="muted">Brak odpowiedzi dla tego pytania.</Text>
+			{/if}
+
+			{#if question.tags && question.tags.length > 0}
+				<div class="tags-row">
+					{#each question.tags as tag (tag)}
+						<Badge variant="secondary" size="sm">{tag}</Badge>
+					{/each}
+				</div>
 			{/if}
 		</div>
 	</div>
@@ -201,5 +215,12 @@
 		color: var(--text);
 		line-height: 1.5;
 		white-space: pre-wrap;
+	}
+
+	.tags-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1);
+		margin-top: var(--space-1);
 	}
 </style>
