@@ -5,7 +5,7 @@
 	import IconButton from '@/lib/ui/IconButton.svelte';
 	import Text from '@/lib/ui/Text.svelte';
 	import type { QuestionEditData, QuestionWithAnswers } from '@/pages/questions/service';
-	import type { QuestionType } from '@/db/schema/types';
+	import type { QuestionType, ImagePlacement } from '@/db/schema/types';
 	import ImageUpload from './ImageUpload.svelte';
 	import RichMathEditor from './RichMathEditor.svelte';
 	import { migrateToPlainFormat } from '@/utils/math';
@@ -38,8 +38,8 @@
 	let type = $state<QuestionType>('choice');
 	let answerList = $state<EditableAnswer[]>([]);
 	let image = $state<string | null>(null);
-	let imageWidth = $state<number | null>(null);
 	let imageHeight = $state<number | null>(null);
+	let imagePlacement = $state<ImagePlacement | null>(null);
 
 	let contentEditorRef = $state<ReturnType<typeof RichMathEditor> | undefined>();
 	let answerEditorRefs = $state<Record<string, ReturnType<typeof RichMathEditor> | undefined>>({});
@@ -49,8 +49,8 @@
 		type = question?.type ?? 'choice';
 		answerList = defaultAnswers(question);
 		image = question?.image ?? null;
-		imageWidth = question?.imageWidth ?? null;
 		imageHeight = question?.imageHeight ?? null;
+		imagePlacement = question?.imagePlacement ?? null;
 	});
 
 	function applyTypeDefaults(newType: QuestionType) {
@@ -87,12 +87,12 @@
 
 	function onImageChange(data: {
 		image: string | null;
-		imageWidth: number | null;
 		imageHeight: number | null;
+		imagePlacement: ImagePlacement | null;
 	}) {
 		image = data.image;
-		imageWidth = data.imageWidth;
 		imageHeight = data.imageHeight;
+		imagePlacement = data.imagePlacement;
 	}
 
 	let saving = $state(false);
@@ -138,8 +138,8 @@
 			type,
 			answers,
 			image,
-			imageWidth,
 			imageHeight,
+			imagePlacement: imagePlacement ?? undefined,
 		});
 	}
 </script>
@@ -159,7 +159,7 @@
 
 	<div class="edit-field">
 		<span class="field-label">Obraz</span>
-		<ImageUpload bind:image bind:imageWidth bind:imageHeight onchange={onImageChange} />
+		<ImageUpload bind:image bind:imageHeight bind:imagePlacement answersCount={answerList.length} onchange={onImageChange} />
 	</div>
 
 	<div class="edit-field">

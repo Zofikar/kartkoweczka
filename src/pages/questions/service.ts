@@ -1,15 +1,15 @@
 import type { initDb } from '@/db/db';
 import { questions, answers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import type { QuestionType } from '@/db/schema/types';
+import type { QuestionType, ImagePlacement } from '@/db/schema/types';
 
 export interface QuestionWithAnswers {
 	id: string;
 	content: string;
 	type: QuestionType;
 	image: string | null;
-	imageWidth: number | null;
 	imageHeight: number | null;
+	imagePlacement: ImagePlacement;
 	createdAt: Date;
 	updatedAt: Date;
 	answers: AnswerWithId[];
@@ -27,8 +27,8 @@ export interface QuestionEditData {
 	type: QuestionType;
 	answers: { id?: string; content: string; isCorrect: boolean }[];
 	image?: string | null;
-	imageWidth?: number | null;
 	imageHeight?: number | null;
+	imagePlacement?: ImagePlacement;
 }
 
 export async function loadAllQuestionsWithAnswers(
@@ -50,8 +50,8 @@ export async function createQuestion(
 			content: data.content,
 			type: data.type,
 			image: data.image,
-			imageWidth: data.imageWidth,
 			imageHeight: data.imageHeight,
+			imagePlacement: data.imagePlacement ?? 'over',
 		})
 		.returning({ id: questions.id });
 
@@ -79,8 +79,8 @@ export async function updateQuestion(
 			content: data.content,
 			type: data.type,
 			image: data.image ?? null,
-			imageWidth: data.imageWidth ?? null,
 			imageHeight: data.imageHeight ?? null,
+			imagePlacement: data.imagePlacement ?? 'over',
 			updatedAt: new Date(),
 		})
 		.where(eq(questions.id, id));

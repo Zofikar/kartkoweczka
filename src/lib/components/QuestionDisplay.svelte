@@ -22,21 +22,25 @@
 		}))
 	);
 
+	let placement = $derived(question.imagePlacement ?? 'over');
+
 	let imageStyle = $derived.by(() => {
 		const style: Record<string, string> = {
 			maxWidth: '100%',
 			borderRadius: 'var(--radius-md)',
 			border: '1px solid var(--background-muted)',
+			objectFit: 'contain',
 		};
-		if (question.imageWidth) style.width = `${question.imageWidth}px`;
-		if (question.imageHeight) style.height = `${question.imageHeight}px`;
+		if (question.imageHeight) {
+			style.height = `${question.imageHeight}em`;
+		}
 		return Object.entries(style)
 			.map(([k, v]) => `${k.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${v}`)
 			.join('; ');
 	});
 </script>
 
-<article class="question-display">
+<article class="question-display" class:question-display--side={placement === 'left' || placement === 'right'}>
 	<header class="question-header">
 		<div class="question-meta">
 			<Badge variant={question.type === 'choice' ? 'primary' : 'accent'}>
@@ -49,40 +53,56 @@
 		</div>
 	</header>
 
-	{#if question.image}
-		<div class="question-image-wrapper">
-			<img class="question-image" src={question.image} alt="Obraz do pytania" style={imageStyle} />
+	<div class="question-body" class:question-body--side={placement === 'left' || placement === 'right'}>
+		{#if question.image && placement === 'left'}
+			<div class="question-image-wrapper question-image-wrapper--side">
+				<img class="question-image" src={question.image} alt="Obraz do pytania" style={imageStyle} />
+			</div>
+		{/if}
+
+		<div class="question-text-section">
+			{#if question.image && placement === 'over'}
+				<div class="question-image-wrapper">
+					<img class="question-image" src={question.image} alt="Obraz do pytania" style={imageStyle} />
+				</div>
+			{/if}
+
+			<div class="question-content">
+				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+				{@html renderedContent}
+			</div>
+
+			<Divider />
+
+			<ul class="answers-list">
+				{#each renderedAnswers as answer (answer.id)}
+					<li class="answer-item" class:answer-item--correct={answer.isCorrect}>
+						<span class="answer-indicator">
+							{#if answer.isCorrect}
+								✓
+							{:else}
+								✗
+							{/if}
+						</span>
+						<span class="answer-content">
+							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+							{@html answer.renderedContent}
+						</span>
+					</li>
+				{/each}
+			</ul>
+
+			{#if question.answers.length === 0}
+				<Text variant="muted">Brak odpowiedzi dla tego pytania.</Text>
+			{/if}
 		</div>
-	{/if}
 
-	<div class="question-content">
-		<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-		{@html renderedContent}
+		{#if question.image && placement === 'right'}
+			<div class="question-image-wrapper question-image-wrapper--side">
+				<img class="question-image" src={question.image} alt="Obraz do pytania" style={imageStyle} />
+			</div>
+		{/if}
 	</div>
-
-	<Divider />
-
-	<ul class="answers-list">
-		{#each renderedAnswers as answer (answer.id)}
-			<li class="answer-item" class:answer-item--correct={answer.isCorrect}>
-				<span class="answer-indicator">
-					{#if answer.isCorrect}
-						✓
-					{:else}
-						✗
-					{/if}
-				</span>
-				<span class="answer-content">
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-					{@html answer.renderedContent}
-				</span>
-			</li>
-		{/each}
-	</ul>
-
-	{#if question.answers.length === 0}
-		<Text variant="muted">Brak odpowiedzi dla tego pytania.</Text>
-	{/if}
 </article>
 
 <style>
@@ -111,14 +131,38 @@
 		gap: var(--space-2);
 	}
 
+	.question-body {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+
+	.question-body--side {
+		flex-direction: row;
+		align-items: flex-start;
+		gap: var(--space-4);
+	}
+
+	.question-text-section {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		min-width: 0;
+	}
+
 	.question-image-wrapper {
 		display: flex;
 		justify-content: flex-start;
 	}
 
+	.question-image-wrapper--side {
+		flex-shrink: 0;
+		max-width: 40%;
+	}
+
 	.question-image {
 		display: block;
-		object-fit: contain;
 	}
 
 	.question-content {

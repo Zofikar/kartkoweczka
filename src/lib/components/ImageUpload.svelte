@@ -1,29 +1,61 @@
 <script lang="ts">
 	import Button from '@/lib/ui/Button.svelte';
-	import Input from '@/lib/ui/Input.svelte';
+	import type { ImagePlacement } from '@/db/schema/types';
+	import { computeMaxImageLines } from '@/utils/paper';
 
 	interface Props {
 		image?: string | null;
-		imageWidth?: number | null;
 		imageHeight?: number | null;
+		imagePlacement?: ImagePlacement | null;
+		answersCount?: number;
 		onchange?: (data: {
 			image: string | null;
-			imageWidth: number | null;
 			imageHeight: number | null;
+			imagePlacement: ImagePlacement | null;
 		}) => void;
 	}
 
 	let {
 		image = $bindable(null),
-		imageWidth = $bindable(null),
 		imageHeight = $bindable(null),
+		imagePlacement = $bindable(null),
+		answersCount = 0,
 		onchange,
 	}: Props = $props();
 
 	let fileInputEl: HTMLInputElement | undefined = $state();
 
+	/** Natural (intrinsic) dimensions of the uploaded image in pixels. */
+	let naturalWidth = $state(0);
+	let naturalHeight = $state(0);
+
+	const DEFAULT_LINES = 4;
+
+	/** Effective placement used for bound computation (defaults to 'over'). */
+	let effectivePlacement: 'over' | 'left' | 'right' = $derived(imagePlacement ?? 'over');
+
+	/**
+	 * Maximum image height in lines, computed dynamically from the image's
+	 * natural dimensions, current placement, and answer count.
+	 */
+	let maxLines = $derived(
+		computeMaxImageLines(
+			naturalWidth,
+			naturalHeight,
+			effectivePlacement,
+			answersCount,
+		),
+	);
+
+	/** Clamp stored imageHeight so the slider never exceeds the computed max. */
+	let clampedHeight = $derived(
+		imageHeight != null
+			? Math.max(0, Math.min(imageHeight, maxLines))
+			: 0,
+	);
+
 	function notify() {
-		onchange?.({ image, imageWidth, imageHeight });
+		onchange?.({ image, imageHeight, imagePlacement });
 	}
 
 	function handleFileSelected(e: Event) {
@@ -33,31 +65,42 @@
 
 		const reader = new FileReader();
 		reader.onload = () => {
-			image = reader.result as string;
+			const dataUrl = reader.result as string;
+			// Read natural dimensions from the loaded image.
+			const img = new Image();
+			img.onload = () => {
+				naturalWidth = img.naturalWidth;
+				naturalHeight = img.naturalHeight;
+			};
+			img.src = dataUrl;
+
+			image = dataUrl;
+			imageHeight = DEFAULT_LINES;
 			notify();
 		};
 		reader.readAsDataURL(file);
 
-		// Reset so re-selecting same file triggers change
 		input.value = '';
 	}
 
 	function removeImage() {
 		image = null;
-		imageWidth = null;
 		imageHeight = null;
+		imagePlacement = null;
+		naturalWidth = 0;
+		naturalHeight = 0;
 		notify();
 	}
 
-	function onWidthChange(e: Event) {
+	function onHeightLinesChange(e: Event) {
 		const val = (e.target as HTMLInputElement).value;
-		imageWidth = val ? Number(val) : null;
+		const lines = Number(val);
+		imageHeight = lines > 0 ? lines : null;
 		notify();
 	}
 
-	function onHeightChange(e: Event) {
-		const val = (e.target as HTMLInputElement).value;
-		imageHeight = val ? Number(val) : null;
+	function onPlacementChange(value: ImagePlacement) {
+		imagePlacement = value;
 		notify();
 	}
 
@@ -76,31 +119,65 @@
 	/>
 
 	{#if image}
-		<div class="image-preview-section">
+		<div class="image-preview-layout">
 			<img class="image-preview" src={image} alt="Podgląd obrazu" />
-			<div class="image-size-controls">
-				<label class="size-label">
-					Szer. (px)
-					<Input
-						type="number"
-						value={imageWidth?.toString() ?? ''}
-						oninput={onWidthChange}
-						placeholder="auto"
+			<div class="image-controls">
+				<label class="control-label">
+					<span class="control-label-text">
+						Wysokość obrazu: {clampedHeight} linii
+					</span>
+					<input
+						type="range"
+						min="0"
+						max={maxLines}
+						step="1"
+						value={clampedHeight}
+						oninput={onHeightLinesChange}
+						class="height-slider"
 					/>
+					<span class="control-hint">
+						0 &ndash; {maxLines} linii (domyślnie {DEFAULT_LINES})
+					</span>
 				</label>
-				<label class="size-label">
-					Wys. (px)
-					<Input
-						type="number"
-						value={imageHeight?.toString() ?? ''}
-						oninput={onHeightChange}
-						placeholder="auto"
-					/>
-				</label>
-			</div>
-			<div class="image-actions">
-				<Button variant="outline" size="sm" onclick={triggerFilePicker}>Zmień obraz</Button>
-				<Button variant="accent" size="sm" onclick={removeImage}>Usuń obraz</Button>
+				<fieldset class="placement-fieldset">
+					<legend class="control-label-text">Położenie obrazu</legend>
+					<div class="placement-options" role="radiogroup" aria-label="Położenie obrazu względem odpowiedzi">
+						<label class="placement-option" class:placement-option--active={imagePlacement === 'over' || !imagePlacement}>
+							<input
+								type="radio"
+								name="image-placement"
+								value="over"
+								checked={imagePlacement === 'over' || !imagePlacement}
+								onchange={() => onPlacementChange('over')}
+							/>
+							<span>Nad</span>
+						</label>
+						<label class="placement-option" class:placement-option--active={imagePlacement === 'left'}>
+							<input
+								type="radio"
+								name="image-placement"
+								value="left"
+								checked={imagePlacement === 'left'}
+								onchange={() => onPlacementChange('left')}
+							/>
+							<span>Lewo</span>
+						</label>
+						<label class="placement-option" class:placement-option--active={imagePlacement === 'right'}>
+							<input
+								type="radio"
+								name="image-placement"
+								value="right"
+								checked={imagePlacement === 'right'}
+								onchange={() => onPlacementChange('right')}
+							/>
+							<span>Prawo</span>
+						</label>
+					</div>
+				</fieldset>
+				<div class="image-actions">
+					<Button variant="outline" size="sm" onclick={triggerFilePicker}>Zmień obraz</Button>
+					<Button variant="accent" size="sm" onclick={removeImage}>Usuń obraz</Button>
+				</div>
 			</div>
 		</div>
 	{:else}
@@ -119,10 +196,11 @@
 		display: none;
 	}
 
-	.image-preview-section {
+	.image-preview-layout {
 		display: flex;
-		flex-direction: column;
-		gap: var(--space-3);
+		flex-wrap: wrap;
+		gap: var(--space-4);
+		align-items: flex-start;
 	}
 
 	.image-preview {
@@ -132,28 +210,102 @@
 		border-radius: var(--radius-md);
 		border: 1px solid var(--background-muted);
 		background: var(--background);
-		align-self: flex-start;
+		flex-shrink: 0;
 	}
 
-	.image-size-controls {
+	.image-controls {
 		display: flex;
+		flex-direction: column;
 		gap: var(--space-3);
-		flex-wrap: wrap;
+		min-width: 200px;
+		flex: 1;
 	}
 
-	.size-label {
+	.control-label {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
+	}
+
+	.control-label-text {
 		font-family: var(--font-sans);
 		font-size: var(--font-sm);
 		font-weight: var(--font-medium);
 		color: var(--text);
-		max-width: 120px;
+	}
+
+	.control-hint {
+		font-family: var(--font-sans);
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+	}
+
+	.height-slider {
+		width: 100%;
+		accent-color: var(--primary);
+		cursor: pointer;
+	}
+
+	.placement-fieldset {
+		border: none;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+
+	.placement-options {
+		display: flex;
+		gap: 0;
+		border-radius: var(--radius-md);
+		overflow: hidden;
+		border: 2px solid var(--background-muted);
+		align-self: flex-start;
+	}
+
+	.placement-option {
+		padding: var(--space-1) var(--space-2);
+		font-family: var(--font-sans);
+		font-size: var(--font-xs);
+		font-weight: var(--font-medium);
+		background: var(--background);
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: all 150ms ease;
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+	}
+
+	.placement-option input[type='radio'] {
+		display: none;
+	}
+
+	.placement-option--active {
+		background: var(--primary);
+		color: var(--primary-text);
 	}
 
 	.image-actions {
 		display: flex;
 		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
+
+	/* Narrow screens: stack image and controls vertically */
+	@media (max-width: 480px) {
+		.image-preview-layout {
+			flex-direction: column;
+		}
+
+		.image-preview {
+			max-width: 100%;
+		}
+
+		.image-controls {
+			min-width: 0;
+			width: 100%;
+		}
 	}
 </style>

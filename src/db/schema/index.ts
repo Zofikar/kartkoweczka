@@ -1,6 +1,7 @@
 import { pgTable, uuid, text, boolean, integer, timestamp } from 'drizzle-orm/pg-core';
 import { v7 as uuidv7 } from 'uuid';
 import { snapshotJsonb } from './custom-types';
+import type { ImagePlacement } from './types';
 
 function generateId(): string {
 	return uuidv7();
@@ -19,8 +20,8 @@ export const questions = pgTable('questions', {
 	content: text('content').notNull(),
 	type: text('type').notNull().$type<'choice' | 'true_false'>(),
 	image: text('image'),
-	imageWidth: integer('image_width'),
 	imageHeight: integer('image_height'),
+	imagePlacement: text('image_placement').notNull().default('over').$type<ImagePlacement>(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
