@@ -7,6 +7,7 @@
 	import Footer from './lib/components/Footer.svelte';
 	import Sidebar from './lib/components/Sidebar.svelte';
 	import LockScreen from './lib/components/LockScreen.svelte';
+	import Snackbar from './lib/ui/Snackbar.svelte';
 	import { routes } from './router';
 	import { initializeDatabase } from '@/db/dbStore';
 
@@ -79,3 +80,4 @@
 	</main>
 </div>
 <Footer />
+<Snackbar />

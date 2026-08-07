@@ -6,7 +6,7 @@
 	--background: #fbfbfe;
 	--primary: #32045d;
 	--primary-text: var(--background);
-	--secondary: #232069;
+	--secondary: #1f5c7a;
 	--secondary-text: var(--background);
 	--accent: #e0fa38;
 	--accent-text: var(--text);
@@ -17,7 +17,7 @@
 	--background: #010104;
 	--primary: #32045d;
 	--primary-text: var(--text);
-	--secondary: #9896df;
+	--secondary: #98c6dd;
 	--secondary-text: var(--background);
 	--accent: #0600c2;
 	--accent-text: var(--text);
@@ -28,6 +28,15 @@
 	--primary-muted: color-mix(in srgb, var(--primary), var(--muted) 20%);
 	--secondary-muted: color-mix(in srgb, var(--secondary), var(--muted) 20%);
 	--accent-muted: color-mix(in srgb, var(--accent), var(--muted) 20%);
+
+	--success: #22c55e;
+	--success-text: #010104;
+	--info: #3b82f6;
+	--info-text: #fbfbfe;
+	--warning: #f59e0b;
+	--warning-text: #010104;
+	--error: #ef4444;
+	--error-text: #fbfbfe;
 
 	--linearPrimarySecondary: linear-gradient(var(--primary), var(--secondary));
 	--linearPrimaryAccent: linear-gradient(var(--primary), var(--accent));
