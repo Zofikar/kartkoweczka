@@ -4,7 +4,7 @@
 
 	interface Props {
 		selected: string[];
-		allTags: string[];
+		allTags: readonly string[];
 		size?: 'sm' | 'md' | 'lg';
 		label?: string;
 		onselect?: (tags: string[]) => void;

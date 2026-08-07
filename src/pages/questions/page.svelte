@@ -9,20 +9,24 @@
 	import QuestionDisplay from '@/lib/components/QuestionDisplay.svelte';
 	import QuestionEdit from '@/lib/components/QuestionEdit.svelte';
 	import TagSelect from '@/lib/components/TagSelect.svelte';
+	import Modal from '@/lib/ui/Modal.svelte';
 	import {
 		createQuestion,
 		deleteQuestion,
 		loadAllQuestionsWithAnswers,
-		loadAllTags,
 		loadFilteredQuestionsWithAnswers,
+		loadQuestionById,
 		type QuestionEditData,
 		type QuestionFilters,
 		type QuestionWithAnswers,
 		updateQuestion,
 	} from './service';
 	import type { QuestionType } from '@/db/schema/types';
+	import type { Database } from '@/db/db';
+	import { snackError, snackSuccess } from '@/lib/stores/snackbar.svelte';
+	import { getTags, initTags, refreshTags } from '@/lib/stores/tags.svelte';
 
-	let database = $state<Awaited<ReturnType<typeof import('@/db/db').initDb>> | null>(null);
+	let database = $state<Database | null>(null);
 	let questions = $state<QuestionWithAnswers[]>([]);
 	let loading = $state(true);
 
@@ -33,18 +37,36 @@
 	let filterType = $state<QuestionType | null>(null);
 	let filterTags = $state<string[]>([]);
 	let filterTagMode = $state<'any' | 'all'>('any');
-	let allTags = $state<string[]>([]);
-
 	let hasActiveFilters = $derived(filterType !== null || filterTags.length > 0);
+	let allTags = $derived(getTags());
+
+	let deleteConfirmId = $state<string | null>(null);
+
+	// Pinned question: the one currently being edited, always visible regardless of filters
+	let pinnedQuestion = $state<QuestionWithAnswers | null>(null);
+
+	// Display list: filtered questions + pinned question if not already present
+	let displayQuestions = $derived(
+		(() => {
+			if (!pinnedQuestion) return questions;
+			const alreadyInList = questions.some((q) => pinnedQuestion && q.id === pinnedQuestion.id);
+			if (alreadyInList) return questions;
+			return [pinnedQuestion, ...questions];
+		})()
+	);
 
 	onMount(() => {
-		return db.subscribe(async (d) => {
+		const unsubTags = initTags();
+		const unsubDb = db.subscribe(async (d) => {
 			if (d && !database) {
 				database = d;
-				allTags = await loadAllTags(d);
 				await refreshQuestions();
 			}
 		});
+		return () => {
+			unsubTags();
+			unsubDb();
+		};
 	});
 
 	async function refreshQuestions() {
@@ -73,40 +95,73 @@
 		refreshQuestions();
 	}
 
-	function startEdit(id: string) {
+	async function startEdit(id: string) {
 		editingId = id;
+		// Pin the question being edited so it stays visible even if filters would hide it
+		const alreadyInList = questions.find((q) => q.id === id);
+		if (alreadyInList) {
+			pinnedQuestion = alreadyInList;
+		} else if (database) {
+			pinnedQuestion = await loadQuestionById(database, id);
+		}
 	}
 
 	function startNew() {
 		editingId = 'new';
+		pinnedQuestion = null;
 	}
 
 	function cancelEdit() {
 		editingId = null;
+		pinnedQuestion = null;
 	}
 
 	async function handleSave(data: QuestionEditData) {
 		if (!database) return;
 
-		if (editingId === 'new') {
-			await createQuestion(database, data);
-			allTags = await loadAllTags(database);
+		try {
+			if (editingId === 'new') {
+				await createQuestion(database, data);
+				snackSuccess('Pytanie utworzone');
+			} else if (editingId) {
+				await updateQuestion(database, editingId, data);
+				snackSuccess('Pytanie zaktualizowane');
+			}
+			await refreshTags(database);
+			pinnedQuestion = null;
 			await refreshQuestions();
 			editingId = null;
-		} else if (editingId) {
-			await updateQuestion(database, editingId, data);
-			allTags = await loadAllTags(database);
-			await refreshQuestions();
-			editingId = null;
+		} catch (err) {
+			snackError('Nie udało się zapisać pytania');
+			console.error('Failed to save question:', err);
 		}
 	}
 
-	async function handleDelete(id: string) {
-		if (!database) return;
-		await deleteQuestion(database, id);
-		if (editingId === id) editingId = null;
-		allTags = await loadAllTags(database);
-		await refreshQuestions();
+	function requestDelete(id: string) {
+		deleteConfirmId = id;
+	}
+
+	async function confirmDelete() {
+		if (!database || !deleteConfirmId) return;
+		const id = deleteConfirmId;
+		deleteConfirmId = null;
+		try {
+			await deleteQuestion(database, id);
+			if (editingId === id) {
+				editingId = null;
+				pinnedQuestion = null;
+			}
+			await refreshTags(database);
+			await refreshQuestions();
+			snackSuccess('Pytanie usunięte');
+		} catch (err) {
+			snackError('Nie udało się usunąć pytania');
+			console.error('Failed to delete question:', err);
+		}
+	}
+
+	function cancelDelete() {
+		deleteConfirmId = null;
 	}
 </script>
 
@@ -164,12 +219,12 @@
 	{:else}
 		<div class="questions-list">
 			{#if editingId === 'new'}
-				<Card padding="lg">
+				<Card padding="lg" active>
 					<QuestionEdit onsave={handleSave} oncancel={cancelEdit} />
 				</Card>
 			{/if}
 
-			{#if questions.length === 0 && editingId !== 'new'}
+			{#if displayQuestions.length === 0 && editingId !== 'new'}
 				<Card padding="lg">
 					<Text variant="muted">
 						{hasActiveFilters
@@ -179,15 +234,16 @@
 				</Card>
 			{/if}
 
-			{#each questions as question (question.id)}
-				<Card padding="lg">
-					{#if editingId === question.id}
+			{#each displayQuestions as question (question.id)}
+				{@const isEdited = editingId === question.id}
+				<Card padding="lg" active={isEdited}>
+					{#if isEdited}
 						<QuestionEdit {question} onsave={handleSave} oncancel={cancelEdit} />
 					{:else}
 						<QuestionDisplay
 							{question}
 							onedit={() => startEdit(question.id)}
-							ondelete={() => handleDelete(question.id)}
+							ondelete={() => requestDelete(question.id)}
 							disableEdit={isEditing}
 						/>
 					{/if}
@@ -196,6 +252,14 @@
 		</div>
 	{/if}
 </div>
+
+<Modal open={deleteConfirmId !== null} onclose={cancelDelete} title="Usuń pytanie">
+	<p class="confirm-text">Czy na pewno chcesz usunąć to pytanie? Tej operacji nie można cofnąć.</p>
+	{#snippet footer()}
+		<Button variant="ghost" onclick={cancelDelete}>Anuluj</Button>
+		<Button variant="accent" onclick={confirmDelete}>Usuń</Button>
+	{/snippet}
+</Modal>
 
 <style>
 	.questions-page {
@@ -234,5 +298,13 @@
 		flex-direction: column;
 		gap: var(--space-3);
 		padding-right: var(--space-1);
+	}
+
+	.confirm-text {
+		font-family: var(--font-sans);
+		font-size: var(--font-base);
+		color: var(--text);
+		line-height: 1.5;
+		margin: 0;
 	}
 </style>

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import Badge from '@/lib/ui/Badge.svelte';
 	import Button from '@/lib/ui/Button.svelte';
-	import Divider from '@/lib/ui/Divider.svelte';
 	import Text from '@/lib/ui/Text.svelte';
 	import type { QuestionWithAnswers } from '@/pages/questions/service';
 	import { renderDocumentToHtml } from '@/utils/math';
@@ -69,8 +68,6 @@
 					/>
 				</div>
 			{/if}
-
-			<Divider />
 
 			<ul class="answers-list">
 				{#each renderedAnswers as answer (answer.id)}

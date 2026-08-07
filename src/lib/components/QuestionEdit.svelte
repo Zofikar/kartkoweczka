@@ -1,7 +1,6 @@
 <script lang="ts">
 	import Button from '@/lib/ui/Button.svelte';
 	import Divider from '@/lib/ui/Divider.svelte';
-	import Heading from '@/lib/ui/Heading.svelte';
 	import IconButton from '@/lib/ui/IconButton.svelte';
 	import Text from '@/lib/ui/Text.svelte';
 	import type { QuestionEditData, QuestionWithAnswers } from '@/pages/questions/service';
@@ -11,13 +10,14 @@
 	import TagSelect from './TagSelect.svelte';
 	import Modal from '@/lib/ui/Modal.svelte';
 	import { migrateToPlainFormat } from '@/utils/math';
-	import { loadAllTags } from '@/pages/questions/service';
-	import { db } from '@/db/dbStore';
+	import { getTags, initTags } from '@/lib/stores/tags.svelte';
+	import { validateQuestionData } from '@/pages/questions/validation';
+	import { snackError } from '@/lib/stores/snackbar.svelte';
 	import { onMount } from 'svelte';
 
 	interface Props {
 		question?: QuestionWithAnswers | null;
-		onsave?: (data: QuestionEditData) => void;
+		onsave?: (data: QuestionEditData) => Promise<void>;
 		oncancel?: () => void;
 	}
 
@@ -58,16 +58,10 @@
 
 	let selectedTags = $state<string[]>([]);
 	let originalSelectedTags = $state<string[]>([]);
-	let allTags = $state<string[]>([]);
-	let tagsLoaded = $state(false);
+	let allTags = $derived(getTags());
 
 	onMount(() => {
-		return db.subscribe(async (d) => {
-			if (d && !tagsLoaded) {
-				allTags = await loadAllTags(d);
-				tagsLoaded = true;
-			}
-		});
+		return initTags();
 	});
 
 	$effect(() => {
@@ -126,14 +120,18 @@
 			!tagsEqual(selectedTags, originalSelectedTags)
 	);
 
-	let answersDirty = $derived(!answersEqual(answerList, originalAnswerList));
-
 	let pendingTypeChange = $state<QuestionType | null>(null);
 	let showCancelConfirm = $state(false);
 
 	function requestTypeChange(newType: QuestionType) {
 		if (newType === type) return;
-		if (answersDirty) {
+
+		const hasMeaningfulData =
+			type === 'choice'
+				? answerList.some((a) => a.content.trim() !== '')
+				: answerList.some((a) => a.isCorrect);
+
+		if (hasMeaningfulData) {
 			pendingTypeChange = newType;
 		} else {
 			applyTypeDefaults(newType);
@@ -158,7 +156,8 @@
 				{ key: crypto.randomUUID(), content: 'Prawda', isCorrect: false },
 				{ key: crypto.randomUUID(), content: 'Fałsz', isCorrect: false },
 			];
-		} else if (answerList.length === 0) {
+		} else {
+			// Clear answers when switching to choice — user must provide at least 3
 			answerList = [];
 		}
 	}
@@ -211,19 +210,11 @@
 	}
 
 	let saving = $state(false);
-	let error = $state('');
 
 	async function handleSave() {
-		error = '';
-
 		const currentContent = contentEditorRef?.getValue() ?? content;
 
-		if (!currentContent.trim()) {
-			error = 'Treść pytania jest wymagana.';
-			return;
-		}
-
-		let answers: { content: string; isCorrect: boolean }[] = [];
+		const answers: { content: string; isCorrect: boolean }[] = [];
 		for (const answer of answerList) {
 			const ref = answerEditorRefs[answer.key];
 			const answerContent = ref?.getValue() ?? answer.content;
@@ -232,37 +223,30 @@
 			}
 		}
 
-		if (answers.length === 0) {
-			error = 'Dodaj co najmniej jedną odpowiedź.';
-			return;
-		}
-
-		if (type === 'choice' && !answers.some((a) => a.isCorrect)) {
-			error = 'Wskaż poprawną odpowiedź.';
-			return;
-		}
-
-		if (type === 'true_false' && !answers.some((a) => a.isCorrect)) {
-			error = 'Wskaż, która odpowiedź jest poprawna.';
+		const validation = validateQuestionData(currentContent, type, answers);
+		if (!validation.valid) {
+			snackError(validation.error!);
 			return;
 		}
 
 		saving = true;
-		onsave?.({
-			content: currentContent.trim(),
-			type,
-			answers,
-			image,
-			imageHeight,
-			imagePlacement: imagePlacement ?? undefined,
-			tags: selectedTags,
-		});
+		try {
+			await onsave?.({
+				content: currentContent.trim(),
+				type,
+				answers,
+				image,
+				imageHeight,
+				imagePlacement: imagePlacement ?? undefined,
+				tags: selectedTags,
+			});
+		} finally {
+			saving = false;
+		}
 	}
 </script>
 
 <article class="question-edit">
-	<Heading level={4}>{question ? 'Edytuj pytanie' : 'Nowe pytanie'}</Heading>
-
 	<div class="edit-field">
 		<label class="field-label" for="q-content">Treść pytania</label>
 		<RichMathEditor
@@ -380,10 +364,6 @@
 		/>
 	</div>
 
-	{#if error}
-		<span class="edit-error">{error}</span>
-	{/if}
-
 	<div class="edit-actions">
 		<Button variant="ghost" onclick={requestCancel}>Anuluj</Button>
 		<Button variant="primary" onclick={handleSave} disabled={saving}>
@@ -434,6 +414,8 @@
 		display: flex;
 		gap: var(--space-1);
 		width: fit-content;
+		border: var(--control-border-w) solid var(--secondary);
+		border-radius: calc(var(--control-radius) + var(--control-border-w));
 	}
 
 	.answers-section {
@@ -524,12 +506,6 @@
 		justify-content: flex-end;
 		gap: var(--space-2);
 		margin-top: var(--space-2);
-	}
-
-	.edit-error {
-		font-family: var(--font-sans);
-		font-size: var(--font-sm);
-		color: var(--accent);
 	}
 
 	.confirm-text {

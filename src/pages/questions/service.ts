@@ -1,4 +1,4 @@
-import type { initDb } from '@/db/db';
+import type { Database } from '@/db/db';
 import { questions, answers, tags, questionTags } from '@/db/schema';
 import { eq, inArray, sql } from 'drizzle-orm';
 import type { QuestionType, ImagePlacement } from '@/db/schema/types';
@@ -39,9 +39,28 @@ export interface QuestionFilters {
 	tagMode?: 'any' | 'all';
 }
 
-export async function loadAllQuestionsWithAnswers(
-	db: Awaited<ReturnType<typeof initDb>>
-): Promise<QuestionWithAnswers[]> {
+export async function loadQuestionById(
+	db: Database,
+	id: string
+): Promise<QuestionWithAnswers | null> {
+	const row = await db.query.questions.findFirst({
+		with: {
+			answers: true,
+			questionTags: { with: { tag: true } },
+		},
+		where: (q, { eq }) => eq(q.id, id),
+	});
+
+	if (!row) return null;
+
+	const { questionTags: qt, ...rest } = row;
+	return {
+		...rest,
+		tags: qt.map((jt) => jt.tag.tagName),
+	};
+}
+
+export async function loadAllQuestionsWithAnswers(db: Database): Promise<QuestionWithAnswers[]> {
 	const rows = await db.query.questions.findMany({
 		with: {
 			answers: true,
@@ -56,13 +75,13 @@ export async function loadAllQuestionsWithAnswers(
 	}));
 }
 
-export async function loadAllTags(db: Awaited<ReturnType<typeof initDb>>): Promise<string[]> {
+export async function loadAllTags(db: Database): Promise<string[]> {
 	const rows = await db.select({ tagName: tags.tagName }).from(tags).orderBy(tags.tagName);
 	return rows.map((r) => r.tagName);
 }
 
 export async function loadFilteredQuestionsWithAnswers(
-	db: Awaited<ReturnType<typeof initDb>>,
+	db: Database,
 	filters: QuestionFilters
 ): Promise<QuestionWithAnswers[]> {
 	const hasTypeFilter = !!filters.type;
@@ -131,10 +150,7 @@ export async function loadFilteredQuestionsWithAnswers(
 	}));
 }
 
-export async function createQuestion(
-	db: Awaited<ReturnType<typeof initDb>>,
-	data: QuestionEditData
-): Promise<string> {
+export async function createQuestion(db: Database, data: QuestionEditData): Promise<string> {
 	const [newQuestion] = await db
 		.insert(questions)
 		.values({
@@ -164,7 +180,7 @@ export async function createQuestion(
 }
 
 export async function updateQuestion(
-	db: Awaited<ReturnType<typeof initDb>>,
+	db: Database,
 	id: string,
 	data: QuestionEditData
 ): Promise<void> {
@@ -195,16 +211,13 @@ export async function updateQuestion(
 	await syncQuestionTags(db, id, data.tags ?? []);
 }
 
-export async function deleteQuestion(
-	db: Awaited<ReturnType<typeof initDb>>,
-	id: string
-): Promise<void> {
+export async function deleteQuestion(db: Database, id: string): Promise<void> {
 	await db.delete(questions).where(eq(questions.id, id));
 	await cleanupOrphanedTags(db);
 }
 
 async function syncQuestionTags(
-	db: Awaited<ReturnType<typeof initDb>>,
+	db: Database,
 	questionId: string,
 	tagNames: string[]
 ): Promise<void> {
@@ -229,7 +242,7 @@ async function syncQuestionTags(
 	await cleanupOrphanedTags(db);
 }
 
-async function cleanupOrphanedTags(db: Awaited<ReturnType<typeof initDb>>): Promise<void> {
+async function cleanupOrphanedTags(db: Database): Promise<void> {
 	await db
 		.delete(tags)
 		.where(
