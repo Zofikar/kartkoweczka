@@ -8,6 +8,7 @@
 		onclick?: (e: MouseEvent) => void;
 		children?: Snippet;
 		type?: 'button' | 'submit' | 'reset';
+		class?: never;
 		[k: string]: unknown;
 	}
 
@@ -18,6 +19,7 @@
 		onclick,
 		children,
 		type = 'button',
+
 		...restProps
 	}: Props = $props();
 </script>

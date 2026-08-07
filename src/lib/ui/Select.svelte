@@ -11,6 +11,7 @@
 		disabled?: boolean;
 		id?: string;
 		options: { value: T | null; label: string }[];
+		class?: never;
 		[k: string]: unknown;
 	}
 
@@ -22,6 +23,7 @@
 		disabled = false,
 		id,
 		options,
+
 		...restProps
 	}: Props<string> = $props();
 

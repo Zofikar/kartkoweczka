@@ -4,12 +4,14 @@
 	interface Props {
 		copyrightYear?: number;
 		copyrightHolder?: string;
+		class?: never;
 		[k: string]: unknown;
 	}
 
 	let {
 		copyrightYear = new Date().getFullYear(),
 		copyrightHolder = 'Pawel Chwalczyk',
+
 		...restProps
 	}: Props = $props();
 

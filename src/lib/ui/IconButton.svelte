@@ -8,6 +8,7 @@
 		disabled?: boolean;
 		onclick?: (e: MouseEvent) => void;
 		children?: Snippet;
+		class?: never;
 		[k: string]: unknown;
 	}
 
@@ -18,6 +19,7 @@
 		disabled = false,
 		onclick,
 		children,
+
 		...restProps
 	}: Props = $props();
 </script>

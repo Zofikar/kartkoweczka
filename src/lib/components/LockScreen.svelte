@@ -6,6 +6,7 @@
 	interface Props {
 		deferredPrompt?: boolean;
 		oninstall?: () => void;
+		class?: never;
 		[k: string]: unknown;
 	}
 

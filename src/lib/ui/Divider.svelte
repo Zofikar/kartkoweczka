@@ -1,12 +1,13 @@
 <script lang="ts">
 	interface Props {
+		class?: never;
 		[k: string]: unknown;
 	}
 
 	let { ...restProps }: Props = $props();
 </script>
 
-<hr class="divider" {...restProps} />
+<hr {...restProps} class="divider" />
 
 <style>
 	.divider {

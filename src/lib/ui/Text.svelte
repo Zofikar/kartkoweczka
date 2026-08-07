@@ -5,6 +5,7 @@
 		variant?: 'body' | 'muted' | 'small';
 		as?: 'p' | 'span';
 		children?: Snippet;
+		class?: never;
 		[k: string]: unknown;
 	}
 

@@ -14,6 +14,8 @@
 		disabled?: boolean;
 		error?: string;
 		id?: string;
+		class?: never;
+		className?: string;
 		[k: string]: unknown;
 	}
 
@@ -28,6 +30,7 @@
 		disabled = false,
 		error,
 		id,
+
 		...restProps
 	}: Props = $props();
 </script>

@@ -5,6 +5,7 @@
 		variant?: 'primary' | 'secondary' | 'accent';
 		size?: 'sm' | 'md';
 		children?: Snippet;
+		class?: never;
 		[k: string]: unknown;
 	}
 

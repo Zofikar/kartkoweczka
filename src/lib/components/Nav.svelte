@@ -6,6 +6,7 @@
 		isLight: boolean;
 		ontoggletheme?: () => void;
 		onmenutoggle?: () => void;
+		class?: never;
 		[k: string]: unknown;
 	}
 
@@ -14,6 +15,7 @@
 		isLight,
 		ontoggletheme,
 		onmenutoggle,
+
 		...restProps
 	}: Props = $props();
 </script>

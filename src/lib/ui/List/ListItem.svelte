@@ -6,6 +6,7 @@
 		size?: 'sm' | 'md' | 'lg';
 		onclick?: (e: MouseEvent) => void;
 		active?: boolean;
+		class?: never;
 		[k: string]: unknown;
 	}
 

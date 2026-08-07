@@ -15,6 +15,7 @@
 		pages?: PageEntry[];
 		mobileOpen?: boolean;
 		onclose?: () => void;
+		class?: never;
 		[k: string]: unknown;
 	}
 

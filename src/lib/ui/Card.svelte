@@ -4,10 +4,12 @@
 	interface Props {
 		padding?: 'none' | 'sm' | 'md' | 'lg';
 		children?: Snippet;
+		active?: boolean;
+		class?: never;
 		[k: string]: unknown;
 	}
 
-	let { padding = 'md', children, ...restProps }: Props = $props();
+	let { padding = 'md', children, active, ...restProps }: Props = $props();
 
 	const paddingMap: Record<string, string> = {
 		none: '0',
@@ -17,7 +19,11 @@
 	};
 </script>
 
-<div class="card card--{padding}" style="padding: {paddingMap[padding]}" {...restProps}>
+<div
+	{...restProps}
+	class="card {active ? 'card-active' : ''}"
+	style="padding: {paddingMap[padding]}"
+>
 	{@render children?.()}
 </div>
 
@@ -26,5 +32,9 @@
 		background-color: var(--background-muted);
 		border-radius: var(--radius-md);
 		border: 1px solid transparent;
+	}
+
+	.card-active {
+		border-left-color: var(--primary);
 	}
 </style>

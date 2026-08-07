@@ -6,6 +6,7 @@
 		error?: string;
 		forId?: string;
 		children?: Snippet;
+		class?: never;
 		[k: string]: unknown;
 	}
 

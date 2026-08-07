@@ -7,6 +7,7 @@
 		title?: string;
 		children?: Snippet;
 		footer?: Snippet;
+		class?: never;
 		[k: string]: unknown;
 	}
 

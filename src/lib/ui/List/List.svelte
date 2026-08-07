@@ -4,6 +4,7 @@
 	interface Props {
 		type?: 'unordered' | 'ordered';
 		children?: Snippet;
+		class?: never;
 		[k: string]: unknown;
 	}
 
