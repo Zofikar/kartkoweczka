@@ -3,17 +3,15 @@
 	import 'quill/dist/quill.bubble.css';
 	import Quill from 'quill';
 	import Delta from 'quill-delta';
-	import Embed from 'quill/blots/embed';
 	import type { MathfieldElement } from 'mathlive';
-	import { convertLatexToMarkup } from 'mathlive';
 	import type { Blot } from 'parchment';
 	import Button from '@/lib/ui/Button.svelte';
 	import IconButton from '@/lib/ui/IconButton.svelte';
+	import { registerMathChipBlot, extractPlainText, parseTextToOps } from '@/utils/richText';
 
 	interface Props {
 		value?: string;
 		size?: 'sm' | 'md' | 'lg';
-		class?: string;
 		onchange?: (value: string) => void;
 		id?: string;
 		'aria-label'?: string;
@@ -22,40 +20,12 @@
 	let {
 		value = $bindable(''),
 		size = 'md',
-		class: className = '',
 		onchange,
 		id,
 		'aria-label': ariaLabel,
 	}: Props = $props();
 
-	class MathChipBlot extends Embed {
-		static blotName = 'math-chip';
-		static tagName = 'span';
-		static className = 'ql-math-chip';
-
-		static create(latex: string): Node {
-			const node = super.create() as HTMLElement;
-			node.setAttribute('data-latex', latex);
-			node.setAttribute('contenteditable', 'false');
-			node.title = 'Kliknij, aby edytować';
-			try {
-				node.innerHTML = convertLatexToMarkup(`\\(${latex}\\)`);
-			} catch {
-				node.textContent = latex;
-			}
-			return node;
-		}
-
-		static value(domNode: Element): string | null {
-			return (domNode as HTMLElement).getAttribute('data-latex');
-		}
-	}
-
-	try {
-		Quill.register({ 'blots/math-chip': MathChipBlot }, true);
-	} catch {
-		/* MathChipBlot already registered */
-	}
+	registerMathChipBlot();
 
 	let editorContainerEl: HTMLDivElement | undefined = $state();
 	let quill: Quill | undefined;
@@ -82,7 +52,7 @@
 
 		quill.on('text-change', () => {
 			if (suppressChange) return;
-			value = extractPlainText(quill!);
+			value = getQuillPlainText(quill!);
 			onchange?.(value);
 		});
 
@@ -111,7 +81,7 @@
 
 	$effect(() => {
 		if (!quill || !initialised) return;
-		if (value !== extractPlainText(quill)) {
+		if (value !== getQuillPlainText(quill)) {
 			suppressChange = true;
 			setQuillContent(quill, value);
 			suppressChange = false;
@@ -122,42 +92,8 @@
 		q.setContents(new Delta(parseTextToOps(text)), 'silent');
 	}
 
-	function extractPlainText(q: Quill): string {
-		const parts: string[] = [];
-		for (const op of q.getContents().ops) {
-			if (typeof op.insert === 'string') {
-				parts.push(op.insert);
-			} else if (op.insert && typeof op.insert === 'object') {
-				const e = op.insert as Record<string, unknown>;
-				const latex = String(e['math-chip'] ?? '');
-				if (latex.trim()) parts.push(`$$${latex}$$`);
-			}
-		}
-		return parts.join('');
-	}
-
-	function parseTextToOps(text: string): Record<string, unknown>[] {
-		const ops: Record<string, unknown>[] = [];
-		let remaining = text;
-		while (remaining.length > 0) {
-			const si = remaining.indexOf('$$');
-			if (si === -1) {
-				if (remaining.length > 0) ops.push({ insert: remaining });
-				break;
-			}
-			if (si > 0) ops.push({ insert: remaining.slice(0, si) });
-			const after = remaining.slice(si + 2);
-			const ei = after.indexOf('$$');
-			if (ei === -1) {
-				ops.push({ insert: remaining.slice(si) });
-				break;
-			}
-			const latex = after.slice(0, ei).trim();
-			if (latex) ops.push({ insert: { 'math-chip': latex } });
-			remaining = after.slice(ei + 2);
-		}
-		if (ops.length === 0) ops.push({ insert: '\n' });
-		return ops;
+	function getQuillPlainText(q: Quill): string {
+		return extractPlainText(q.getContents().ops);
 	}
 
 	function openPopover(latex: string, blotElement: HTMLElement | null) {
@@ -232,18 +168,14 @@
 	}
 
 	export function getValue(): string {
-		return quill ? extractPlainText(quill) : value;
+		return quill ? getQuillPlainText(quill) : value;
 	}
 	export function focus() {
 		quill?.focus();
 	}
 </script>
 
-<div
-	class="rich-editor-wrapper rich-editor-wrapper--{size} {className}"
-	role="region"
-	aria-label={ariaLabel}
->
+<div class="rich-editor-wrapper rich-editor-wrapper--{size}" role="region" aria-label={ariaLabel}>
 	<div class="rich-editor rich-editor--{size}" {id}>
 		<div
 			bind:this={editorContainerEl}
