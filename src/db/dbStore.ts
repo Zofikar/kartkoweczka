@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
-import { initDb } from './db';
+import { initDb, type Database } from './db';
 
-export const db = writable<Awaited<ReturnType<typeof initDb>> | null>(null);
+export const db = writable<Database | null>(null);
 export const dbLoaded = writable<boolean>(false);
 
 export async function initializeDatabase() {

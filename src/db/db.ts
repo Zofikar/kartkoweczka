@@ -3,6 +3,8 @@ import { PGlite } from '@electric-sql/pglite';
 import * as tables from './schema';
 import * as relations from './schema/relations';
 
+export type Database = Awaited<ReturnType<typeof initDb>>;
+
 export async function initDb() {
 	if (!(await ensurePersistentStorage())) {
 		console.log('Storage is not persistent.');
