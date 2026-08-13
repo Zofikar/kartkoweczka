@@ -7,6 +7,7 @@
 	import Button from '@/lib/ui/Button.svelte';
 	import Badge from '@/lib/ui/Badge.svelte';
 	import Modal from '@/lib/ui/Modal.svelte';
+	import PrintTestSheets from '@/lib/components/PrintTestSheets.svelte';
 	import {
 		loadTestById,
 		loadTestRevisionById,
@@ -45,6 +46,7 @@
 	let isNew = $derived(revisionId === null);
 
 	let name = $state('');
+	let testName = $state('');
 	let questions = $state<EditableQuestion[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
@@ -56,6 +58,7 @@
 	let autoOrder = $state(true);
 	let autoMangle = $state(true);
 	let confirmOpen = $state(false);
+	let printOpen = $state(false);
 
 	let originalQuestions = $state<EditableQuestion[]>([]);
 	let originalAutoOrder = $state(true);
@@ -87,10 +90,14 @@
 		if (!database || !testId) return;
 
 		name = '';
+		testName = '';
 		questions = [];
 		error = null;
 		loading = true;
 		editMode = revisionId === null;
+
+		const test = await loadTestById(database, testId);
+		if (test) testName = test.name;
 
 		if (revisionId) {
 			const revision = await loadTestRevisionById(database, revisionId);
@@ -99,7 +106,6 @@
 				questions = revision.content.map(toEditableQuestion);
 			}
 		} else {
-			const test = await loadTestById(database, testId);
 			if (test) {
 				name = await generateNextRevisionName(database, testId);
 				questions = test.questions.map(toQuestion);
@@ -200,11 +206,11 @@
 
 	function buildSnapshot(): SnapshotQuestion[] {
 		let ordered = [...questions];
-		if (autoOrder) ordered = shuffle(ordered);
+		if (isNew && autoOrder) ordered = shuffle(ordered);
 
 		return ordered.map((question) => {
 			let answers = [...question.answers];
-			if (autoMangle) answers = shuffle(answers);
+			if (isNew && autoMangle) answers = shuffle(answers);
 
 			return {
 				type: question.type,
@@ -328,6 +334,8 @@
 				<Button variant="primary" onclick={submit} disabled={saving}>
 					{saving ? 'Zapisywanie...' : isNew ? 'Utwórz wersję' : 'Zapisz zmiany'}
 				</Button>
+			{:else}
+				<Button variant="secondary" onclick={() => (printOpen = true)}>Drukuj</Button>
 			{/if}
 		</div>
 	</div>
@@ -347,25 +355,27 @@
 				{/if}
 
 				{#if editMode}
-					<div class="revision-settings">
-						<label class="setting-row">
-							<input type="checkbox" bind:checked={autoOrder} />
-							<span class="setting-label">Losuj kolejność pytań</span>
-							<span class="setting-hint">
-								{autoOrder ? 'Pytania zostaną losowo przetasowane.' : 'Ustaw kolejność ręcznie.'}
-							</span>
-						</label>
+					{#if isNew}
+						<div class="revision-settings">
+							<label class="setting-row">
+								<input type="checkbox" bind:checked={autoOrder} />
+								<span class="setting-label">Losuj kolejność pytań</span>
+								<span class="setting-hint">
+									{autoOrder ? 'Pytania zostaną losowo przetasowane.' : 'Ustaw kolejność ręcznie.'}
+								</span>
+							</label>
 
-						<label class="setting-row">
-							<input type="checkbox" bind:checked={autoMangle} />
-							<span class="setting-label">Losuj kolejność odpowiedzi</span>
-							<span class="setting-hint">
-								{autoMangle
-									? 'Odpowiedzi zostaną losowo przetasowane.'
-									: 'Ustaw kolejność odpowiedzi ręcznie.'}
-							</span>
-						</label>
-					</div>
+							<label class="setting-row">
+								<input type="checkbox" bind:checked={autoMangle} />
+								<span class="setting-label">Losuj kolejność odpowiedzi</span>
+								<span class="setting-hint">
+									{autoMangle
+										? 'Odpowiedzi zostaną losowo przetasowane.'
+										: 'Ustaw kolejność odpowiedzi ręcznie.'}
+								</span>
+							</label>
+						</div>
+					{/if}
 
 					<div class="question-order-list">
 						{#each questions as question, index (question.key)}
@@ -383,7 +393,7 @@
 											</div>
 										</div>
 
-										{#if !autoOrder}
+										{#if !isNew || !autoOrder}
 											<div class="order-controls">
 												<button
 													type="button"
@@ -407,7 +417,7 @@
 										{/if}
 									</div>
 
-									{#if !autoMangle}
+									{#if !isNew || !autoMangle}
 										<div class="answer-order-list">
 											{#each question.answers as answer, answerIndex (answer.key)}
 												<div class="answer-order-row">
@@ -458,6 +468,14 @@
 		</Card>
 	{/if}
 </div>
+
+<PrintTestSheets
+	open={printOpen}
+	onclose={() => (printOpen = false)}
+	{testName}
+	revisionName={name}
+	questions={buildSnapshot()}
+/>
 
 <Modal
 	open={discardConfirmOpen}
