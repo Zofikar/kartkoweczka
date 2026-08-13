@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Button from '@/lib/ui/Button.svelte';
 	import type { ImagePlacement } from '@/db/schema/types';
-	import { computeMaxImageLines } from '@/utils/paper';
+	import { computeImageMaxLines, computeImageMinLines } from '@/utils/paper';
 
 	interface Props {
 		image?: string | null;
@@ -34,17 +34,20 @@
 	/** Effective placement used for bound computation (defaults to 'over'). */
 	let effectivePlacement: 'over' | 'left' | 'right' = $derived(imagePlacement ?? 'over');
 
+	/** Minimum image height in lines for the current placement. */
+	let minLines = $derived(computeImageMinLines(effectivePlacement, answersCount));
+
 	/**
 	 * Maximum image height in lines, computed dynamically from the image's
 	 * natural dimensions, current placement, and answer count.
 	 */
 	let maxLines = $derived(
-		computeMaxImageLines(naturalWidth, naturalHeight, effectivePlacement, answersCount)
+		computeImageMaxLines(naturalWidth, naturalHeight, effectivePlacement, answersCount)
 	);
 
-	/** Clamp stored imageHeight so the slider never exceeds the computed max. */
+	/** Clamp stored imageHeight so the slider stays within the computed range. */
 	let clampedHeight = $derived(
-		imageHeight != null ? Math.max(0, Math.min(imageHeight, maxLines)) : 0
+		imageHeight != null ? Math.max(minLines, Math.min(imageHeight, maxLines)) : minLines
 	);
 
 	function notify() {
@@ -121,7 +124,7 @@
 					</span>
 					<input
 						type="range"
-						min="0"
+						min={minLines}
 						max={maxLines}
 						step="1"
 						value={clampedHeight}
@@ -129,7 +132,7 @@
 						class="height-slider"
 					/>
 					<span class="control-hint">
-						0 &ndash; {maxLines} linii (domyślnie {DEFAULT_LINES})
+						{minLines} &ndash; {maxLines} linii (domyślnie {DEFAULT_LINES})
 					</span>
 				</label>
 				<fieldset class="placement-fieldset">

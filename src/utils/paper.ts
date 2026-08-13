@@ -1,3 +1,12 @@
+/**
+ * Print layout constants and helpers for A4 test sheets.
+ *
+ * All physical sizes are expressed in millimetres so they map 1:1 to CSS and
+ * stay independent of screen DPI. Print body text uses a battle-tested serif
+ * (Georgia / Times New Roman) at 12 pt with 1.4 line-height, which converts
+ * to about 6 mm per line for the calculations below.
+ */
+
 /** A4 paper dimensions in millimetres (ISO 216). */
 export const A4_WIDTH_MM = 210;
 export const A4_HEIGHT_MM = 297;
@@ -9,52 +18,131 @@ export const PRINT_MARGIN_MM = 15;
 export const USABLE_WIDTH_MM = A4_WIDTH_MM - 2 * PRINT_MARGIN_MM;
 export const USABLE_HEIGHT_MM = A4_HEIGHT_MM - 2 * PRINT_MARGIN_MM;
 
+/** Battle-tested print body text: serif 12 pt with 1.4 line-height. */
+export const PRINT_FONT_SIZE_PT = 12;
+export const PRINT_LINE_HEIGHT_RATIO = 1.4;
+
 /**
  * Approximate height of a single line of body text in millimetres.
- * Based on ~12 pt font with ~1.4–1.5× line spacing.
+ * 12 pt * 1.4 ≈ 16.8 pt ≈ 5.93 mm; rounded up to 6 mm so estimates stay safe.
  */
 export const LINE_HEIGHT_MM = 6;
 
 /** Maximum number of text lines that fit within the usable A4 height. */
 export const MAX_LINES_A4 = Math.floor(USABLE_HEIGHT_MM / LINE_HEIGHT_MM);
 
+/**
+ * Base vertical gap shared by question→answer spacing and answer→answer
+ * spacing. The gap between two consecutive questions is exactly double this.
+ */
+export const BASE_GAP_MM = 4;
+
+/** Gap between two consecutive questions (double the base gap). */
+export const QUESTION_GAP_MM = BASE_GAP_MM * 2;
+
+/** Portion of the usable width reserved for a side-by-side image. */
+export const SIDE_IMAGE_WIDTH_FRACTION = 3 / 5;
+
 /** Hard limit for image height when placed above answers (in lines). */
 export const OVER_PLACEMENT_MAX_LINES = 6;
+export const OVER_PLACEMENT_MIN_LINES = 0;
 
-/**
- * Compute the maximum image height (in lines) that fits on A4 paper
- * given the image's natural dimensions, its placement relative to answers,
- * and the number of answers.
- *
- * - 'over': hard-capped at {@link OVER_PLACEMENT_MAX_LINES} lines (answers count ignored).
- * - 'left' / 'right': lower bound is max(4, answersCount), upper bound is what fits
- *   within the effective usable width (3/5 of usable width for side-by-side).
- */
-export function computeMaxImageLines(
-	imageNaturalWidth: number,
-	imageNaturalHeight: number,
-	placement: 'over' | 'left' | 'right',
+/** Preferred minimum image height for side-by-side images (in lines). */
+export const SIDE_PLACEMENT_MIN_LINES = 4;
+
+export type ImagePlacementValue = 'over' | 'left' | 'right';
+
+function sideImageWidthMm(): number {
+	return USABLE_WIDTH_MM * SIDE_IMAGE_WIDTH_FRACTION;
+}
+
+/** Natural image height (in lines) when rendered at the side-by-side width. */
+function sideNaturalHeightLines(aspectRatio: number): number {
+	if (!(aspectRatio > 0)) return 0;
+	const heightMm = sideImageWidthMm() / aspectRatio;
+	return Math.max(0, Math.floor(heightMm / LINE_HEIGHT_MM));
+}
+
+/** Minimum selectable image height (in lines) for a given placement. */
+export function computeImageMinLines(placement: ImagePlacementValue, answersCount: number): number {
+	if (placement === 'over') return OVER_PLACEMENT_MIN_LINES;
+	return Math.max(SIDE_PLACEMENT_MIN_LINES, answersCount);
+}
+
+/** Maximum selectable image height (in lines) for a placement and aspect ratio. */
+export function computeImageMaxLines(
+	naturalWidth: number,
+	naturalHeight: number,
+	placement: ImagePlacementValue,
 	answersCount: number
 ): number {
-	if (imageNaturalWidth <= 0 || imageNaturalHeight <= 0) {
-		return placement === 'over' ? OVER_PLACEMENT_MAX_LINES : Math.max(4, answersCount);
-	}
-
-	const aspectRatio = imageNaturalWidth / imageNaturalHeight;
-
 	if (placement === 'over') {
-		const imageHeightMmAtFullWidth = USABLE_WIDTH_MM / aspectRatio;
-		const linesFromWidth = Math.floor(imageHeightMmAtFullWidth / LINE_HEIGHT_MM);
+		if (naturalWidth <= 0 || naturalHeight <= 0) return OVER_PLACEMENT_MAX_LINES;
+		const aspectRatio = naturalWidth / naturalHeight;
+		const linesFromWidth = Math.max(
+			OVER_PLACEMENT_MIN_LINES,
+			Math.floor(USABLE_WIDTH_MM / aspectRatio / LINE_HEIGHT_MM)
+		);
 		return Math.min(OVER_PLACEMENT_MAX_LINES, linesFromWidth);
 	}
 
-	// Side-by-side placement: image gets 3/5 of usable width.
-	const effectiveWidthMm = USABLE_WIDTH_MM * (3 / 5);
-	const imageHeightMmAtEffectiveWidth = effectiveWidthMm / aspectRatio;
-	const linesFromWidth = Math.floor(imageHeightMmAtEffectiveWidth / LINE_HEIGHT_MM);
-	const linesFromPage = Math.floor(USABLE_HEIGHT_MM / LINE_HEIGHT_MM);
+	// Side-by-side placement: the image may occupy up to 3/5 of the usable
+	// width. Its height is measured in lines and must at least match the
+	// answers stack, while never exceeding what physically fits.
+	const minLines = Math.max(SIDE_PLACEMENT_MIN_LINES, answersCount);
 
-	const whatFits = Math.min(linesFromWidth, linesFromPage);
+	if (naturalWidth <= 0 || naturalHeight <= 0) return minLines;
 
-	return Math.min(Math.max(4, answersCount), whatFits);
+	const aspectRatio = naturalWidth / naturalHeight;
+	const linesFromWidth = Math.max(1, sideNaturalHeightLines(aspectRatio));
+	const linesFromPage = MAX_LINES_A4;
+	return Math.max(minLines, Math.min(linesFromWidth, linesFromPage));
+}
+
+export interface ImageDisplaySize {
+	widthMm: number;
+	heightMm: number;
+}
+
+/**
+ * Resolve the physical (mm) size an image should be rendered at for print.
+ *
+ * - `requestedLines` is the stored `imageHeight` expressed in text lines.
+ * - The height is clamped to the placement's [min,max] range.
+ * - The width follows the natural aspect ratio but is capped at the maximum
+ *   width available for the placement (full usable width for 'over', 3/5 of
+ *   it for 'left'/'right').
+ */
+export function computeImageDisplaySize(
+	naturalWidth: number,
+	naturalHeight: number,
+	placement: ImagePlacementValue,
+	answersCount: number,
+	requestedLines: number | null | undefined
+): ImageDisplaySize {
+	const aspectRatio = naturalWidth > 0 && naturalHeight > 0 ? naturalWidth / naturalHeight : 1;
+
+	const minLines = computeImageMinLines(placement, answersCount);
+	const maxLines = computeImageMaxLines(naturalWidth, naturalHeight, placement, answersCount);
+	const lo = Math.min(minLines, maxLines);
+	const hi = Math.max(minLines, maxLines);
+
+	const defaultOver = Math.min(4, hi, Math.max(lo, 4));
+	const fallback = placement === 'over' ? defaultOver : lo;
+	const lines = clamp(requestedLines ?? fallback, lo, hi);
+
+	const maxWidthMm = placement === 'over' ? USABLE_WIDTH_MM : sideImageWidthMm();
+
+	let heightMm = lines * LINE_HEIGHT_MM;
+	let widthMm = heightMm * aspectRatio;
+	if (widthMm > maxWidthMm) {
+		widthMm = maxWidthMm;
+		heightMm = widthMm / aspectRatio;
+	}
+
+	return { widthMm, heightMm };
+}
+
+function clamp(value: number, min: number, max: number): number {
+	return Math.min(max, Math.max(min, value));
 }
