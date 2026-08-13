@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte';
 
 	interface Props {
-		variant?: 'primary' | 'secondary' | 'accent' | 'outline' | 'ghost';
+		variant?: 'primary' | 'secondary' | 'accent' | 'danger' | 'outline' | 'ghost';
 		size?: 'sm' | 'md' | 'lg';
 		disabled?: boolean;
 		onclick?: (e: MouseEvent) => void;
@@ -47,7 +47,7 @@
 	}
 
 	.button:focus-visible {
-		outline: 2px solid var(--accent);
+		outline: 2px solid var(--primary);
 		outline-offset: 2px;
 	}
 
@@ -94,6 +94,16 @@
 	}
 	.button--accent:hover:not(:disabled) {
 		background-color: var(--accent-muted);
+	}
+
+	.button--danger {
+		background-color: var(--error);
+		color: var(--error-text);
+		border-color: var(--error);
+	}
+	.button--danger:hover:not(:disabled) {
+		background-color: var(--error);
+		filter: brightness(1.1);
 	}
 
 	.button--outline {

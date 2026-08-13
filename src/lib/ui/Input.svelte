@@ -97,6 +97,6 @@
 	}
 
 	.input--error {
-		border-color: var(--accent);
+		border-color: var(--error);
 	}
 </style>

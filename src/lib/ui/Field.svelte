@@ -42,6 +42,6 @@
 	.field-error {
 		font-family: var(--font-sans);
 		font-size: var(--font-sm);
-		color: var(--accent);
+		color: var(--error);
 	}
 </style>

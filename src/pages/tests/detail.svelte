@@ -184,14 +184,16 @@
 		try {
 			const data = { name: name.trim(), questionIds: selectedIds };
 			if (isNew) {
-				await createTest(database, data);
+				const createdId = await createTest(database, data);
 				snackSuccess('Test utworzony');
+				editMode = false;
+				await navigate('/tests/:id', { params: { id: createdId } });
 			} else {
 				await updateTest(database, testId!, data);
 				snackSuccess('Test zaktualizowany');
+				editMode = false;
+				await navigate('/tests/:id', { params: { id: testId! } });
 			}
-			editMode = false;
-			await navigate('/tests');
 		} catch (err) {
 			error = 'Nie udało się zapisać testu.';
 			console.error('Failed to save test:', err);
@@ -263,7 +265,7 @@
 			/>
 			<div class="question-select-content">
 				<div class="question-select-meta">
-					<Badge variant={question.type === 'choice' ? 'primary' : 'accent'}>
+					<Badge variant="accent">
 						{question.type === 'choice' ? 'Jednokrotny wybór' : 'Prawda / Fałsz'}
 					</Badge>
 					{#if question.tags && question.tags.length > 0}
@@ -285,7 +287,7 @@
 	<Card padding="md">
 		<div class="view-question">
 			<div class="question-select-meta">
-				<Badge variant={question.type === 'choice' ? 'primary' : 'accent'}>
+				<Badge variant="accent">
 					{question.type === 'choice' ? 'Jednokrotny wybór' : 'Prawda / Fałsz'}
 				</Badge>
 				{#if question.tags && question.tags.length > 0}
@@ -341,7 +343,7 @@
 					Utwórz wersję
 				</Button>
 				{#if editMode}
-					<Button variant="accent" size="sm" onclick={requestDelete}>Usuń</Button>
+					<Button variant="danger" size="sm" onclick={requestDelete}>Usuń</Button>
 					<Button variant="primary" size="sm" onclick={submitSave} disabled={saving}>
 						{saving ? 'Zapisywanie...' : 'Zapisz'}
 					</Button>
@@ -531,7 +533,7 @@
 	<p class="confirm-text">Czy na pewno chcesz usunąć ten test? Tej operacji nie można cofnąć.</p>
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (deleteConfirmOpen = false)}>Anuluj</Button>
-		<Button variant="accent" onclick={confirmDelete}>Usuń</Button>
+		<Button variant="danger" onclick={confirmDelete}>Usuń</Button>
 	{/snippet}
 </Modal>
 
@@ -541,7 +543,7 @@
 	</p>
 	{#snippet footer()}
 		<Button variant="ghost" onclick={cancelDeleteRevision}>Anuluj</Button>
-		<Button variant="accent" onclick={confirmDeleteRevision}>Usuń</Button>
+		<Button variant="danger" onclick={confirmDeleteRevision}>Usuń</Button>
 	{/snippet}
 </Modal>
 
@@ -553,7 +555,7 @@
 	<p class="confirm-text">Masz niezapisane zmiany. Przejście do podglądu spowoduje ich utratę.</p>
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (discardConfirmOpen = false)}>Anuluj</Button>
-		<Button variant="accent" onclick={confirmDiscard}>Odrzuć zmiany</Button>
+		<Button variant="danger" onclick={confirmDiscard}>Odrzuć zmiany</Button>
 	{/snippet}
 </Modal>
 
@@ -639,7 +641,7 @@
 	}
 
 	.collapse-toggle:focus-visible {
-		outline: 2px solid var(--accent);
+		outline: 2px solid var(--primary);
 		outline-offset: 2px;
 		border-radius: var(--radius-sm);
 	}
@@ -775,7 +777,7 @@
 	}
 
 	.revision-card-button:focus-visible {
-		outline: 2px solid var(--accent);
+		outline: 2px solid var(--primary);
 		outline-offset: 2px;
 		border-radius: var(--radius-md);
 	}

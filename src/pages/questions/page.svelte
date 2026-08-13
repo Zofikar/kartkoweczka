@@ -257,7 +257,7 @@
 	<p class="confirm-text">Czy na pewno chcesz usunąć to pytanie? Tej operacji nie można cofnąć.</p>
 	{#snippet footer()}
 		<Button variant="ghost" onclick={cancelDelete}>Anuluj</Button>
-		<Button variant="accent" onclick={confirmDelete}>Usuń</Button>
+		<Button variant="danger" onclick={confirmDelete}>Usuń</Button>
 	{/snippet}
 </Modal>
 

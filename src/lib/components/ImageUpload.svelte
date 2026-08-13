@@ -173,7 +173,7 @@
 				</fieldset>
 				<div class="image-actions">
 					<Button variant="outline" size="sm" onclick={triggerFilePicker}>Zmień obraz</Button>
-					<Button variant="accent" size="sm" onclick={removeImage}>Usuń obraz</Button>
+					<Button variant="danger" size="sm" onclick={removeImage}>Usuń obraz</Button>
 				</div>
 			</div>
 		</div>

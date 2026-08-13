@@ -67,7 +67,7 @@
 	}
 
 	.list-item--interactive:focus-visible {
-		outline: 2px solid var(--accent);
+		outline: 2px solid var(--primary);
 		outline-offset: -2px;
 	}
 

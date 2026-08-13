@@ -41,13 +41,13 @@
 <article class="question-display">
 	<header class="question-header">
 		<div class="question-meta">
-			<Badge variant={question.type === 'choice' ? 'primary' : 'accent'}>
+			<Badge variant="accent">
 				{question.type === 'choice' ? 'Jednokrotny wybór' : 'Prawda / Fałsz'}
 			</Badge>
 		</div>
 		<div class="question-actions">
 			<Button variant="outline" size="sm" onclick={onedit} disabled={disableEdit}>Edytuj</Button>
-			<Button variant="accent" size="sm" onclick={ondelete}>Usuń</Button>
+			<Button variant="danger" size="sm" onclick={ondelete}>Usuń</Button>
 		</div>
 	</header>
 

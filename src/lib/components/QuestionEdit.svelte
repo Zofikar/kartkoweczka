@@ -378,7 +378,7 @@
 	</p>
 	{#snippet footer()}
 		<Button variant="ghost" onclick={cancelTypeChange}>Anuluj</Button>
-		<Button variant="accent" onclick={confirmTypeChange}>Zmień typ</Button>
+		<Button variant="danger" onclick={confirmTypeChange}>Zmień typ</Button>
 	{/snippet}
 </Modal>
 
@@ -386,7 +386,7 @@
 	<p class="confirm-text">Masz niezapisane zmiany. Czy na pewno chcesz anulować edycję?</p>
 	{#snippet footer()}
 		<Button variant="ghost" onclick={dismissCancel}>Wróć do edycji</Button>
-		<Button variant="accent" onclick={confirmCancel}>Anuluj edycję</Button>
+		<Button variant="danger" onclick={confirmCancel}>Anuluj edycję</Button>
 	{/snippet}
 </Modal>
 

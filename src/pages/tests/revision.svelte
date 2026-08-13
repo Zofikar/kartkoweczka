@@ -254,13 +254,19 @@
 			const finalName = saveAsNew ? await generateNextRevisionName(database, testId) : name;
 			const data = { name: finalName, questions: buildSnapshot() };
 			if (isNew || saveAsNew) {
-				await createTestRevision(database, testId, data);
+				const createdId = await createTestRevision(database, testId, data);
 				snackSuccess(saveAsNew ? 'Utworzono nową wersję' : 'Wersja utworzona');
+				await navigate('/tests/:id/revision/:revisionId', {
+					params: { id: testId, revisionId: createdId },
+				});
 			} else {
 				await updateTestRevision(database, revisionId!, data);
 				snackSuccess('Wersja zaktualizowana');
+				editMode = false;
+				await navigate('/tests/:id/revision/:revisionId', {
+					params: { id: testId, revisionId: revisionId! },
+				});
 			}
-			await navigate('/tests/:id', { params: { id: testId } });
 		} catch (err) {
 			error = 'Nie udało się zapisać wersji.';
 			console.error('Failed to save revision:', err);
@@ -283,7 +289,7 @@
 		<div class="view-question">
 			<div class="view-question-meta">
 				<span class="order-badge">{index + 1}</span>
-				<Badge variant={question.type === 'choice' ? 'primary' : 'accent'}>
+				<Badge variant="accent">
 					{question.type === 'choice' ? 'Jednokrotny wybór' : 'Prawda / Fałsz'}
 				</Badge>
 			</div>
@@ -384,7 +390,7 @@
 									<div class="ordered-question-header">
 										<div class="ordered-question-info">
 											<span class="order-badge">{index + 1}</span>
-											<Badge variant={question.type === 'choice' ? 'primary' : 'accent'}>
+											<Badge variant="accent">
 												{question.type === 'choice' ? 'Jednokrotny wybór' : 'Prawda / Fałsz'}
 											</Badge>
 											<div class="question-text">
@@ -485,7 +491,7 @@
 	<p class="confirm-text">Masz niezapisane zmiany. Przejście do podglądu spowoduje ich utratę.</p>
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (discardConfirmOpen = false)}>Anuluj</Button>
-		<Button variant="accent" onclick={confirmDiscard}>Odrzuć zmiany</Button>
+		<Button variant="danger" onclick={confirmDiscard}>Odrzuć zmiany</Button>
 	{/snippet}
 </Modal>
 
@@ -497,7 +503,7 @@
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (confirmOpen = false)}>Anuluj</Button>
 		<Button variant="outline" onclick={() => doSave(true)}>Zapisz jako nową wersję</Button>
-		<Button variant="accent" onclick={() => doSave(false)}>Nadpisz wersję</Button>
+		<Button variant="danger" onclick={() => doSave(false)}>Nadpisz wersję</Button>
 	{/snippet}
 </Modal>
 
