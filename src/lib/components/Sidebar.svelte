@@ -3,12 +3,12 @@
 	import ListItem from '../ui/List/ListItem.svelte';
 	import { onMount } from 'svelte';
 
-	import { isActive, p } from '@/router';
+	import { isActive, p, type StaticPagePath } from '@/router';
 
 	interface PageEntry {
 		id: string;
 		label: string;
-		path: string;
+		path: StaticPagePath;
 	}
 
 	interface Props {
