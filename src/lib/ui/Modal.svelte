@@ -13,65 +13,77 @@
 
 	let { open = false, onclose, title, children, footer, ...restProps }: Props = $props();
 
-	function handleBackdropClick(e: MouseEvent) {
-		if (e.target === e.currentTarget) {
-			onclose?.();
+	/** Syncs the native dialog with the `open` prop. showModal() gives a focus
+	 *  trap, Escape handling (cancel event) and focus restoration for free. */
+	function syncOpen(el: HTMLDialogElement) {
+		if (open && !el.open) {
+			el.showModal();
+		} else if (!open && el.open) {
+			el.close();
 		}
 	}
 
-	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
-			onclose?.();
-		}
+	function handleCancel(e: Event) {
+		// Native Escape press — route through onclose instead of closing directly.
+		e.preventDefault();
+		onclose?.();
+	}
+
+	function handleClick(e: MouseEvent) {
+		// Backdrop clicks land outside the dialog's bounds.
+		const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		const inDialog =
+			e.clientX >= rect.left &&
+			e.clientX <= rect.right &&
+			e.clientY >= rect.top &&
+			e.clientY <= rect.bottom;
+		if (!inDialog) onclose?.();
 	}
 </script>
 
-{#if open}
-	<div
-		class="modal-backdrop"
-		onclick={handleBackdropClick}
-		onkeydown={handleKeydown}
-		role="presentation"
-	>
-		<div class="modal" role="dialog" aria-modal="true" aria-label={title} {...restProps}>
-			{#if title}
-				<header class="modal-header">
-					<h2 class="modal-title">{title}</h2>
-				</header>
-			{/if}
-			<div class="modal-body">
-				{@render children?.()}
-			</div>
-			{#if footer}
-				<footer class="modal-footer">
-					{@render footer()}
-				</footer>
-			{/if}
-		</div>
+<dialog
+	{@attach syncOpen}
+	class="modal"
+	oncancel={handleCancel}
+	onclick={handleClick}
+	aria-label={title}
+	{...restProps}
+>
+	{#if title}
+		<header class="modal-header">
+			<h2 class="modal-title">{title}</h2>
+		</header>
+	{/if}
+	<div class="modal-body">
+		{@render children?.()}
 	</div>
-{/if}
+	{#if footer}
+		<footer class="modal-footer">
+			{@render footer()}
+		</footer>
+	{/if}
+</dialog>
 
 <style>
-	.modal-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 1000;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background-color: rgba(0, 0, 0, 0.6);
-	}
-
 	.modal {
-		background-color: var(--background);
-		border-radius: var(--radius-lg);
 		border: 1px solid var(--background-muted);
+		padding: 0;
+		background-color: var(--background);
+		color: var(--text);
+		border-radius: var(--radius-lg);
 		max-width: 560px;
 		width: calc(100% - var(--space-8));
 		max-height: calc(100vh - var(--space-16));
 		overflow-y: auto;
-		display: flex;
 		flex-direction: column;
+	}
+
+	.modal[open] {
+		display: flex;
+	}
+
+	.modal::backdrop {
+		background-color: rgba(0, 0, 0, 0.6);
 	}
 
 	.modal-header {

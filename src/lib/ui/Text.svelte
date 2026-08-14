@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte';
 
 	interface Props {
-		variant?: 'body' | 'muted' | 'small';
+		variant?: 'body' | 'muted' | 'small' | 'error';
 		as?: 'p' | 'span';
 		children?: Snippet;
 		class?: never;
@@ -35,5 +35,10 @@
 
 	.text--small {
 		font-size: var(--font-sm);
+	}
+
+	.text--error {
+		font-size: var(--font-base);
+		color: var(--error);
 	}
 </style>
