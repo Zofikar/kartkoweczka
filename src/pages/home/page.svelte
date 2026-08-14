@@ -12,7 +12,7 @@
 
 <div class="home-page" {...restProps}>
 	<Card padding="lg">
-		<Heading level={2}>Witaj w Kartkówka</Heading>
+		<Heading level={1}>Witaj w Kartkówka</Heading>
 		<Text variant="body">Generator testów i arkuszy odpowiedzi z automatycznym ocenianiem.</Text>
 	</Card>
 </div>

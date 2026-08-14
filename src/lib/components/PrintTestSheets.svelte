@@ -187,7 +187,7 @@
 	);
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') onclose?.();
+		if (e.key === 'Escape' && open) onclose?.();
 	}
 
 	function handleBackdrop(e: MouseEvent) {
@@ -195,7 +195,7 @@
 	}
 </script>
 
-<svelte:window bind:innerWidth={viewportWidth} />
+<svelte:window bind:innerWidth={viewportWidth} onkeydown={handleKeydown} />
 
 {#snippet sheetHeader()}
 	<header class="print-header" data-header>
@@ -300,6 +300,8 @@
 </div>
 
 {#if open}
+	<!-- Escape is handled at the window level (see svelte:window above). -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div
 		class="print-overlay"
 		role="dialog"
@@ -307,7 +309,6 @@
 		aria-label="Podgląd wydruku"
 		tabindex="-1"
 		onclick={handleBackdrop}
-		onkeydown={handleKeydown}
 	>
 		<div class="print-toolbar">
 			<div class="print-toolbar-title">

@@ -36,7 +36,19 @@
 	function handleNav() {
 		onclose?.();
 	}
+
+	/** Exact match for home, prefix match for sections so nested routes stay highlighted. */
+	function pageIsActive(path: StaticPagePath): boolean {
+		if (path === '/') return isActive(path);
+		return isActive.startsWith(path);
+	}
+
+	function handleDrawerKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape' && mobileOpen) onclose?.();
+	}
 </script>
+
+<svelte:window onkeydown={handleDrawerKeydown} />
 
 {#if isMobile}
 	{#if mobileOpen}
@@ -50,7 +62,7 @@
 					<List>
 						{#each pages as page (page.id)}
 							<a href={p(page.path)} class="sidebar-link" onclick={handleNav}>
-								<ListItem active={isActive(page.path)}>
+								<ListItem active={pageIsActive(page.path)}>
 									{page.label}
 								</ListItem>
 							</a>
@@ -66,7 +78,7 @@
 			<List>
 				{#each pages as page (page.id)}
 					<a href={p(page.path)} class="sidebar-link">
-						<ListItem active={isActive(page.path)}>
+						<ListItem active={pageIsActive(page.path)}>
 							{page.label}
 						</ListItem>
 					</a>

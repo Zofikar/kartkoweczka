@@ -1,6 +1,12 @@
 @import 'mathlive/static.css';
 @import 'mathlive/fonts.css';
 
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
 :root[data-theme='light'] {
 	--text: #040316;
 	--background: #fbfbfe;
