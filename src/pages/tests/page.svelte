@@ -6,6 +6,8 @@
 	import Text from '@/lib/ui/Text.svelte';
 	import Button from '@/lib/ui/Button.svelte';
 	import Badge from '@/lib/ui/Badge.svelte';
+	import PageHeader from '@/lib/ui/PageHeader.svelte';
+	import EmptyState from '@/lib/components/EmptyState.svelte';
 	import { loadAllTests, type TestSummary } from './service';
 	import type { Database } from '@/db/db';
 	import { navigate, p } from '@/router';
@@ -32,19 +34,22 @@
 </script>
 
 <div class="tests-page">
-	<div class="tests-header">
-		<Heading level={2}>Testy</Heading>
-		<Button variant="primary" onclick={() => navigate('/tests/new')}>+ Nowy test</Button>
-	</div>
+	<PageHeader title="Testy">
+		{#snippet actions()}
+			<Button variant="primary" onclick={() => navigate('/tests/new')}>+ Nowy test</Button>
+		{/snippet}
+	</PageHeader>
 
 	{#if loading}
 		<Text variant="muted">Ładowanie...</Text>
 	{:else}
 		<div class="tests-list">
 			{#if tests.length === 0}
-				<Card padding="lg">
-					<Text variant="muted">Brak testów. Utwórz pierwszy!</Text>
-				</Card>
+				<EmptyState message="Brak testów. Utwórz pierwszy!">
+					{#snippet actions()}
+						<Button variant="primary" onclick={() => navigate('/tests/new')}>+ Nowy test</Button>
+					{/snippet}
+				</EmptyState>
 			{:else}
 				{#each tests as test (test.id)}
 					<a href={p('/tests/:id', { params: { id: test.id } })} class="test-link">
@@ -73,13 +78,6 @@
 		height: 100%;
 		padding: var(--space-4);
 		gap: var(--space-4);
-	}
-
-	.tests-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		flex-shrink: 0;
 	}
 
 	.tests-list {

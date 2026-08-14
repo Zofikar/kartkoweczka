@@ -6,10 +6,12 @@
 	import Text from '@/lib/ui/Text.svelte';
 	import Button from '@/lib/ui/Button.svelte';
 	import Input from '@/lib/ui/Input.svelte';
-	import Select from '@/lib/ui/Select.svelte';
-	import Badge from '@/lib/ui/Badge.svelte';
-	import Modal from '@/lib/ui/Modal.svelte';
-	import TagSelect from '@/lib/components/TagSelect.svelte';
+	import ConfirmModal from '@/lib/ui/ConfirmModal.svelte';
+	import SegmentedControl from '@/lib/ui/SegmentedControl.svelte';
+	import PageHeader from '@/lib/ui/PageHeader.svelte';
+	import QuestionFiltersBar from '@/lib/components/QuestionFiltersBar.svelte';
+	import QuestionView from '@/lib/components/QuestionView.svelte';
+	import EmptyState from '@/lib/components/EmptyState.svelte';
 	import { loadAllQuestionsWithAnswers, type QuestionWithAnswers } from '../questions/service';
 	import {
 		createTest,
@@ -22,9 +24,8 @@
 	} from './service';
 	import type { QuestionType } from '@/db/schema/types';
 	import type { Database } from '@/db/db';
-	import { snackSuccess } from '@/lib/stores/snackbar.svelte';
+	import { snackError, snackSuccess } from '@/lib/stores/snackbar.svelte';
 	import { getTags, initTags } from '@/lib/stores/tags.svelte';
-	import { renderDocumentToHtml } from '@/utils/math';
 	import { navigate, route } from '@/router';
 
 	let database = $state<Database | null>(null);
@@ -152,18 +153,16 @@
 		editMode = false;
 	}
 
-	function clearFilters() {
-		filterType = null;
-		filterTags = [];
-		filterTagMode = 'any';
-	}
-
 	function toggleQuestion(id: string) {
 		if (selectedIds.includes(id)) {
 			selectedIds = selectedIds.filter((qid) => qid !== id);
 		} else {
 			selectedIds = [...selectedIds, id];
 		}
+	}
+
+	function toViewAnswers(question: QuestionWithAnswers) {
+		return question.answers.map((a) => ({ key: a.id, content: a.content, isCorrect: a.isCorrect }));
 	}
 
 	async function submitSave() {
@@ -195,7 +194,7 @@
 				await navigate('/tests/:id', { params: { id: testId! } });
 			}
 		} catch (err) {
-			error = 'Nie udało się zapisać testu.';
+			snackError('Nie udało się zapisać testu.');
 			console.error('Failed to save test:', err);
 		} finally {
 			saving = false;
@@ -216,7 +215,7 @@
 			await navigate('/tests');
 		} catch (err) {
 			console.error('Failed to delete test:', err);
-			error = 'Nie udało się usunąć testu.';
+			snackError('Nie udało się usunąć testu.');
 		}
 	}
 
@@ -241,7 +240,7 @@
 			if (testId) revisions = await loadTestRevisions(database, testId);
 		} catch (err) {
 			console.error('Failed to delete revision:', err);
-			error = 'Nie udało się usunąć wersji.';
+			snackError('Nie udało się usunąć wersji.');
 		}
 	}
 
@@ -264,20 +263,12 @@
 				onchange={() => toggleQuestion(question.id)}
 			/>
 			<div class="question-select-content">
-				<div class="question-select-meta">
-					<Badge variant="accent">
-						{question.type === 'choice' ? 'Jednokrotny wybór' : 'Prawda / Fałsz'}
-					</Badge>
-					{#if question.tags && question.tags.length > 0}
-						{#each question.tags as tag (tag)}
-							<Badge variant="secondary" size="sm">{tag}</Badge>
-						{/each}
-					{/if}
-				</div>
-				<div class="question-select-text">
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-					{@html renderDocumentToHtml(question.content)}
-				</div>
+				<QuestionView
+					type={question.type}
+					content={question.content}
+					answers={toViewAnswers(question)}
+					tags={question.tags}
+				/>
 			</div>
 		</label>
 	</Card>
@@ -285,67 +276,43 @@
 
 {#snippet viewQuestionCard(question: QuestionWithAnswers)}
 	<Card padding="md">
-		<div class="view-question">
-			<div class="question-select-meta">
-				<Badge variant="accent">
-					{question.type === 'choice' ? 'Jednokrotny wybór' : 'Prawda / Fałsz'}
-				</Badge>
-				{#if question.tags && question.tags.length > 0}
-					{#each question.tags as tag (tag)}
-						<Badge variant="secondary" size="sm">{tag}</Badge>
-					{/each}
-				{/if}
-			</div>
-			<div class="question-select-text">
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-				{@html renderDocumentToHtml(question.content)}
-			</div>
-			<ul class="view-answers-list">
-				{#each question.answers as answer (answer.id)}
-					<li class="view-answer" class:correct={answer.isCorrect}>
-						<span class="answer-order-mark" class:correct={answer.isCorrect}>
-							{answer.isCorrect ? '✓' : '✗'}
-						</span>
-						<span class="question-select-text">
-							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-							{@html renderDocumentToHtml(answer.content)}
-						</span>
-					</li>
-				{/each}
-			</ul>
-		</div>
+		<QuestionView
+			type={question.type}
+			content={question.content}
+			answers={toViewAnswers(question)}
+			tags={question.tags}
+		/>
 	</Card>
 {/snippet}
 
 <div class="detail-page">
-	<div class="detail-header">
-		<Heading level={2}>{isNew ? 'Nowy test' : editMode ? 'Edytuj test' : name}</Heading>
-		<div class="detail-header-actions">
+	<PageHeader title={isNew ? 'Nowy test' : editMode ? 'Edytuj test' : name}>
+		{#snippet actions()}
 			{#if !isNew}
-				<div class="mode-switch" role="tablist" aria-label="Tryb widoku">
-					<Button variant={editMode ? 'ghost' : 'primary'} size="sm" onclick={requestSwitchToView}>
-						Podgląd
-					</Button>
-					<Button
-						variant={editMode ? 'primary' : 'ghost'}
-						size="sm"
-						onclick={() => (editMode = true)}
-					>
-						Edytuj
-					</Button>
-				</div>
-
-				<Button
-					variant="secondary"
+				<SegmentedControl
+					role="tablist"
+					aria-label="Tryb widoku"
 					size="sm"
-					onclick={() => navigate('/tests/:id/revision/new', { params: { id: testId! } })}
-				>
-					Utwórz wersję
-				</Button>
+					value={editMode ? 'edit' : 'view'}
+					options={[
+						{ value: 'view', label: 'Podgląd' },
+						{ value: 'edit', label: 'Edytuj' },
+					]}
+					onchange={(v) => (v === 'edit' ? (editMode = true) : requestSwitchToView())}
+				/>
+
 				{#if editMode}
 					<Button variant="danger" size="sm" onclick={requestDelete}>Usuń</Button>
 					<Button variant="primary" size="sm" onclick={submitSave} disabled={saving}>
 						{saving ? 'Zapisywanie...' : 'Zapisz'}
+					</Button>
+				{:else}
+					<Button
+						variant="secondary"
+						size="sm"
+						onclick={() => navigate('/tests/:id/revision/new', { params: { id: testId! } })}
+					>
+						Utwórz wersję
 					</Button>
 				{/if}
 			{/if}
@@ -355,8 +322,8 @@
 					{saving ? 'Zapisywanie...' : 'Utwórz test'}
 				</Button>
 			{/if}
-		</div>
-	</div>
+		{/snippet}
+	</PageHeader>
 
 	{#if !loaded}
 		<Text variant="muted">Ładowanie...</Text>
@@ -370,44 +337,6 @@
 					error={error ?? undefined}
 					oninput={() => (error = null)}
 				/>
-
-				<div class="filters-bar">
-					<Select
-						label="Typ pytania"
-						size="md"
-						bind:value={filterType}
-						options={[
-							{ value: null, label: 'Wszystkie' },
-							{ value: 'choice', label: 'Jednokrotny wybór' },
-							{ value: 'true_false', label: 'Prawda / Fałsz' },
-						]}
-					/>
-
-					<div class="filter-group--tags">
-						<TagSelect
-							label="Tagi"
-							size="md"
-							selected={filterTags}
-							{allTags}
-							onselect={(tags) => (filterTags = tags)}
-						/>
-					</div>
-
-					<Select
-						label="Tryb tagów"
-						size="md"
-						bind:value={filterTagMode}
-						disabled={filterTags.length === 0}
-						options={[
-							{ value: 'any', label: 'Dowolny (ANY)' },
-							{ value: 'all', label: 'Wszystkie (ALL)' },
-						]}
-					/>
-
-					{#if hasActiveFilters}
-						<Button variant="ghost" size="md" onclick={clearFilters}>Wyczyść filtry</Button>
-					{/if}
-				</div>
 
 				<div class="selection-area">
 					<div class="selection-header">
@@ -442,16 +371,16 @@
 						</button>
 
 						{#if !unselectedCollapsed}
+							<QuestionFiltersBar bind:filterType bind:filterTags bind:filterTagMode {allTags} />
+
 							{#if questionsLoading}
 								<Text variant="muted">Ładowanie pytań...</Text>
 							{:else if unselectedQuestions.length === 0}
-								<Card padding="lg">
-									<Text variant="muted">
-										{hasActiveFilters
-											? 'Brak pytań spełniających kryteria filtrowania.'
-											: 'Brak dostępnych pytań.'}
-									</Text>
-								</Card>
+								<EmptyState
+									message={hasActiveFilters
+										? 'Brak pytań spełniających kryteria filtrowania.'
+										: 'Brak dostępnych pytań.'}
+								/>
 							{:else}
 								<div class="question-select-list">
 									{#each unselectedQuestions as question (question.id)}
@@ -467,7 +396,7 @@
 					<Heading level={4}>Pytania</Heading>
 
 					{#if selectedQuestions.length === 0}
-						<Text variant="muted">Ten test nie ma przypisanych pytań.</Text>
+						<EmptyState message="Ten test nie ma przypisanych pytań." />
 					{:else}
 						<div class="question-select-list">
 							{#each selectedQuestions as question (question.id)}
@@ -483,7 +412,7 @@
 					<Heading level={4}>Wersje testu</Heading>
 
 					{#if revisions.length === 0}
-						<Text variant="muted">Brak wersji. Utwórz pierwszą wersję testu.</Text>
+						<EmptyState message="Brak wersji. Utwórz pierwszą wersję testu." />
 					{:else}
 						<div class="revision-list">
 							{#each revisions as revision (revision.id)}
@@ -529,35 +458,35 @@
 	{/if}
 </div>
 
-<Modal open={deleteConfirmOpen} onclose={() => (deleteConfirmOpen = false)} title="Usuń test">
-	<p class="confirm-text">Czy na pewno chcesz usunąć ten test? Tej operacji nie można cofnąć.</p>
-	{#snippet footer()}
-		<Button variant="ghost" onclick={() => (deleteConfirmOpen = false)}>Anuluj</Button>
-		<Button variant="danger" onclick={confirmDelete}>Usuń</Button>
-	{/snippet}
-</Modal>
-
-<Modal open={revisionDeleteId !== null} onclose={cancelDeleteRevision} title="Usuń wersję">
-	<p class="confirm-text">
-		Czy na pewno chcesz usunąć wersję „{revisionDeleteName}"? Tej operacji nie można cofnąć.
-	</p>
-	{#snippet footer()}
-		<Button variant="ghost" onclick={cancelDeleteRevision}>Anuluj</Button>
-		<Button variant="danger" onclick={confirmDeleteRevision}>Usuń</Button>
-	{/snippet}
-</Modal>
-
-<Modal
-	open={discardConfirmOpen}
-	onclose={() => (discardConfirmOpen = false)}
-	title="Niezapisane zmiany"
+<ConfirmModal
+	open={deleteConfirmOpen}
+	oncancel={() => (deleteConfirmOpen = false)}
+	title="Usuń test"
+	confirmLabel="Usuń"
+	onconfirm={confirmDelete}
 >
-	<p class="confirm-text">Masz niezapisane zmiany. Przejście do podglądu spowoduje ich utratę.</p>
-	{#snippet footer()}
-		<Button variant="ghost" onclick={() => (discardConfirmOpen = false)}>Anuluj</Button>
-		<Button variant="danger" onclick={confirmDiscard}>Odrzuć zmiany</Button>
-	{/snippet}
-</Modal>
+	Czy na pewno chcesz usunąć ten test? Tej operacji nie można cofnąć.
+</ConfirmModal>
+
+<ConfirmModal
+	open={revisionDeleteId !== null}
+	oncancel={cancelDeleteRevision}
+	title="Usuń wersję"
+	confirmLabel="Usuń"
+	onconfirm={confirmDeleteRevision}
+>
+	Czy na pewno chcesz usunąć wersję „{revisionDeleteName}"? Tej operacji nie można cofnąć.
+</ConfirmModal>
+
+<ConfirmModal
+	open={discardConfirmOpen}
+	oncancel={() => (discardConfirmOpen = false)}
+	title="Niezapisane zmiany"
+	confirmLabel="Odrzuć zmiany"
+	onconfirm={confirmDiscard}
+>
+	Masz niezapisane zmiany. Przejście do podglądu spowoduje ich utratę.
+</ConfirmModal>
 
 <style>
 	.detail-page {
@@ -568,28 +497,6 @@
 		gap: var(--space-4);
 	}
 
-	.detail-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-3);
-		flex-shrink: 0;
-	}
-
-	.detail-header-actions {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-	}
-
-	.mode-switch {
-		display: inline-flex;
-		gap: var(--space-1);
-		border: var(--control-border-w) solid var(--background-muted);
-		border-radius: var(--control-radius);
-		padding: 2px;
-	}
-
 	.detail-body {
 		flex: 1;
 		overflow-y: auto;
@@ -597,19 +504,6 @@
 		flex-direction: column;
 		gap: var(--space-4);
 		padding-right: var(--space-1);
-	}
-
-	.filters-bar {
-		display: flex;
-		align-items: flex-end;
-		gap: var(--space-3);
-		flex-wrap: wrap;
-	}
-
-	.filter-group--tags {
-		flex: 1;
-		min-width: 200px;
-		max-width: 400px;
 	}
 
 	.selection-area {
@@ -703,62 +597,6 @@
 		flex: 1;
 	}
 
-	.question-select-meta {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-1);
-		align-items: center;
-	}
-
-	.question-select-text {
-		font-family: var(--font-sans);
-		font-size: var(--font-base);
-		color: var(--text);
-		line-height: 1.5;
-		white-space: pre-wrap;
-	}
-
-	.view-question {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-	}
-
-	.view-answers-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-	}
-
-	.view-answer {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		padding: var(--space-2);
-		border-radius: var(--radius-sm);
-		background-color: var(--background);
-		border: 1px solid var(--background-muted);
-	}
-
-	.view-answer.correct {
-		border-color: var(--primary);
-		background-color: color-mix(in srgb, var(--primary) 10%, var(--background));
-	}
-
-	.answer-order-mark {
-		font-size: var(--font-sm);
-		font-weight: var(--font-bold);
-		flex-shrink: 0;
-		color: var(--text-muted);
-	}
-
-	.answer-order-mark.correct {
-		color: var(--success);
-	}
-
 	.revision-list {
 		display: flex;
 		flex-direction: column;
@@ -794,13 +632,5 @@
 		flex-direction: column;
 		gap: var(--space-1);
 		min-width: 0;
-	}
-
-	.confirm-text {
-		font-family: var(--font-sans);
-		font-size: var(--font-base);
-		color: var(--text);
-		line-height: 1.5;
-		margin: 0;
 	}
 </style>

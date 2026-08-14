@@ -6,8 +6,13 @@
 	import Text from '@/lib/ui/Text.svelte';
 	import Button from '@/lib/ui/Button.svelte';
 	import Badge from '@/lib/ui/Badge.svelte';
-	import Modal from '@/lib/ui/Modal.svelte';
+	import ConfirmModal from '@/lib/ui/ConfirmModal.svelte';
+	import SegmentedControl from '@/lib/ui/SegmentedControl.svelte';
+	import PageHeader from '@/lib/ui/PageHeader.svelte';
 	import PrintTestSheets from '@/lib/components/PrintTestSheets.svelte';
+	import QuestionView from '@/lib/components/QuestionView.svelte';
+	import OrderControls from '@/lib/components/OrderControls.svelte';
+	import { questionTypeLabel } from '@/lib/labels';
 	import {
 		loadTestById,
 		loadTestRevisionById,
@@ -15,29 +20,14 @@
 		updateTestRevision,
 		generateNextRevisionName,
 	} from './service';
-	import type { QuestionType, ImagePlacement, SnapshotQuestion } from '@/db/schema/types';
+	import type { SnapshotQuestion } from '@/db/schema/types';
 	import type { Database } from '@/db/db';
 	import type { QuestionWithAnswers } from '../questions/service';
+	import type { EditableQuestion } from '@/lib/types';
 	import { snackSuccess } from '@/lib/stores/snackbar.svelte';
 	import { initTags } from '@/lib/stores/tags.svelte';
 	import { renderDocumentToHtml } from '@/utils/math';
 	import { navigate, route } from '@/router';
-
-	interface EditableAnswer {
-		key: string;
-		content: string;
-		isCorrect: boolean;
-	}
-
-	interface EditableQuestion {
-		key: string;
-		type: QuestionType;
-		content: string;
-		image: string | null;
-		imageHeight: number | null;
-		imagePlacement: ImagePlacement | null;
-		answers: EditableAnswer[];
-	}
 
 	let database = $state<Database | null>(null);
 
@@ -286,54 +276,33 @@
 
 {#snippet viewQuestionCard(question: EditableQuestion, index: number)}
 	<Card padding="md">
-		<div class="view-question">
-			<div class="view-question-meta">
-				<span class="order-badge">{index + 1}</span>
-				<Badge variant="accent">
-					{question.type === 'choice' ? 'Jednokrotny wybór' : 'Prawda / Fałsz'}
-				</Badge>
-			</div>
-			<div class="question-text">
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-				{@html renderDocumentToHtml(question.content)}
-			</div>
-			<ul class="view-answers-list">
-				{#each question.answers as answer (answer.key)}
-					<li class="view-answer" class:correct={answer.isCorrect}>
-						<span class="answer-order-mark" class:correct={answer.isCorrect}>
-							{answer.isCorrect ? '✓' : '✗'}
-						</span>
-						<span class="answer-order-text">
-							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-							{@html renderDocumentToHtml(answer.content)}
-						</span>
-					</li>
-				{/each}
-			</ul>
-		</div>
+		<QuestionView
+			type={question.type}
+			content={question.content}
+			answers={question.answers}
+			{index}
+		/>
 	</Card>
 {/snippet}
 
 <div class="revision-page">
-	<div class="revision-header">
-		<div class="revision-title">
+	<PageHeader title={isNew ? 'Nowa wersja' : editMode ? 'Edytuj wersję' : name}>
+		{#snippet leading()}
 			<Button variant="ghost" onclick={goBack}>← Wstecz</Button>
-			<Heading level={2}>{isNew ? 'Nowa wersja' : editMode ? 'Edytuj wersję' : name}</Heading>
-		</div>
-		<div class="revision-actions">
+		{/snippet}
+		{#snippet actions()}
 			{#if !isNew}
-				<div class="mode-switch" role="tablist" aria-label="Tryb widoku">
-					<Button variant={editMode ? 'ghost' : 'primary'} size="sm" onclick={requestSwitchToView}>
-						Podgląd
-					</Button>
-					<Button
-						variant={editMode ? 'primary' : 'ghost'}
-						size="sm"
-						onclick={() => (editMode = true)}
-					>
-						Edytuj
-					</Button>
-				</div>
+				<SegmentedControl
+					role="tablist"
+					aria-label="Tryb widoku"
+					size="sm"
+					value={editMode ? 'edit' : 'view'}
+					options={[
+						{ value: 'view', label: 'Podgląd' },
+						{ value: 'edit', label: 'Edytuj' },
+					]}
+					onchange={(v) => (v === 'edit' ? (editMode = true) : requestSwitchToView())}
+				/>
 			{/if}
 
 			{#if editMode}
@@ -343,8 +312,8 @@
 			{:else}
 				<Button variant="secondary" onclick={() => (printOpen = true)}>Drukuj</Button>
 			{/if}
-		</div>
-	</div>
+		{/snippet}
+	</PageHeader>
 
 	{#if loading}
 		<Text variant="muted">Ładowanie...</Text>
@@ -357,7 +326,7 @@
 				</div>
 
 				{#if error}
-					<Text variant="muted">{error}</Text>
+					<Text variant="error">{error}</Text>
 				{/if}
 
 				{#if editMode}
@@ -391,7 +360,7 @@
 										<div class="ordered-question-info">
 											<span class="order-badge">{index + 1}</span>
 											<Badge variant="accent">
-												{question.type === 'choice' ? 'Jednokrotny wybór' : 'Prawda / Fałsz'}
+												{questionTypeLabel(question.type)}
 											</Badge>
 											<div class="question-text">
 												<!-- eslint-disable-next-line svelte/no-at-html-tags -->
@@ -400,26 +369,12 @@
 										</div>
 
 										{#if !isNew || !autoOrder}
-											<div class="order-controls">
-												<button
-													type="button"
-													class="mini-btn"
-													aria-label="Przesuń pytanie wyżej"
-													disabled={index === 0}
-													onclick={() => moveQuestion(index, -1)}
-												>
-													↑
-												</button>
-												<button
-													type="button"
-													class="mini-btn"
-													aria-label="Przesuń pytanie niżej"
-													disabled={index === questions.length - 1}
-													onclick={() => moveQuestion(index, 1)}
-												>
-													↓
-												</button>
-											</div>
+											<OrderControls
+												itemLabel="pytanie"
+												disableUp={index === 0}
+												disableDown={index === questions.length - 1}
+												onmove={(dir) => moveQuestion(index, dir)}
+											/>
 										{/if}
 									</div>
 
@@ -427,7 +382,7 @@
 										<div class="answer-order-list">
 											{#each question.answers as answer, answerIndex (answer.key)}
 												<div class="answer-order-row">
-													<span class="answer-order-num">{answerIndex + 1}</span>
+													<span class="answer-index-badge">{answerIndex + 1}</span>
 													<span class="answer-order-mark" class:correct={answer.isCorrect}>
 														{answer.isCorrect ? '✓' : '✗'}
 													</span>
@@ -435,26 +390,12 @@
 														<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 														{@html renderDocumentToHtml(answer.content)}
 													</span>
-													<div class="order-controls">
-														<button
-															type="button"
-															class="mini-btn"
-															aria-label="Przesuń odpowiedź wyżej"
-															disabled={answerIndex === 0}
-															onclick={() => moveAnswer(question.key, answerIndex, -1)}
-														>
-															↑
-														</button>
-														<button
-															type="button"
-															class="mini-btn"
-															aria-label="Przesuń odpowiedź niżej"
-															disabled={answerIndex === question.answers.length - 1}
-															onclick={() => moveAnswer(question.key, answerIndex, 1)}
-														>
-															↓
-														</button>
-													</div>
+													<OrderControls
+														itemLabel="odpowiedź"
+														disableUp={answerIndex === 0}
+														disableDown={answerIndex === question.answers.length - 1}
+														onmove={(dir) => moveAnswer(question.key, answerIndex, dir)}
+													/>
 												</div>
 											{/each}
 										</div>
@@ -483,29 +424,29 @@
 	questions={buildSnapshot()}
 />
 
-<Modal
+<ConfirmModal
 	open={discardConfirmOpen}
-	onclose={() => (discardConfirmOpen = false)}
+	oncancel={() => (discardConfirmOpen = false)}
 	title="Niezapisane zmiany"
+	confirmLabel="Odrzuć zmiany"
+	onconfirm={confirmDiscard}
 >
-	<p class="confirm-text">Masz niezapisane zmiany. Przejście do podglądu spowoduje ich utratę.</p>
-	{#snippet footer()}
-		<Button variant="ghost" onclick={() => (discardConfirmOpen = false)}>Anuluj</Button>
-		<Button variant="danger" onclick={confirmDiscard}>Odrzuć zmiany</Button>
-	{/snippet}
-</Modal>
+	Masz niezapisane zmiany. Przejście do podglądu spowoduje ich utratę.
+</ConfirmModal>
 
-<Modal open={confirmOpen} onclose={() => (confirmOpen = false)} title="Zapisz zmiany wersji">
-	<p class="confirm-text">
-		Ta wersja mogła już zostać wydrukowana. Nadpisanie jej zmieni dopasowanie odpowiedzi na kartach.
-		Wybierz, czy chcesz nadpisać istniejącą wersję, czy utworzyć nową na podstawie zmian.
-	</p>
-	{#snippet footer()}
+<ConfirmModal
+	open={confirmOpen}
+	oncancel={() => (confirmOpen = false)}
+	title="Zapisz zmiany wersji"
+>
+	Ta wersja mogła już zostać wydrukowana. Nadpisanie jej zmieni dopasowanie odpowiedzi na kartach.
+	Wybierz, czy chcesz nadpisać istniejącą wersję, czy utworzyć nową na podstawie zmian.
+	{#snippet actions()}
 		<Button variant="ghost" onclick={() => (confirmOpen = false)}>Anuluj</Button>
 		<Button variant="outline" onclick={() => doSave(true)}>Zapisz jako nową wersję</Button>
 		<Button variant="danger" onclick={() => doSave(false)}>Nadpisz wersję</Button>
 	{/snippet}
-</Modal>
+</ConfirmModal>
 
 <style>
 	.revision-page {
@@ -514,34 +455,6 @@
 		height: 100%;
 		padding: var(--space-4);
 		gap: var(--space-4);
-	}
-
-	.revision-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-3);
-		flex-shrink: 0;
-	}
-
-	.revision-title {
-		display: flex;
-		align-items: center;
-		gap: var(--space-3);
-	}
-
-	.revision-actions {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-	}
-
-	.mode-switch {
-		display: inline-flex;
-		gap: var(--space-1);
-		border: var(--control-border-w) solid var(--background-muted);
-		border-radius: var(--control-radius);
-		padding: 2px;
 	}
 
 	.revision-form {
@@ -619,48 +532,15 @@
 		min-width: 0;
 	}
 
-	.view-question {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-	}
-
-	.view-question-meta {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-	}
-
-	.view-answers-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-	}
-
-	.view-answer {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		padding: var(--space-2);
-		border-radius: var(--radius-sm);
-		background-color: var(--background);
-		border: 1px solid var(--background-muted);
-	}
-
-	.view-answer.correct {
-		border-color: var(--primary);
-		background-color: color-mix(in srgb, var(--primary) 10%, var(--background));
-	}
-
 	.question-text {
 		font-family: var(--font-sans);
-		font-size: var(--font-base);
+		font-size: var(--font-lg);
+		font-weight: var(--font-semibold);
 		color: var(--text);
-		line-height: 1.5;
+		line-height: 1.6;
 		white-space: pre-wrap;
+		/* Align bare text with the text inside the padded badge/box elements. */
+		padding-left: var(--space-3);
 	}
 
 	.order-badge {
@@ -677,37 +557,6 @@
 		flex-shrink: 0;
 	}
 
-	.order-controls {
-		display: flex;
-		gap: var(--space-1);
-		flex-shrink: 0;
-	}
-
-	.mini-btn {
-		width: 28px;
-		height: 28px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		border: 1px solid var(--background-muted);
-		border-radius: var(--radius-sm);
-		background-color: var(--background);
-		color: var(--text);
-		cursor: pointer;
-		font-size: var(--font-sm);
-		line-height: 1;
-		transition: border-color 150ms ease;
-	}
-
-	.mini-btn:hover:not(:disabled) {
-		border-color: var(--primary);
-	}
-
-	.mini-btn:disabled {
-		opacity: 0.35;
-		cursor: not-allowed;
-	}
-
 	.answer-order-list {
 		display: flex;
 		flex-direction: column;
@@ -722,14 +571,15 @@
 		gap: var(--space-2);
 	}
 
-	.answer-order-num {
+	.answer-index-badge {
 		width: 20px;
 		height: 20px;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 		border-radius: var(--radius-full);
-		background-color: var(--background-muted);
+		/* Page-colored fill so the circle stays visible on muted card backgrounds. */
+		background-color: var(--background);
 		color: var(--text-muted);
 		font-size: var(--font-xs);
 		font-weight: var(--font-medium);
@@ -755,13 +605,5 @@
 		color: var(--text);
 		line-height: 1.5;
 		white-space: pre-wrap;
-	}
-
-	.confirm-text {
-		font-family: var(--font-sans);
-		font-size: var(--font-base);
-		color: var(--text);
-		line-height: 1.5;
-		margin: 0;
 	}
 </style>

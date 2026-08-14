@@ -2,14 +2,14 @@
 	import { onMount } from 'svelte';
 	import { db } from '@/db/dbStore';
 	import Card from '@/lib/ui/Card.svelte';
-	import Heading from '@/lib/ui/Heading.svelte';
 	import Text from '@/lib/ui/Text.svelte';
 	import Button from '@/lib/ui/Button.svelte';
-	import Select from '@/lib/ui/Select.svelte';
 	import QuestionDisplay from '@/lib/components/QuestionDisplay.svelte';
 	import QuestionEdit from '@/lib/components/QuestionEdit.svelte';
-	import TagSelect from '@/lib/components/TagSelect.svelte';
-	import Modal from '@/lib/ui/Modal.svelte';
+	import QuestionFiltersBar from '@/lib/components/QuestionFiltersBar.svelte';
+	import EmptyState from '@/lib/components/EmptyState.svelte';
+	import ConfirmModal from '@/lib/ui/ConfirmModal.svelte';
+	import PageHeader from '@/lib/ui/PageHeader.svelte';
 	import {
 		createQuestion,
 		deleteQuestion,
@@ -88,13 +88,6 @@
 		loading = false;
 	}
 
-	function clearFilters() {
-		filterType = null;
-		filterTags = [];
-		filterTagMode = 'any';
-		refreshQuestions();
-	}
-
 	async function startEdit(id: string) {
 		editingId = id;
 		// Pin the question being edited so it stays visible even if filters would hide it
@@ -166,53 +159,19 @@
 </script>
 
 <div class="questions-page">
-	<div class="questions-header">
-		<Heading level={2}>Pytania</Heading>
-		<Button variant="primary" onclick={startNew} disabled={isEditing}>+ Nowe pytanie</Button>
-	</div>
+	<PageHeader title="Pytania">
+		{#snippet actions()}
+			<Button variant="primary" onclick={startNew} disabled={isEditing}>+ Nowe pytanie</Button>
+		{/snippet}
+	</PageHeader>
 
-	<div class="filters-bar">
-		<Select
-			label="Typ pytania"
-			size="md"
-			bind:value={filterType}
-			onchange={refreshQuestions}
-			options={[
-				{ value: null, label: 'Wszystkie' },
-				{ value: 'choice', label: 'Jednokrotny wybór' },
-				{ value: 'true_false', label: 'Prawda / Fałsz' },
-			]}
-		/>
-
-		<div class="filter-group--tags">
-			<TagSelect
-				label="Tagi"
-				size="md"
-				selected={filterTags}
-				{allTags}
-				onselect={(tags) => {
-					filterTags = tags;
-					refreshQuestions();
-				}}
-			/>
-		</div>
-
-		<Select
-			label="Tryb tagów"
-			size="md"
-			bind:value={filterTagMode}
-			onchange={refreshQuestions}
-			disabled={filterTags.length === 0}
-			options={[
-				{ value: 'any', label: 'Dowolny (ANY)' },
-				{ value: 'all', label: 'Wszystkie (ALL)' },
-			]}
-		/>
-
-		{#if hasActiveFilters}
-			<Button variant="ghost" size="md" onclick={clearFilters}>Wyczyść filtry</Button>
-		{/if}
-	</div>
+	<QuestionFiltersBar
+		bind:filterType
+		bind:filterTags
+		bind:filterTagMode
+		{allTags}
+		onchange={refreshQuestions}
+	/>
 
 	{#if loading}
 		<Text variant="muted">Ładowanie...</Text>
@@ -225,13 +184,15 @@
 			{/if}
 
 			{#if displayQuestions.length === 0 && editingId !== 'new'}
-				<Card padding="lg">
-					<Text variant="muted">
-						{hasActiveFilters
-							? 'Brak pytań spełniających kryteria filtrowania.'
-							: 'Brak pytań. Utwórz pierwsze!'}
-					</Text>
-				</Card>
+				{#if hasActiveFilters}
+					<EmptyState message="Brak pytań spełniających kryteria filtrowania." />
+				{:else}
+					<EmptyState message="Brak pytań. Utwórz pierwsze!">
+						{#snippet actions()}
+							<Button variant="primary" onclick={startNew}>+ Nowe pytanie</Button>
+						{/snippet}
+					</EmptyState>
+				{/if}
 			{/if}
 
 			{#each displayQuestions as question (question.id)}
@@ -253,13 +214,15 @@
 	{/if}
 </div>
 
-<Modal open={deleteConfirmId !== null} onclose={cancelDelete} title="Usuń pytanie">
-	<p class="confirm-text">Czy na pewno chcesz usunąć to pytanie? Tej operacji nie można cofnąć.</p>
-	{#snippet footer()}
-		<Button variant="ghost" onclick={cancelDelete}>Anuluj</Button>
-		<Button variant="danger" onclick={confirmDelete}>Usuń</Button>
-	{/snippet}
-</Modal>
+<ConfirmModal
+	open={deleteConfirmId !== null}
+	oncancel={cancelDelete}
+	title="Usuń pytanie"
+	confirmLabel="Usuń"
+	onconfirm={confirmDelete}
+>
+	Czy na pewno chcesz usunąć to pytanie? Tej operacji nie można cofnąć.
+</ConfirmModal>
 
 <style>
 	.questions-page {
@@ -270,27 +233,6 @@
 		gap: var(--space-4);
 	}
 
-	.questions-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		flex-shrink: 0;
-	}
-
-	.filters-bar {
-		display: flex;
-		align-items: flex-end;
-		gap: var(--space-3);
-		flex-wrap: wrap;
-		flex-shrink: 0;
-	}
-
-	.filter-group--tags {
-		flex: 1;
-		min-width: 200px;
-		max-width: 400px;
-	}
-
 	.questions-list {
 		flex: 1;
 		overflow-y: auto;
@@ -298,13 +240,5 @@
 		flex-direction: column;
 		gap: var(--space-3);
 		padding-right: var(--space-1);
-	}
-
-	.confirm-text {
-		font-family: var(--font-sans);
-		font-size: var(--font-base);
-		color: var(--text);
-		line-height: 1.5;
-		margin: 0;
 	}
 </style>
