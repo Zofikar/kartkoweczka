@@ -6,6 +6,7 @@
 	import {
 		A4_WIDTH_MM,
 		BASE_GAP_MM,
+		BODY_INDENT_MM,
 		QUESTION_GAP_MM,
 		PRINT_FONT_SIZE_PT,
 		USABLE_HEIGHT_MM,
@@ -16,9 +17,6 @@
 	} from '@/utils/paper';
 
 	const PX_PER_MM = 96 / 25.4;
-
-	/** How much answers/images are indented relative to the question text. */
-	const BODY_INDENT_MM = 8;
 
 	/** Images smaller than this fraction of usable width stay beside answers. */
 	const SMALL_IMAGE_WIDTH_FRACTION = 1 / 3;
@@ -233,7 +231,7 @@
 							src={q.image}
 							alt="Ilustracja do pytania"
 						/>
-						<ul class="print-answers print-answers--inline print-answers--side-right">
+						<ul class="print-answers print-answers--inline">
 							{#each q.answers as a (a.key)}
 								<li class="print-answer">
 									<span class="print-answer-letter">{a.letter}.</span>
@@ -244,9 +242,11 @@
 						</ul>
 					</div>
 				{:else}
-					<!-- right placement, or a small 'over' image kept beside answers -->
+					<!-- right placement, or a small 'over' image kept beside answers.
+					     Answers keep their natural width so the image stays left-aligned
+					     right next to them instead of being pinned to the right edge. -->
 					<div class="print-side">
-						<ul class="print-answers print-answers--inline">
+						<ul class="print-answers">
 							{#each q.answers as a (a.key)}
 								<li class="print-answer">
 									<span class="print-answer-letter">{a.letter}.</span>
@@ -256,7 +256,7 @@
 							{/each}
 						</ul>
 						<img
-							class="print-image print-image--side print-image--right"
+							class="print-image print-image--side"
 							style={q.imageStyle}
 							src={q.image}
 							alt="Ilustracja do pytania"
@@ -503,10 +503,6 @@
 		align-self: flex-start;
 	}
 
-	.print-image--right {
-		margin-left: auto;
-	}
-
 	.print-side {
 		display: flex;
 		align-items: flex-start;
@@ -524,12 +520,9 @@
 	}
 
 	.print-answers--inline {
+		/* Beside a left-placed image, fill the remaining width so the answers
+		   column reaches the right edge of the body. */
 		flex: 1;
-	}
-
-	.print-answers--side-right {
-		margin-left: auto;
-		max-width: 66.666%;
 	}
 
 	.print-answer {

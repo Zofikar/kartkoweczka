@@ -40,8 +40,18 @@ export const BASE_GAP_MM = 4;
 /** Gap between two consecutive questions (double the base gap). */
 export const QUESTION_GAP_MM = BASE_GAP_MM * 2;
 
+/** How much answers/images are indented relative to the question text. */
+export const BODY_INDENT_MM = 8;
+
 /** Portion of the usable width reserved for a side-by-side image. */
 export const SIDE_IMAGE_WIDTH_FRACTION = 3 / 5;
+
+/**
+ * Minimum width of a side-by-side image, as a fraction of the usable width.
+ * Narrower images are scaled up to it (keeping their aspect ratio) so they
+ * don't visually blend into the answers next to them.
+ */
+export const SIDE_IMAGE_MIN_WIDTH_FRACTION = 1 / 3;
 
 /** Hard limit for image height when placed above answers (in lines). */
 export const OVER_PLACEMENT_MAX_LINES = 6;
@@ -52,8 +62,21 @@ export const SIDE_PLACEMENT_MIN_LINES = 4;
 
 export type ImagePlacementValue = 'over' | 'left' | 'right';
 
+/**
+ * Width available to an 'over' image. Such images render inside the indented
+ * print body, so the body indent is subtracted from the usable width —
+ * otherwise a wide image would overflow and get letterboxed by CSS max-width.
+ */
+function overImageMaxWidthMm(): number {
+	return USABLE_WIDTH_MM - BODY_INDENT_MM;
+}
+
 function sideImageWidthMm(): number {
 	return USABLE_WIDTH_MM * SIDE_IMAGE_WIDTH_FRACTION;
+}
+
+function sideImageMinWidthMm(): number {
+	return USABLE_WIDTH_MM * SIDE_IMAGE_MIN_WIDTH_FRACTION;
 }
 
 /** Natural image height (in lines) when rendered at the side-by-side width. */
@@ -81,7 +104,7 @@ export function computeImageMaxLines(
 		const aspectRatio = naturalWidth / naturalHeight;
 		const linesFromWidth = Math.max(
 			OVER_PLACEMENT_MIN_LINES,
-			Math.floor(USABLE_WIDTH_MM / aspectRatio / LINE_HEIGHT_MM)
+			Math.floor(overImageMaxWidthMm() / aspectRatio / LINE_HEIGHT_MM)
 		);
 		return Math.min(OVER_PLACEMENT_MAX_LINES, linesFromWidth);
 	}
@@ -110,8 +133,10 @@ export interface ImageDisplaySize {
  * - `requestedLines` is the stored `imageHeight` expressed in text lines.
  * - The height is clamped to the placement's [min,max] range.
  * - The width follows the natural aspect ratio but is capped at the maximum
- *   width available for the placement (full usable width for 'over', 3/5 of
- *   it for 'left'/'right').
+ *   width available for the placement (the indented body width for 'over',
+ *   3/5 of the usable width for 'left'/'right').
+ * - Side-by-side images are additionally scaled up to a minimum of 1/3 of
+ *   the usable width so they don't blend into the answers next to them.
  */
 export function computeImageDisplaySize(
 	naturalWidth: number,
@@ -131,12 +156,16 @@ export function computeImageDisplaySize(
 	const fallback = placement === 'over' ? defaultOver : lo;
 	const lines = clamp(requestedLines ?? fallback, lo, hi);
 
-	const maxWidthMm = placement === 'over' ? USABLE_WIDTH_MM : sideImageWidthMm();
+	const maxWidthMm = placement === 'over' ? overImageMaxWidthMm() : sideImageWidthMm();
 
 	let heightMm = lines * LINE_HEIGHT_MM;
 	let widthMm = heightMm * aspectRatio;
 	if (widthMm > maxWidthMm) {
 		widthMm = maxWidthMm;
+		heightMm = widthMm / aspectRatio;
+	}
+	if (placement !== 'over' && widthMm < sideImageMinWidthMm()) {
+		widthMm = sideImageMinWidthMm();
 		heightMm = widthMm / aspectRatio;
 	}
 
