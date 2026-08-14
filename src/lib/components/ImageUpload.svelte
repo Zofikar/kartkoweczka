@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Button from '@/lib/ui/Button.svelte';
+	import SegmentedControl from '@/lib/ui/SegmentedControl.svelte';
 	import type { ImagePlacement } from '@/db/schema/types';
 	import { computeImageMaxLines, computeImageMinLines } from '@/utils/paper';
 
@@ -137,39 +138,17 @@
 				</label>
 				<fieldset class="placement-fieldset">
 					<legend class="control-label-text">Położenie obrazu</legend>
-					<div
-						class="placement-options"
-						role="radiogroup"
+					<SegmentedControl
 						aria-label="Położenie obrazu względem odpowiedzi"
-					>
-						<Button
-							variant={imagePlacement === 'over' || !imagePlacement ? 'primary' : 'ghost'}
-							size="sm"
-							role="radio"
-							aria-checked={imagePlacement === 'over' || !imagePlacement}
-							onclick={() => onPlacementChange('over')}
-						>
-							Nad
-						</Button>
-						<Button
-							variant={imagePlacement === 'left' ? 'primary' : 'ghost'}
-							size="sm"
-							role="radio"
-							aria-checked={imagePlacement === 'left'}
-							onclick={() => onPlacementChange('left')}
-						>
-							Lewo
-						</Button>
-						<Button
-							variant={imagePlacement === 'right' ? 'primary' : 'ghost'}
-							size="sm"
-							role="radio"
-							aria-checked={imagePlacement === 'right'}
-							onclick={() => onPlacementChange('right')}
-						>
-							Prawo
-						</Button>
-					</div>
+						size="sm"
+						value={imagePlacement ?? 'over'}
+						options={[
+							{ value: 'over', label: 'Nad' },
+							{ value: 'left', label: 'Lewo' },
+							{ value: 'right', label: 'Prawo' },
+						]}
+						onchange={onPlacementChange}
+					/>
 				</fieldset>
 				<div class="image-actions">
 					<Button variant="outline" size="sm" onclick={triggerFilePicker}>Zmień obraz</Button>
@@ -250,12 +229,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
-	}
-
-	.placement-options {
-		display: flex;
-		gap: var(--space-1);
-		align-self: flex-start;
 	}
 
 	.image-actions {

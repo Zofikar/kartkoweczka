@@ -5,10 +5,12 @@
 	import Text from '@/lib/ui/Text.svelte';
 	import type { QuestionEditData, QuestionWithAnswers } from '@/pages/questions/service';
 	import type { QuestionType, ImagePlacement } from '@/db/schema/types';
+	import type { EditableAnswer } from '@/lib/types';
 	import ImageUpload from './ImageUpload.svelte';
 	import RichMathEditor from './RichMathEditor.svelte';
 	import TagSelect from './TagSelect.svelte';
-	import Modal from '@/lib/ui/Modal.svelte';
+	import ConfirmModal from '@/lib/ui/ConfirmModal.svelte';
+	import SegmentedControl from '@/lib/ui/SegmentedControl.svelte';
 	import { migrateToPlainFormat } from '@/utils/math';
 	import { getTags, initTags } from '@/lib/stores/tags.svelte';
 	import { validateQuestionData } from '@/pages/questions/validation';
@@ -22,12 +24,6 @@
 	}
 
 	let { question = null, onsave, oncancel }: Props = $props();
-
-	interface EditableAnswer {
-		key: string;
-		content: string;
-		isCorrect: boolean;
-	}
 
 	function defaultAnswers(q: QuestionWithAnswers | null | undefined): EditableAnswer[] {
 		return (
@@ -270,26 +266,16 @@
 
 	<div class="edit-field">
 		<span class="field-label" id="mode-label">Typ pytania</span>
-		<div class="mode-switch" role="radiogroup" aria-labelledby="mode-label">
-			<Button
-				variant={type === 'choice' ? 'primary' : 'ghost'}
-				size="sm"
-				role="radio"
-				aria-checked={type === 'choice'}
-				onclick={() => requestTypeChange('choice')}
-			>
-				Jednokrotny wybór
-			</Button>
-			<Button
-				variant={type === 'true_false' ? 'primary' : 'ghost'}
-				size="sm"
-				role="radio"
-				aria-checked={type === 'true_false'}
-				onclick={() => requestTypeChange('true_false')}
-			>
-				Prawda / Fałsz
-			</Button>
-		</div>
+		<SegmentedControl
+			aria-labelledby="mode-label"
+			size="sm"
+			value={type}
+			options={[
+				{ value: 'choice', label: 'Jednokrotny wybór' },
+				{ value: 'true_false', label: 'Prawda / Fałsz' },
+			]}
+			onchange={requestTypeChange}
+		/>
 	</div>
 
 	<Divider />
@@ -372,23 +358,26 @@
 	</div>
 </article>
 
-<Modal open={pendingTypeChange !== null} onclose={cancelTypeChange} title="Zmiana typu pytania">
-	<p class="confirm-text">
-		Zmiana typu pytania spowoduje utratę wprowadzonych odpowiedzi. Czy na pewno chcesz kontynuować?
-	</p>
-	{#snippet footer()}
-		<Button variant="ghost" onclick={cancelTypeChange}>Anuluj</Button>
-		<Button variant="danger" onclick={confirmTypeChange}>Zmień typ</Button>
-	{/snippet}
-</Modal>
+<ConfirmModal
+	open={pendingTypeChange !== null}
+	oncancel={cancelTypeChange}
+	title="Zmiana typu pytania"
+	confirmLabel="Zmień typ"
+	onconfirm={confirmTypeChange}
+>
+	Zmiana typu pytania spowoduje utratę wprowadzonych odpowiedzi. Czy na pewno chcesz kontynuować?
+</ConfirmModal>
 
-<Modal open={showCancelConfirm} onclose={dismissCancel} title="Niezapisane zmiany">
-	<p class="confirm-text">Masz niezapisane zmiany. Czy na pewno chcesz anulować edycję?</p>
-	{#snippet footer()}
-		<Button variant="ghost" onclick={dismissCancel}>Wróć do edycji</Button>
-		<Button variant="danger" onclick={confirmCancel}>Anuluj edycję</Button>
-	{/snippet}
-</Modal>
+<ConfirmModal
+	open={showCancelConfirm}
+	oncancel={dismissCancel}
+	title="Niezapisane zmiany"
+	cancelLabel="Wróć do edycji"
+	confirmLabel="Anuluj edycję"
+	onconfirm={confirmCancel}
+>
+	Masz niezapisane zmiany. Czy na pewno chcesz anulować edycję?
+</ConfirmModal>
 
 <style>
 	.question-edit {
@@ -408,14 +397,6 @@
 		font-size: var(--font-sm);
 		font-weight: var(--font-medium);
 		color: var(--text);
-	}
-
-	.mode-switch {
-		display: flex;
-		gap: var(--space-1);
-		width: fit-content;
-		border: var(--control-border-w) solid var(--secondary);
-		border-radius: calc(var(--control-radius) + var(--control-border-w));
 	}
 
 	.answers-section {
@@ -506,13 +487,5 @@
 		justify-content: flex-end;
 		gap: var(--space-2);
 		margin-top: var(--space-2);
-	}
-
-	.confirm-text {
-		font-family: var(--font-sans);
-		font-size: var(--font-base);
-		color: var(--text);
-		line-height: 1.5;
-		margin: 0;
 	}
 </style>
