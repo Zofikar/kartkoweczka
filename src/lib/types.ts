@@ -1,4 +1,4 @@
-import type { ImagePlacement, QuestionType } from '@/db/schema/types';
+import type { ImagePlacement, QuestionType } from '@/db/repositories';
 
 /** Answer shape used by edit/ordering UIs — `key` is a stable local identity for each blocks. */
 export interface EditableAnswer {

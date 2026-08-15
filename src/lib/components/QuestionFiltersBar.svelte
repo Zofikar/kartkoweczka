@@ -2,7 +2,7 @@
 	import Button from '@/lib/ui/Button.svelte';
 	import Select from '@/lib/ui/Select.svelte';
 	import TagSelect from './TagSelect.svelte';
-	import type { QuestionType } from '@/db/schema/types';
+	import type { QuestionType } from '@/db/repositories';
 
 	interface Props {
 		filterType?: QuestionType | null;

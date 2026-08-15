@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import Badge from '@/lib/ui/Badge.svelte';
-	import type { QuestionType } from '@/db/schema/types';
+	import type { QuestionType } from '@/db/repositories';
 	import { questionTypeLabel } from '@/lib/labels';
 	import { renderDocumentToHtml } from '@/utils/math';
 

@@ -2,7 +2,7 @@
 	import Button from '@/lib/ui/Button.svelte';
 	import Text from '@/lib/ui/Text.svelte';
 	import QuestionView from './QuestionView.svelte';
-	import type { QuestionWithAnswers } from '@/pages/questions/service';
+	import type { QuestionWithAnswers } from '@/db/repositories';
 
 	interface Props {
 		question: QuestionWithAnswers;

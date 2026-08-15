@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
 	import Button from '@/lib/ui/Button.svelte';
-	import type { SnapshotQuestion } from '@/db/schema/types';
+	import type { SnapshotQuestion } from '@/db/repositories';
 	import { renderDocumentToHtml } from '@/utils/math';
 	import {
 		A4_WIDTH_MM,

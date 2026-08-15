@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Button from '@/lib/ui/Button.svelte';
 	import SegmentedControl from '@/lib/ui/SegmentedControl.svelte';
-	import type { ImagePlacement } from '@/db/schema/types';
+	import type { ImagePlacement } from '@/db/repositories';
 	import { computeImageMaxLines, computeImageMinLines } from '@/utils/paper';
 
 	interface Props {

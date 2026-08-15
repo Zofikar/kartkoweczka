@@ -1,4 +1,4 @@
-import type { QuestionType } from '@/db/schema/types';
+import type { QuestionType } from '@/db/repositories';
 
 export interface ValidationResult {
 	valid: boolean;
