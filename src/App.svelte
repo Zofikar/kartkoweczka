@@ -9,7 +9,7 @@
 	import LockScreen from './lib/components/LockScreen.svelte';
 	import Snackbar from './lib/ui/Snackbar.svelte';
 	import { routes } from './router';
-	import { initializeDatabase } from '@/db/dbStore';
+	import { initializeDatabase } from '@/db/client';
 
 	interface BeforeInstallPromptEvent extends Event {
 		prompt: () => Promise<void>;
