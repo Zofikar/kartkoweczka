@@ -3,8 +3,12 @@
 	import Divider from '@/lib/ui/Divider.svelte';
 	import IconButton from '@/lib/ui/IconButton.svelte';
 	import Text from '@/lib/ui/Text.svelte';
-	import type { QuestionEditData, QuestionWithAnswers } from '@/pages/questions/service';
-	import type { QuestionType, ImagePlacement } from '@/db/schema/types';
+	import type {
+		ImagePlacement,
+		QuestionEditData,
+		QuestionType,
+		QuestionWithAnswers,
+	} from '@/db/repositories';
 	import type { EditableAnswer } from '@/lib/types';
 	import ImageUpload from './ImageUpload.svelte';
 	import RichMathEditor from './RichMathEditor.svelte';
@@ -57,7 +61,7 @@
 	let allTags = $derived(getTags());
 
 	onMount(() => {
-		return initTags();
+		initTags();
 	});
 
 	$effect(() => {
