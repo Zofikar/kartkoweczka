@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { db } from '@/db/dbStore';
 	import Card from '@/lib/ui/Card.svelte';
 	import Heading from '@/lib/ui/Heading.svelte';
 	import Text from '@/lib/ui/Text.svelte';
@@ -12,23 +11,21 @@
 	import QuestionFiltersBar from '@/lib/components/QuestionFiltersBar.svelte';
 	import QuestionView from '@/lib/components/QuestionView.svelte';
 	import EmptyState from '@/lib/components/EmptyState.svelte';
-	import { loadAllQuestionsWithAnswers, type QuestionWithAnswers } from '../questions/service';
 	import {
 		createTest,
 		deleteTest,
 		deleteTestRevision,
-		loadTestById,
-		loadTestRevisions,
+		getTest,
+		listQuestions,
+		listTestRevisions,
 		updateTest,
+		type QuestionType,
+		type QuestionWithAnswers,
 		type TestRevisionSummary,
-	} from './service';
-	import type { QuestionType } from '@/db/schema/types';
-	import type { Database } from '@/db/db';
+	} from '@/db/repositories';
 	import { snackError, snackSuccess } from '@/lib/stores/snackbar.svelte';
 	import { getTags, initTags } from '@/lib/stores/tags.svelte';
 	import { navigate, route } from '@/router';
-
-	let database = $state<Database | null>(null);
 
 	// Test being edited, or null when creating a new one
 	let testId = $derived(route.params.id ?? null);
@@ -85,24 +82,14 @@
 	let isDirty = $derived(name !== originalName || !sameIds(selectedIds, originalSelectedIds));
 
 	onMount(() => {
-		const unsubTags = initTags();
-		const unsubDb = db.subscribe((d) => {
-			if (d) database = d;
-		});
-		return () => {
-			unsubTags();
-			unsubDb();
-		};
+		initTags();
 	});
 
 	$effect(() => {
-		if (!database) return;
-		initialize(testId);
+		void initialize(testId);
 	});
 
 	async function initialize(id: string | null) {
-		if (!database) return;
-
 		name = '';
 		selectedIds = [];
 		filterType = null;
@@ -112,25 +99,31 @@
 		loaded = false;
 		editMode = id === null;
 
-		questionsLoading = true;
-		allQuestions = await loadAllQuestionsWithAnswers(database);
-		questionsLoading = false;
+		try {
+			questionsLoading = true;
+			allQuestions = await listQuestions();
+			questionsLoading = false;
 
-		if (id) {
-			const test = await loadTestById(database, id);
-			if (test) {
-				name = test.name;
-				selectedIds = test.questions.map((q) => q.id);
+			if (id) {
+				const test = await getTest(id);
+				if (test) {
+					name = test.name;
+					selectedIds = test.questions.map((q) => q.id);
+				}
+				revisions = await listTestRevisions(id);
+			} else {
+				revisions = [];
 			}
-			revisions = await loadTestRevisions(database, id);
-		} else {
-			revisions = [];
+
+			originalName = name;
+			originalSelectedIds = [...selectedIds];
+		} catch (err) {
+			snackError('Nie udało się wczytać testu');
+			console.error('Failed to load test:', err);
+		} finally {
+			questionsLoading = false;
+			loaded = true;
 		}
-
-		originalName = name;
-		originalSelectedIds = [...selectedIds];
-
-		loaded = true;
 	}
 
 	function sameIds(a: string[], b: string[]): boolean {
@@ -166,8 +159,6 @@
 	}
 
 	async function submitSave() {
-		if (!database) return;
-
 		if (!name.trim()) {
 			error = 'Nazwa testu jest wymagana.';
 			return;
@@ -183,12 +174,12 @@
 		try {
 			const data = { name: name.trim(), questionIds: selectedIds };
 			if (isNew) {
-				const createdId = await createTest(database, data);
+				const createdId = await createTest(data);
 				snackSuccess('Test utworzony');
 				editMode = false;
 				await navigate('/tests/:id', { params: { id: createdId } });
 			} else {
-				await updateTest(database, testId!, data);
+				await updateTest(testId!, data);
 				snackSuccess('Test zaktualizowany');
 				editMode = false;
 				await navigate('/tests/:id', { params: { id: testId! } });
@@ -206,11 +197,11 @@
 	}
 
 	async function confirmDelete() {
-		if (!database || isNew) return;
+		if (isNew) return;
 		const id = testId!;
 		deleteConfirmOpen = false;
 		try {
-			await deleteTest(database, id);
+			await deleteTest(id);
 			snackSuccess('Test usunięty');
 			await navigate('/tests');
 		} catch (err) {
@@ -230,14 +221,14 @@
 	}
 
 	async function confirmDeleteRevision() {
-		if (!database || !revisionDeleteId) return;
+		if (!revisionDeleteId) return;
 		const id = revisionDeleteId;
 		revisionDeleteId = null;
 		revisionDeleteName = '';
 		try {
-			await deleteTestRevision(database, id);
+			await deleteTestRevision(id);
 			snackSuccess('Wersja usunięta');
-			if (testId) revisions = await loadTestRevisions(database, testId);
+			if (testId) revisions = await listTestRevisions(testId);
 		} catch (err) {
 			console.error('Failed to delete revision:', err);
 			snackError('Nie udało się usunąć wersji.');

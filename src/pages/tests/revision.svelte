@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { db } from '@/db/dbStore';
 	import Card from '@/lib/ui/Card.svelte';
 	import Heading from '@/lib/ui/Heading.svelte';
 	import Text from '@/lib/ui/Text.svelte';
@@ -14,22 +13,19 @@
 	import OrderControls from '@/lib/components/OrderControls.svelte';
 	import { questionTypeLabel } from '@/lib/labels';
 	import {
-		loadTestById,
-		loadTestRevisionById,
 		createTestRevision,
-		updateTestRevision,
 		generateNextRevisionName,
-	} from './service';
-	import type { SnapshotQuestion } from '@/db/schema/types';
-	import type { Database } from '@/db/db';
-	import type { QuestionWithAnswers } from '../questions/service';
+		getTest,
+		getTestRevision,
+		updateTestRevision,
+		type QuestionWithAnswers,
+		type SnapshotQuestion,
+	} from '@/db/repositories';
 	import type { EditableQuestion } from '@/lib/types';
 	import { snackSuccess } from '@/lib/stores/snackbar.svelte';
 	import { initTags } from '@/lib/stores/tags.svelte';
 	import { renderDocumentToHtml } from '@/utils/math';
 	import { navigate, route } from '@/router';
-
-	let database = $state<Database | null>(null);
 
 	let testId = $derived(route.params.id ?? null);
 	let revisionId = $derived(route.params.revisionId ?? null);
@@ -61,23 +57,15 @@
 	);
 
 	onMount(() => {
-		const unsubTags = initTags();
-		const unsubDb = db.subscribe((d) => {
-			if (d) database = d;
-		});
-		return () => {
-			unsubTags();
-			unsubDb();
-		};
+		initTags();
 	});
 
 	$effect(() => {
-		if (!database) return;
-		initialize();
+		void initialize();
 	});
 
 	async function initialize() {
-		if (!database || !testId) return;
+		if (!testId) return;
 
 		name = '';
 		testName = '';
@@ -86,27 +74,32 @@
 		loading = true;
 		editMode = revisionId === null;
 
-		const test = await loadTestById(database, testId);
-		if (test) testName = test.name;
+		try {
+			const test = await getTest(testId);
+			if (test) testName = test.name;
 
-		if (revisionId) {
-			const revision = await loadTestRevisionById(database, revisionId);
-			if (revision) {
-				name = revision.name;
-				questions = revision.content.map(toEditableQuestion);
+			if (revisionId) {
+				const revision = await getTestRevision(revisionId);
+				if (revision) {
+					name = revision.name;
+					questions = revision.content.map(toEditableQuestion);
+				}
+			} else {
+				if (test) {
+					name = await generateNextRevisionName(testId);
+					questions = test.questions.map(toQuestion);
+				}
 			}
-		} else {
-			if (test) {
-				name = await generateNextRevisionName(database, testId);
-				questions = test.questions.map(toQuestion);
-			}
+
+			originalQuestions = cloneQuestions(questions);
+			originalAutoOrder = autoOrder;
+			originalAutoMangle = autoMangle;
+		} catch (err) {
+			error = 'Nie udało się wczytać danych.';
+			console.error('Failed to load revision:', err);
+		} finally {
+			loading = false;
 		}
-
-		originalQuestions = cloneQuestions(questions);
-		originalAutoOrder = autoOrder;
-		originalAutoMangle = autoMangle;
-
-		loading = false;
 	}
 
 	function cloneQuestions(list: EditableQuestion[]): EditableQuestion[] {
@@ -217,7 +210,7 @@
 	}
 
 	async function submit() {
-		if (!database || !testId) return;
+		if (!testId) return;
 
 		if (questions.length === 0) {
 			error = 'Test musi zawierać co najmniej jedno pytanie.';
@@ -235,22 +228,22 @@
 	}
 
 	async function doSave(saveAsNew: boolean) {
-		if (!database || !testId) return;
+		if (!testId) return;
 
 		confirmOpen = false;
 		saving = true;
 		error = null;
 		try {
-			const finalName = saveAsNew ? await generateNextRevisionName(database, testId) : name;
+			const finalName = saveAsNew ? await generateNextRevisionName(testId) : name;
 			const data = { name: finalName, questions: buildSnapshot() };
 			if (isNew || saveAsNew) {
-				const createdId = await createTestRevision(database, testId, data);
+				const createdId = await createTestRevision(testId, data);
 				snackSuccess(saveAsNew ? 'Utworzono nową wersję' : 'Wersja utworzona');
 				await navigate('/tests/:id/revision/:revisionId', {
 					params: { id: testId, revisionId: createdId },
 				});
 			} else {
-				await updateTestRevision(database, revisionId!, data);
+				await updateTestRevision(revisionId!, data);
 				snackSuccess('Wersja zaktualizowana');
 				editMode = false;
 				await navigate('/tests/:id/revision/:revisionId', {

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { db } from '@/db/dbStore';
 	import Card from '@/lib/ui/Card.svelte';
 	import Heading from '@/lib/ui/Heading.svelte';
 	import Text from '@/lib/ui/Text.svelte';
@@ -8,28 +7,27 @@
 	import Badge from '@/lib/ui/Badge.svelte';
 	import PageHeader from '@/lib/ui/PageHeader.svelte';
 	import EmptyState from '@/lib/components/EmptyState.svelte';
-	import { loadAllTests, type TestSummary } from './service';
-	import type { Database } from '@/db/db';
+	import { listTests, type TestSummary } from '@/db/repositories';
+	import { snackError } from '@/lib/stores/snackbar.svelte';
 	import { navigate, p } from '@/router';
 
-	let database = $state<Database | null>(null);
 	let tests = $state<TestSummary[]>([]);
 	let loading = $state(true);
 
 	onMount(() => {
-		return db.subscribe(async (d) => {
-			if (d && !database) {
-				database = d;
-				await refreshTests();
-			}
-		});
+		void refreshTests();
 	});
 
 	async function refreshTests() {
-		if (!database) return;
 		loading = true;
-		tests = await loadAllTests(database);
-		loading = false;
+		try {
+			tests = await listTests();
+		} catch (err) {
+			snackError('Nie udało się wczytać testów');
+			console.error('Failed to load tests:', err);
+		} finally {
+			loading = false;
+		}
 	}
 </script>
 
