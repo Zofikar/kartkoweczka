@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
 	import Button from '@/lib/ui/Button.svelte';
+	import PrintAnswerSheet from '@/lib/components/PrintAnswerSheet.svelte';
 	import type { SnapshotQuestion } from '@/db/repositories';
 	import { renderDocumentToHtml } from '@/utils/math';
 	import {
@@ -25,11 +26,22 @@
 		questions: SnapshotQuestion[];
 		testName?: string;
 		revisionName?: string;
+		/** When set, a machine-readable answer sheet page can be appended. */
+		revisionId?: string;
 		open?: boolean;
 		onclose?: () => void;
 	}
 
-	let { questions, testName = '', revisionName = '', open = false, onclose }: Props = $props();
+	let {
+		questions,
+		testName = '',
+		revisionName = '',
+		revisionId,
+		open = false,
+		onclose,
+	}: Props = $props();
+
+	let includeAnswerSheet = $state(true);
 
 	interface PreparedAnswer {
 		key: string;
@@ -289,6 +301,11 @@
 			{/each}
 		</div>
 	{/each}
+	{#if includeAnswerSheet && revisionId}
+		<div class="print-page print-page--{variant}">
+			<PrintAnswerSheet {testName} {revisionName} {revisionId} />
+		</div>
+	{/if}
 {/snippet}
 
 <!-- Off-screen measuring pass at the exact printable width. -->
@@ -316,6 +333,12 @@
 				<span class="print-subtitle">A4 &middot; podgląd wydruku</span>
 			</div>
 			<div class="print-toolbar-actions">
+				{#if revisionId}
+					<label class="print-toggle">
+						<input type="checkbox" bind:checked={includeAnswerSheet} />
+						<span>Karta odpowiedzi</span>
+					</label>
+				{/if}
 				<Button variant="primary" size="md" onclick={() => window.print()}>
 					Drukuj / Zapisz PDF
 				</Button>
@@ -380,6 +403,24 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
+	}
+
+	.print-toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-right: var(--space-2);
+		cursor: pointer;
+		font-family: var(--font-sans);
+		font-size: var(--font-sm);
+		color: var(--text);
+	}
+
+	.print-toggle input[type='checkbox'] {
+		width: 18px;
+		height: 18px;
+		accent-color: var(--primary);
+		cursor: pointer;
 	}
 
 	.print-preview-scroll {

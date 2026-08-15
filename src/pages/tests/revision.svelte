@@ -414,6 +414,7 @@
 	onclose={() => (printOpen = false)}
 	{testName}
 	revisionName={name}
+	revisionId={revisionId ?? undefined}
 	questions={buildSnapshot()}
 />
 
