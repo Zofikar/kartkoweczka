@@ -1,5 +1,5 @@
 import { customType } from 'drizzle-orm/pg-core';
-import type { SnapshotQuestion } from './types';
+import type { SnapshotQuestion } from '../repositories/types';
 
 export const snapshotJsonb = customType<{
 	data: SnapshotQuestion[];
