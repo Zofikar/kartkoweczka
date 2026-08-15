@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { db } from '@/db/dbStore';
 	import Card from '@/lib/ui/Card.svelte';
 	import Text from '@/lib/ui/Text.svelte';
 	import Button from '@/lib/ui/Button.svelte';
@@ -13,20 +12,17 @@
 	import {
 		createQuestion,
 		deleteQuestion,
-		loadAllQuestionsWithAnswers,
-		loadFilteredQuestionsWithAnswers,
-		loadQuestionById,
+		getQuestion,
+		listQuestions,
+		updateQuestion,
 		type QuestionEditData,
 		type QuestionFilters,
+		type QuestionType,
 		type QuestionWithAnswers,
-		updateQuestion,
-	} from './service';
-	import type { QuestionType } from '@/db/schema/types';
-	import type { Database } from '@/db/db';
+	} from '@/db/repositories';
 	import { snackError, snackSuccess } from '@/lib/stores/snackbar.svelte';
-	import { getTags, initTags, refreshTags } from '@/lib/stores/tags.svelte';
+	import { getTags, initTags } from '@/lib/stores/tags.svelte';
 
-	let database = $state<Database | null>(null);
 	let questions = $state<QuestionWithAnswers[]>([]);
 	let loading = $state(true);
 
@@ -56,36 +52,27 @@
 	);
 
 	onMount(() => {
-		const unsubTags = initTags();
-		const unsubDb = db.subscribe(async (d) => {
-			if (d && !database) {
-				database = d;
-				await refreshQuestions();
-			}
-		});
-		return () => {
-			unsubTags();
-			unsubDb();
-		};
+		initTags();
+		void refreshQuestions();
 	});
 
 	async function refreshQuestions() {
-		if (!database) return;
 		loading = true;
 
-		if (hasActiveFilters) {
+		try {
 			const filters: QuestionFilters = {};
 			if (filterType) filters.type = filterType;
 			if (filterTags.length > 0) {
 				filters.tags = filterTags;
 				filters.tagMode = filterTagMode;
 			}
-			questions = await loadFilteredQuestionsWithAnswers(database, filters);
-		} else {
-			questions = await loadAllQuestionsWithAnswers(database);
+			questions = await listQuestions(filters);
+		} catch (err) {
+			snackError('Nie udało się wczytać pytań');
+			console.error('Failed to load questions:', err);
+		} finally {
+			loading = false;
 		}
-
-		loading = false;
 	}
 
 	async function startEdit(id: string) {
@@ -94,8 +81,18 @@
 		const alreadyInList = questions.find((q) => q.id === id);
 		if (alreadyInList) {
 			pinnedQuestion = alreadyInList;
-		} else if (database) {
-			pinnedQuestion = await loadQuestionById(database, id);
+			return;
+		}
+		try {
+			pinnedQuestion = await getQuestion(id);
+			if (!pinnedQuestion) {
+				snackError('Nie znaleziono pytania');
+				editingId = null;
+			}
+		} catch (err) {
+			snackError('Nie udało się wczytać pytania');
+			console.error('Failed to load question:', err);
+			editingId = null;
 		}
 	}
 
@@ -110,17 +107,14 @@
 	}
 
 	async function handleSave(data: QuestionEditData) {
-		if (!database) return;
-
 		try {
 			if (editingId === 'new') {
-				await createQuestion(database, data);
+				await createQuestion(data);
 				snackSuccess('Pytanie utworzone');
 			} else if (editingId) {
-				await updateQuestion(database, editingId, data);
+				await updateQuestion(editingId, data);
 				snackSuccess('Pytanie zaktualizowane');
 			}
-			await refreshTags(database);
 			pinnedQuestion = null;
 			await refreshQuestions();
 			editingId = null;
@@ -135,16 +129,15 @@
 	}
 
 	async function confirmDelete() {
-		if (!database || !deleteConfirmId) return;
+		if (!deleteConfirmId) return;
 		const id = deleteConfirmId;
 		deleteConfirmId = null;
 		try {
-			await deleteQuestion(database, id);
+			await deleteQuestion(id);
 			if (editingId === id) {
 				editingId = null;
 				pinnedQuestion = null;
 			}
-			await refreshTags(database);
 			await refreshQuestions();
 			snackSuccess('Pytanie usunięte');
 		} catch (err) {
