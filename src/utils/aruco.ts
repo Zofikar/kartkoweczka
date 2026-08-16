@@ -2,8 +2,8 @@
  * ArUco marker generation, backed by the `aruco-marker` package.
  *
  * Markers come from the original ArUco dictionary (5×5 data cells, marker
- * ids 0–1023) — detectable by OpenCV's DICT_ARUCO_ORIGINAL and by js-aruco,
- * which the future scanner can use with the very same dictionary.
+ * ids 0–1023) — detectable by OpenCV's DICT_ARUCO_ORIGINAL, which the scanner
+ * uses with the very same dictionary.
  *
  * The package provides the marker bit matrices; the SVG is rendered here so
  * the output includes the black border *and* a one-cell white quiet zone

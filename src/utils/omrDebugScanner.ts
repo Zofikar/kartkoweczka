@@ -1,8 +1,9 @@
-import { AR, CV } from 'js-aruco';
+import cvModule, { type Mat, type MatVector } from '@techstark/opencv-js';
 import jsQR from 'jsqr';
 import {
 	ANSWER_SHEET_FORMAT_VERSION,
 	ARUCO_BOTTOM_RIGHT_ANCHOR_ID,
+	ARUCO_FORMAT_VERSION_IDS,
 	ARUCO_MARKER_SIZE,
 	ARUCO_TOP_LEFT_ANCHOR_ID,
 	ARUCO_TOP_RIGHT_ANCHOR_ID,
@@ -59,36 +60,103 @@ interface PointPair {
 
 type Homography = [number, number, number, number, number, number, number, number, number];
 
-interface ArucoDetectionPass {
-	kernelSize: number;
-	threshold: number;
-	minimumContourSize: number;
-	minimumEdgeLength: number;
+interface ArucoDetectionProfile {
+	adaptiveThresholdWindowSizeMax: number;
+	minimumMarkerPerimeterRate: number;
+	useAruco3Detection: boolean;
 }
+
+interface OriginalArucoMarker {
+	id: number;
+	corners: DebugPoint[];
+}
+
+interface ImageRegion {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+interface OpenCvArucoDetectorParameters {
+	adaptiveThreshWinSizeMin: number;
+	adaptiveThreshWinSizeMax: number;
+	adaptiveThreshWinSizeStep: number;
+	minMarkerPerimeterRate: number;
+	cornerRefinementMaxIterations: number;
+	cornerRefinementMethod: number;
+	errorCorrectionRate: number;
+	minOtsuStdDev: number;
+	perspectiveRemovePixelPerCell: number;
+	useAruco3Detection: boolean;
+	delete(): void;
+}
+
+interface OpenCvArucoDetector {
+	detectMarkers(image: Mat, corners: MatVector, ids: Mat): void;
+	delete(): void;
+}
+
+interface OpenCvArucoRefineParameters {
+	delete(): void;
+}
+
+interface OpenCvDeletable {
+	delete?: () => void;
+}
+
+type OpenCv = typeof cvModule & {
+	COLOR_RGBA2GRAY: number;
+	DICT_ARUCO_ORIGINAL: number;
+	CORNER_REFINE_SUBPIX: number;
+	cvtColor(source: Mat, destination: Mat, code: number): void;
+	getPredefinedDictionary(dictionary: number): unknown;
+	aruco_DetectorParameters: new () => OpenCvArucoDetectorParameters;
+	aruco_RefineParameters: new (
+		minimumRepDistance: number,
+		errorCorrectionRate: number,
+		checkAllOrders: boolean
+	) => OpenCvArucoRefineParameters;
+	aruco_ArucoDetector: new (
+		dictionary: unknown,
+		parameters: OpenCvArucoDetectorParameters,
+		refineParameters: OpenCvArucoRefineParameters
+	) => OpenCvArucoDetector;
+};
 
 interface SheetMetadata {
 	r?: unknown;
 	f?: unknown;
 }
 
-const ARUCO_DETECTION_PASSES: ArucoDetectionPass[] = [
-	{ kernelSize: 2, threshold: 7, minimumContourSize: 0.005, minimumEdgeLength: 3 },
-	{ kernelSize: 2, threshold: 9, minimumContourSize: 0.005, minimumEdgeLength: 3 },
-	{ kernelSize: 2, threshold: 5, minimumContourSize: 0.005, minimumEdgeLength: 3 },
-	{ kernelSize: 2, threshold: 3, minimumContourSize: 0.005, minimumEdgeLength: 3 },
-	{ kernelSize: 1, threshold: 7, minimumContourSize: 0.005, minimumEdgeLength: 3 },
-	{ kernelSize: 3, threshold: 7, minimumContourSize: 0.005, minimumEdgeLength: 3 },
-	{ kernelSize: 2, threshold: 11, minimumContourSize: 0.005, minimumEdgeLength: 3 },
-	{ kernelSize: 2, threshold: 5, minimumContourSize: 0.02, minimumEdgeLength: 4 },
+const ARUCO_DETECTION_PROFILES: ArucoDetectionProfile[] = [
+	{
+		adaptiveThresholdWindowSizeMax: 23,
+		minimumMarkerPerimeterRate: 0.03,
+		useAruco3Detection: false,
+	},
+	{
+		adaptiveThresholdWindowSizeMax: 51,
+		minimumMarkerPerimeterRate: 0.01,
+		useAruco3Detection: false,
+	},
 ];
 
 const ARUCO_DETECTION_SCALES = [1, 1.5, 2, 3] as const;
+const QR_DETECTION_SCALES = [1, 2, 3] as const;
+const VALID_ANSWER_SHEET_MARKER_IDS = new Set<number>([
+	ARUCO_TOP_LEFT_ANCHOR_ID,
+	ARUCO_TOP_RIGHT_ANCHOR_ID,
+	ARUCO_BOTTOM_RIGHT_ANCHOR_ID,
+	...ARUCO_FORMAT_VERSION_IDS,
+]);
 const MAX_ANALYSIS_DIMENSION = 1800;
+let openCvPromise: Promise<OpenCv> | undefined;
 
 export async function analyzeGradingSheetImage(file: File): Promise<GradingSheetDebugResult> {
 	const image = await createImageBitmap(file);
 	const { imageData, scaleToSource } = readAnalysisImageData(image);
-	const analysisMarkers = detectArucoMarkers(imageData);
+	const analysisMarkers = await detectArucoMarkers(imageData);
 	const normalizedImage = normalizeImageIfPossible(imageData, analysisMarkers);
 	const qrCodeInMarkedArea = normalizedImage ? detectQrCode(normalizedImage) : null;
 	const qrCodeInSourceImage = scaleQrCode(detectQrCode(imageData), scaleToSource);
@@ -136,19 +204,26 @@ function getOffscreenCanvasContext(canvas: OffscreenCanvas): OffscreenCanvasRend
 }
 
 function detectQrCode(imageData: ImageData): DetectedQrCode | null {
-	const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
-	if (!qrCode) return null;
+	for (const scale of QR_DETECTION_SCALES) {
+		const scaledImageData = scale === 1 ? imageData : scaleImageData(imageData, scale, true);
+		const qrCode = jsQR(scaledImageData.data, scaledImageData.width, scaledImageData.height, {
+			inversionAttempts: 'attemptBoth',
+		});
+		if (!qrCode) continue;
 
-	return {
-		data: qrCode.data,
-		metadata: parseQrMetadata(qrCode.data),
-		corners: [
-			qrCode.location.topLeftCorner,
-			qrCode.location.topRightCorner,
-			qrCode.location.bottomRightCorner,
-			qrCode.location.bottomLeftCorner,
-		],
-	};
+		return {
+			data: qrCode.data,
+			metadata: parseQrMetadata(qrCode.data),
+			corners: [
+				qrCode.location.topLeftCorner,
+				qrCode.location.topRightCorner,
+				qrCode.location.bottomRightCorner,
+				qrCode.location.bottomLeftCorner,
+			].map((corner) => ({ x: corner.x / scale, y: corner.y / scale })),
+		};
+	}
+
+	return null;
 }
 
 function parseQrMetadata(data: string): unknown {
@@ -172,8 +247,8 @@ function readFormatVersion(metadata: unknown): number | undefined {
 	return typeof formatVersion === 'number' ? formatVersion : undefined;
 }
 
-function detectArucoMarkers(imageData: ImageData): DetectedArucoMarker[] {
-	const markers = detectOriginalArucoMarkers(imageData).map((marker) => ({
+async function detectArucoMarkers(imageData: ImageData): Promise<DetectedArucoMarker[]> {
+	const markers = (await detectOriginalArucoMarkers(imageData)).map((marker) => ({
 		id: marker.id,
 		center: polygonCenter(marker.corners),
 		corners: marker.corners.map(copyPoint),
@@ -209,13 +284,13 @@ function assignCornersByGeometry(
 	return markers.map((marker) => ({ ...marker, corner: cornerByMarker.get(marker) }));
 }
 
-function detectOriginalArucoMarkers(imageData: ImageData) {
-	let markers: ReturnType<AR.Detector['detect']> = [];
+async function detectOriginalArucoMarkers(imageData: ImageData): Promise<OriginalArucoMarker[]> {
+	let markers: OriginalArucoMarker[] = [];
 
 	for (const scale of detectionScalesFor(imageData)) {
 		markers = uniqueMarkersByPosition([
 			...markers,
-			...detectOriginalArucoMarkersAtScale(imageData, scale),
+			...(await detectOriginalArucoMarkersAtScale(imageData, scale)),
 		]);
 		if (markers.length >= 4) return markers;
 	}
@@ -230,40 +305,180 @@ function detectionScalesFor(imageData: ImageData): readonly number[] {
 	return ARUCO_DETECTION_SCALES;
 }
 
-function detectOriginalArucoMarkersAtScale(imageData: ImageData, scale: number) {
+async function detectOriginalArucoMarkersAtScale(
+	imageData: ImageData,
+	scale: number
+): Promise<OriginalArucoMarker[]> {
 	const scaledImageData = scale === 1 ? imageData : scaleImageData(imageData, scale);
-	let markers: ReturnType<AR.Detector['detect']> = [];
+	let markers = await detectOriginalArucoMarkersInImageData(scaledImageData);
 
-	for (const pass of ARUCO_DETECTION_PASSES) {
-		markers = uniqueMarkersByPosition([
-			...markers,
-			...detectOriginalArucoMarkersWithPass(scaledImageData, pass),
-		]);
-		if (markers.length >= 4) break;
+	if (markers.length < 4) {
+		markers = await detectOriginalArucoMarkersInRegions(scaledImageData, markers);
 	}
 
 	return scale === 1 ? markers : markers.map((marker) => scaleMarker(marker, 1 / scale));
 }
 
-function detectOriginalArucoMarkersWithPass(imageData: ImageData, pass: ArucoDetectionPass) {
-	const detector = new AR.Detector();
-	CV.grayscale(imageData, detector.grey);
-	CV.adaptiveThreshold(detector.grey, detector.thres, pass.kernelSize, pass.threshold);
-
-	detector.contours = CV.findContours(detector.thres, detector.binary);
-	detector.candidates = detector.findCandidates(
-		detector.contours,
-		imageData.width * pass.minimumContourSize,
-		0.05,
-		pass.minimumEdgeLength
-	);
-	detector.candidates = detector.clockwiseCorners(detector.candidates);
-	detector.candidates = detector.notTooNear(detector.candidates, 10);
-
-	return detector.findMarkers(detector.grey, detector.candidates, 49);
+async function detectOriginalArucoMarkersInRegions(
+	imageData: ImageData,
+	initialMarkers: OriginalArucoMarker[]
+): Promise<OriginalArucoMarker[]> {
+	let markers = initialMarkers;
+	for (const region of localizedDetectionRegions(imageData)) {
+		markers = uniqueMarkersByPosition([
+			...markers,
+			...(await detectOriginalArucoMarkersInRegion(imageData, region)),
+		]);
+		if (markers.length >= 4) return markers;
+	}
+	return markers;
 }
 
-function scaleImageData(imageData: ImageData, scale: number): ImageData {
+async function detectOriginalArucoMarkersInRegion(
+	imageData: ImageData,
+	region: ImageRegion
+): Promise<OriginalArucoMarker[]> {
+	return (await detectOriginalArucoMarkersInImageData(cropImageData(imageData, region))).map(
+		(marker) => offsetMarker(marker, region)
+	);
+}
+
+async function detectOriginalArucoMarkersInImageData(
+	imageData: ImageData
+): Promise<OriginalArucoMarker[]> {
+	const cv = await getOpenCv();
+	const source = cv.matFromImageData(imageData);
+	const grayscale = new cv.Mat();
+	let markers: OriginalArucoMarker[] = [];
+
+	try {
+		cv.cvtColor(source, grayscale, cv.COLOR_RGBA2GRAY);
+		for (const profile of ARUCO_DETECTION_PROFILES) {
+			markers = uniqueMarkersByPosition([
+				...markers,
+				...detectOriginalArucoMarkersWithProfile(cv, grayscale, profile),
+			]);
+			if (markers.length >= 4) break;
+		}
+	} finally {
+		deleteOpenCvObject(grayscale);
+		deleteOpenCvObject(source);
+	}
+
+	return markers;
+}
+
+function localizedDetectionRegions(imageData: ImageData): ImageRegion[] {
+	const halfWidth = Math.round(imageData.width * 0.58);
+	const halfHeight = Math.round(imageData.height * 0.58);
+	return [
+		imageRegion(0, 0, imageData.width, halfHeight),
+		imageRegion(0, imageData.height - halfHeight, imageData.width, halfHeight),
+		imageRegion(0, 0, halfWidth, imageData.height),
+		imageRegion(imageData.width - halfWidth, 0, halfWidth, imageData.height),
+		imageRegion(0, 0, halfWidth, halfHeight),
+		imageRegion(imageData.width - halfWidth, 0, halfWidth, halfHeight),
+		imageRegion(imageData.width - halfWidth, imageData.height - halfHeight, halfWidth, halfHeight),
+		imageRegion(0, imageData.height - halfHeight, halfWidth, halfHeight),
+	];
+}
+
+function imageRegion(x: number, y: number, width: number, height: number): ImageRegion {
+	return { x, y, width, height };
+}
+
+function cropImageData(imageData: ImageData, region: ImageRegion): ImageData {
+	const canvas = new OffscreenCanvas(imageData.width, imageData.height);
+	const context = getOffscreenCanvasContext(canvas);
+	context.putImageData(imageData, 0, 0);
+	return context.getImageData(region.x, region.y, region.width, region.height);
+}
+
+function offsetMarker(marker: OriginalArucoMarker, region: ImageRegion): OriginalArucoMarker {
+	return {
+		id: marker.id,
+		corners: marker.corners.map((corner) => ({ x: corner.x + region.x, y: corner.y + region.y })),
+	};
+}
+
+function detectOriginalArucoMarkersWithProfile(
+	cv: OpenCv,
+	image: Mat,
+	profile: ArucoDetectionProfile
+): OriginalArucoMarker[] {
+	const corners = new cv.MatVector();
+	const ids = new cv.Mat();
+	const parameters = buildArucoDetectorParameters(cv, profile);
+	const refineParameters = new cv.aruco_RefineParameters(10, 3, true);
+	const detector = new cv.aruco_ArucoDetector(
+		cv.getPredefinedDictionary(cv.DICT_ARUCO_ORIGINAL),
+		parameters,
+		refineParameters
+	);
+
+	try {
+		detector.detectMarkers(image, corners, ids);
+		return readDetectedArucoMarkers(corners, ids);
+	} finally {
+		deleteOpenCvObject(detector);
+		deleteOpenCvObject(refineParameters);
+		deleteOpenCvObject(parameters);
+		deleteOpenCvObject(ids);
+		deleteOpenCvObject(corners);
+	}
+}
+
+async function getOpenCv(): Promise<OpenCv> {
+	openCvPromise ??= Promise.resolve(cvModule instanceof Promise ? cvModule : cvModule).then(
+		(module) => module as OpenCv
+	);
+	return openCvPromise;
+}
+
+function buildArucoDetectorParameters(
+	cv: OpenCv,
+	profile: ArucoDetectionProfile
+): OpenCvArucoDetectorParameters {
+	const parameters = new cv.aruco_DetectorParameters();
+	parameters.minMarkerPerimeterRate = profile.minimumMarkerPerimeterRate;
+	parameters.cornerRefinementMethod = cv.CORNER_REFINE_SUBPIX;
+	parameters.cornerRefinementMaxIterations = 50;
+	parameters.errorCorrectionRate = 0.8;
+	parameters.minOtsuStdDev = 2;
+	parameters.perspectiveRemovePixelPerCell = 8;
+	parameters.useAruco3Detection = profile.useAruco3Detection;
+	parameters.adaptiveThreshWinSizeMin = 3;
+	parameters.adaptiveThreshWinSizeMax = profile.adaptiveThresholdWindowSizeMax;
+	parameters.adaptiveThreshWinSizeStep = 10;
+	return parameters;
+}
+
+function readDetectedArucoMarkers(corners: MatVector, ids: Mat): OriginalArucoMarker[] {
+	return Array.from({ length: Math.min(ids.rows, corners.size()) }).flatMap((_, index) => {
+		const id = ids.intAt(index, 0);
+		if (!VALID_ANSWER_SHEET_MARKER_IDS.has(id)) return [];
+		const markerCorners = readMarkerCorners(corners.get(index));
+		return markerCorners.length === 4 ? [{ id, corners: markerCorners }] : [];
+	});
+}
+
+function readMarkerCorners(corners: Mat | undefined): DebugPoint[] {
+	if (!corners?.data32F || corners.data32F.length < 8) return [];
+	try {
+		return Array.from({ length: 4 }, (_, index) => ({
+			x: corners.data32F[index * 2],
+			y: corners.data32F[index * 2 + 1],
+		}));
+	} finally {
+		deleteOpenCvObject(corners);
+	}
+}
+
+function deleteOpenCvObject(object: OpenCvDeletable | undefined): void {
+	object?.delete?.();
+}
+
+function scaleImageData(imageData: ImageData, scale: number, smooth = false): ImageData {
 	const sourceCanvas = new OffscreenCanvas(imageData.width, imageData.height);
 	const sourceContext = getOffscreenCanvasContext(sourceCanvas);
 	sourceContext.putImageData(imageData, 0, 0);
@@ -273,15 +488,13 @@ function scaleImageData(imageData: ImageData, scale: number): ImageData {
 		Math.round(imageData.height * scale)
 	);
 	const scaledContext = getOffscreenCanvasContext(scaledCanvas);
-	scaledContext.imageSmoothingEnabled = false;
+	scaledContext.imageSmoothingEnabled = smooth;
+	if (smooth) scaledContext.imageSmoothingQuality = 'high';
 	scaledContext.drawImage(sourceCanvas, 0, 0, scaledCanvas.width, scaledCanvas.height);
 	return scaledContext.getImageData(0, 0, scaledCanvas.width, scaledCanvas.height);
 }
 
-function scaleMarker(
-	marker: ReturnType<AR.Detector['detect']>[number],
-	scale: number
-): ReturnType<AR.Detector['detect']>[number] {
+function scaleMarker(marker: OriginalArucoMarker, scale: number): OriginalArucoMarker {
 	return {
 		id: marker.id,
 		corners: marker.corners.map((corner) => ({ x: corner.x * scale, y: corner.y * scale })),
@@ -304,10 +517,8 @@ function scaleQrCode(qrCode: DetectedQrCode | null, scale: number): DetectedQrCo
 	};
 }
 
-function uniqueMarkersByPosition(
-	markers: ReturnType<AR.Detector['detect']>
-): ReturnType<AR.Detector['detect']> {
-	return markers.reduce<ReturnType<AR.Detector['detect']>>((uniqueMarkers, marker) => {
+function uniqueMarkersByPosition(markers: OriginalArucoMarker[]): OriginalArucoMarker[] {
+	return markers.reduce<OriginalArucoMarker[]>((uniqueMarkers, marker) => {
 		const center = polygonCenter(marker.corners);
 		const duplicate = uniqueMarkers.some((existingMarker) => {
 			const existingCenter = polygonCenter(existingMarker.corners);
