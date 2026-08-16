@@ -33,9 +33,12 @@
 	let metadataQr = $derived(qrCodeSvg(metadataPayload));
 	const qrPlacement = metadataQrPlacement();
 	let markerSvgs = $derived(
-		arucoMarkerPlacements(revisionId).map((m) => ({ ...m, svg: arucoMarkerSvg(m.id) }))
+		arucoMarkerPlacements().map((marker) => ({
+			...marker,
+			svg: arucoMarkerSvg(marker.id),
+		}))
 	);
-	let exclusionZones = $derived(omrExclusionZones(revisionId));
+	const exclusionZones = omrExclusionZones();
 </script>
 
 <div class="answer-sheet">

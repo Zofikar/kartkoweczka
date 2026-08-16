@@ -22,7 +22,7 @@
  * Bump this whenever any constant in this file changes so future scanners can
  * tell which layout algorithm to apply.
  */
-export const ANSWER_SHEET_FORMAT_VERSION = 1;
+export const ANSWER_SHEET_FORMAT_VERSION = 2;
 
 /** Physical width of the OMR block in millimetres (full usable A4 width). */
 export const OMR_BLOCK_WIDTH_MM = 180;
@@ -44,9 +44,21 @@ export const OMR_DESIGN_HEIGHT = OMR_BLOCK_HEIGHT_MM * OMR_UNITS_PER_MM;
  */
 export const ARUCO_DICTIONARY_NAME = 'ARUCO_ORIGINAL';
 
-/** Fixed ArUco ids reserved as unambiguous orientation anchors. */
-export const ARUCO_TOP_LEFT_ANCHOR_ID = 0;
-export const ARUCO_BOTTOM_RIGHT_ANCHOR_ID = 1023;
+/**
+ * Curated ARUCO_ORIGINAL ids for reliable printing and detection.
+ *
+ * The pool was selected from all 1024 markers using these constraints:
+ * - 8..17 white data cells;
+ * - 8..18 internal black/white transitions;
+ * - at least 10 bits from the marker's own rotations;
+ * - at least 10 bits between every selected marker under every rotation.
+ *
+ * Keep these ids together: their pairwise distance is part of the contract.
+ */
+export const ARUCO_TOP_LEFT_ANCHOR_ID = 37;
+export const ARUCO_TOP_RIGHT_ANCHOR_ID = 336;
+export const ARUCO_BOTTOM_RIGHT_ANCHOR_ID = 575;
+export const ARUCO_FORMAT_VERSION_IDS = [79, 426, 837, 896, 382, 224] as const;
 
 /** ArUco marker edge length in design units (80 = 8 mm, roughly text-line sized). */
 export const ARUCO_MARKER_SIZE = 80;
@@ -68,7 +80,7 @@ export interface OmrRect {
 
 export interface ArucoMarkerPlacement extends OmrRect {
 	corner: OmrCorner;
-	/** Marker id. TL and BR are fixed anchors; TR and BL carry small metadata. */
+	/** Marker id. TL/TR/BR are fixed anchors; BL encodes the format version. */
 	id: number;
 }
 
@@ -80,23 +92,26 @@ export interface OmrExclusionZone extends OmrRect {
 /**
  * Top-left origins of the four corner markers, in design units.
  *
- * Marker ids use two fixed anchors and two metadata-bearing markers:
- * - TL = 0 (fixed anchor)
- * - TR = sheet format version, normalized away from reserved ids
- * - BR = 1023 (fixed anchor)
- * - BL = 10-bit checksum of the metadata QR payload, normalized away from reserved ids
+ * Marker ids use three fixed orientation anchors and one format-version marker:
+ * - TL, TR, and BR identify their corners unambiguously;
+ * - BL identifies the answer-sheet format version through a curated marker pool.
+ *
+ * Revision metadata belongs exclusively to the QR code. Marker geometry therefore
+ * stays stable for every revision using the same answer-sheet format.
  */
-export function arucoMarkerPlacements(revisionId: string): ArucoMarkerPlacement[] {
+export function arucoMarkerPlacements(): ArucoMarkerPlacement[] {
 	const farX = OMR_DESIGN_WIDTH - ARUCO_MARKER_INSET - ARUCO_MARKER_SIZE;
 	const farY = OMR_DESIGN_HEIGHT - ARUCO_MARKER_INSET - ARUCO_MARKER_SIZE;
-	const metadataPayload = sheetMetadataQrPayload(revisionId);
-	const topRightId = metadataMarkerId(ANSWER_SHEET_FORMAT_VERSION);
-	const bottomLeftId = metadataMarkerId(checksum10(metadataPayload), topRightId);
 	return [
 		markerPlacement('tl', ARUCO_TOP_LEFT_ANCHOR_ID, ARUCO_MARKER_INSET, ARUCO_MARKER_INSET),
-		markerPlacement('tr', topRightId, farX, ARUCO_MARKER_INSET),
+		markerPlacement('tr', ARUCO_TOP_RIGHT_ANCHOR_ID, farX, ARUCO_MARKER_INSET),
 		markerPlacement('br', ARUCO_BOTTOM_RIGHT_ANCHOR_ID, farX, farY),
-		markerPlacement('bl', bottomLeftId, ARUCO_MARKER_INSET, farY),
+		markerPlacement(
+			'bl',
+			arucoFormatVersionMarkerId(ANSWER_SHEET_FORMAT_VERSION),
+			ARUCO_MARKER_INSET,
+			farY
+		),
 	];
 }
 
@@ -109,17 +124,21 @@ function markerPlacement(
 	return { corner, id, x, y, width: ARUCO_MARKER_SIZE, height: ARUCO_MARKER_SIZE };
 }
 
-/**
- * Map arbitrary 10-bit-ish metadata into marker ids that never collide with
- * fixed anchors nor the optional extra reserved id. Marker ids 1..1022 remain
- * available for metadata, while 0 and 1023 are hard anchors.
- */
-export function metadataMarkerId(value: number, extraReservedId?: number): number {
-	let id = (Math.abs(Math.trunc(value)) % (ARUCO_BOTTOM_RIGHT_ANCHOR_ID - 1)) + 1;
-	if (id === extraReservedId) {
-		id = id === ARUCO_BOTTOM_RIGHT_ANCHOR_ID - 1 ? 1 : id + 1;
+/** Return the curated marker id assigned to a one-based answer-sheet format version. */
+export function arucoFormatVersionMarkerId(formatVersion: number): number {
+	const markerId = ARUCO_FORMAT_VERSION_IDS[formatVersion - 1];
+	if (markerId === undefined) {
+		throw new Error(`Brak markera ArUco dla formatu karty odpowiedzi v${formatVersion}.`);
 	}
-	return id;
+	return markerId;
+}
+
+/** Return the one-based answer-sheet format version encoded by a curated marker id. */
+export function answerSheetFormatVersionFromMarkerId(markerId: number): number | undefined {
+	const index = ARUCO_FORMAT_VERSION_IDS.indexOf(
+		markerId as (typeof ARUCO_FORMAT_VERSION_IDS)[number]
+	);
+	return index === -1 ? undefined : index + 1;
 }
 
 /** QR code edge length in design units (180 = 18 mm). */
@@ -154,9 +173,9 @@ export function metadataQrPlacement(): OmrRect {
 }
 
 /** Reserved areas future bubble/grid content must avoid. */
-export function omrExclusionZones(revisionId: string): OmrExclusionZone[] {
+export function omrExclusionZones(): OmrExclusionZone[] {
 	return [
-		...arucoMarkerPlacements(revisionId).map((marker) =>
+		...arucoMarkerPlacements().map((marker) =>
 			exclusionZone(`aruco-${marker.corner}`, `ArUco ${marker.corner.toUpperCase()}`, marker)
 		),
 		exclusionZone('metadata-qr', 'QR metadanych', metadataQrPlacement()),
@@ -181,16 +200,6 @@ function exclusionZone(key: string, label: string, rect: OmrRect): OmrExclusionZ
 /** Payload of the sheet metadata QR code. Keep keys short to keep the QR compact. */
 export function sheetMetadataQrPayload(revisionId: string): string {
 	return JSON.stringify({ r: revisionId, f: ANSWER_SHEET_FORMAT_VERSION });
-}
-
-/** 10-bit deterministic checksum for compact marker metadata. */
-export function checksum10(value: string): number {
-	let hash = 0x811c9dc5;
-	for (let i = 0; i < value.length; i++) {
-		hash ^= value.charCodeAt(i);
-		hash = Math.imul(hash, 0x01000193);
-	}
-	return (hash >>> 0) & 0x3ff;
 }
 
 /** Convert design units to millimetres. */

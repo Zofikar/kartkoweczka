@@ -10,6 +10,7 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
+		"check:aruco": "node scripts/validate-aruco-pool.mjs",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
 		"db:generate": "drizzle-kit generate"
@@ -42,6 +43,8 @@
 		"@tauri-apps/plugin-fs": "^2.5.1",
 		"aruco-marker": "^3.0.1",
 		"drizzle-orm": "^0.45.2",
+		"js-aruco": "^0.1.0",
+		"jsqr": "^1.4.0",
 		"katex": "^0.18.1",
 		"mathlive": "^0.110.0",
 		"qrcode": "^1.5.4",

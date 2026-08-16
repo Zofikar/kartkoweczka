@@ -4742,6 +4742,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"js-aruco@npm:^0.1.0":
+  version: 0.1.0
+  resolution: "js-aruco@npm:0.1.0"
+  checksum: 10c0/82722dff31dac7bd787973ce3ca503d54cb91e3138439792e6edac8a451c13919d413af8ba58c617d63cbab1fecd669904485f96a51e1b5acb39ac8ae2a73988
+  languageName: node
+  linkType: hard
+
 "js-tokens@npm:^4.0.0":
   version: 4.0.0
   resolution: "js-tokens@npm:4.0.0"
@@ -4815,6 +4822,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"jsqr@npm:^1.4.0":
+  version: 1.4.0
+  resolution: "jsqr@npm:1.4.0"
+  checksum: 10c0/69fbfe4c866a04c97b377901a166544a583bfc76b838c275efa9af058d64e5612267079b1e96ea7b6434385803571b1c6a97a43c85f4373e8afa4f4034fc916c
+  languageName: node
+  linkType: hard
+
 "kartkoweczka@workspace:.":
   version: 0.0.0-use.local
   resolution: "kartkoweczka@workspace:."
@@ -4836,6 +4850,8 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-plugin-svelte: "npm:^3.22.0"
     globals: "npm:^17.8.0"
+    js-aruco: "npm:^0.1.0"
+    jsqr: "npm:^1.4.0"
     katex: "npm:^0.18.1"
     mathlive: "npm:^0.110.0"
     prettier: "npm:^3.9.6"
