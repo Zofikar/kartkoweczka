@@ -1,21 +1,21 @@
-import cvModule, {type Mat, type MatVector} from '@techstark/opencv-js';
+import cvModule, { type Mat, type MatVector } from '@techstark/opencv-js';
 import jsQR from 'jsqr';
 import {
-    ANSWER_SHEET_FORMAT_VERSION,
-    answerSheetFormatVersionFromMarkerId,
-    ARUCO_BOTTOM_RIGHT_ANCHOR_ID,
-    ARUCO_FORMAT_VERSION_IDS,
-    ARUCO_MARKER_SIZE,
-    ARUCO_TOP_LEFT_ANCHOR_ID,
-    ARUCO_TOP_RIGHT_ANCHOR_ID,
-    type ArucoMarkerPlacement,
-    arucoMarkerPlacements,
-    metadataQrPlacement,
-    OMR_DESIGN_HEIGHT,
-    OMR_DESIGN_WIDTH,
-    type OmrCorner,
-    omrExclusionZones,
-    type OmrRect,
+	ANSWER_SHEET_FORMAT_VERSION,
+	answerSheetFormatVersionFromMarkerId,
+	ARUCO_BOTTOM_RIGHT_ANCHOR_ID,
+	ARUCO_FORMAT_VERSION_IDS,
+	ARUCO_MARKER_SIZE,
+	ARUCO_TOP_LEFT_ANCHOR_ID,
+	ARUCO_TOP_RIGHT_ANCHOR_ID,
+	type ArucoMarkerPlacement,
+	arucoMarkerPlacements,
+	metadataQrPlacement,
+	OMR_DESIGN_HEIGHT,
+	OMR_DESIGN_WIDTH,
+	type OmrCorner,
+	omrExclusionZones,
+	type OmrRect,
 } from '@/utils/omr';
 
 export interface DebugPoint {
@@ -170,10 +170,6 @@ function readAnalysisImage(image: ImageBitmap): AnalysisImage {
 			? (point) => mapRotatedPointToSource(point, image, width, height)
 			: (point) => mapPortraitPointToSource(point, image, width, height),
 	};
-}
-
-function clamp(value: number, minimum: number, maximum: number): number {
-	return Math.min(maximum, Math.max(minimum, value));
 }
 
 function drawPortraitImage(
@@ -405,17 +401,6 @@ function mapMarkerPoints(
 		...marker,
 		center: mapPoint(marker.center),
 		corners: marker.corners.map(mapPoint),
-	};
-}
-
-function mapQrCodePoints(
-	qrCode: DetectedQrCode | null,
-	mapPoint: (point: DebugPoint) => DebugPoint
-): DetectedQrCode | null {
-	if (!qrCode) return null;
-	return {
-		...qrCode,
-		corners: qrCode.corners.map(mapPoint),
 	};
 }
 

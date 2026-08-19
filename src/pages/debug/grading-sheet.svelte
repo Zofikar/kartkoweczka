@@ -1,16 +1,16 @@
 <script lang="ts">
-    import {
-        analyzeGradingSheetImage,
-        type DetectedArucoMarker,
-        type DetectedQrCode,
-        drawImageDataToCanvas,
-        type GradingSheetDebugResult,
-        type NormalizedOverlayRect,
-        OMR_DESIGN_HEIGHT,
-        OMR_DESIGN_WIDTH,
-    } from '@/utils/omrDebugScanner';
+	import {
+		analyzeGradingSheetImage,
+		type DetectedArucoMarker,
+		type DetectedQrCode,
+		drawImageDataToCanvas,
+		type GradingSheetDebugResult,
+		type NormalizedOverlayRect,
+		OMR_DESIGN_HEIGHT,
+		OMR_DESIGN_WIDTH,
+	} from '@/utils/omrDebugScanner';
 
-    let result = $state<GradingSheetDebugResult | null>(null);
+	let result = $state<GradingSheetDebugResult | null>(null);
 	let isAnalyzing = $state(false);
 	let errorMessage = $state('');
 	let normalizedCanvas = $state<HTMLCanvasElement>();
@@ -59,10 +59,6 @@
 
 	function markerPoints(marker: DetectedArucoMarker): string {
 		return marker.corners.map((corner) => `${corner.x},${corner.y}`).join(' ');
-	}
-
-	function qrPoints(qrCode: DetectedQrCode): string {
-		return qrCode.corners.map((corner) => `${corner.x},${corner.y}`).join(' ');
 	}
 
 	function overlayStyle(rect: NormalizedOverlayRect): string {
