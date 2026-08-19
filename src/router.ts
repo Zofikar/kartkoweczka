@@ -1,40 +1,14 @@
-import { createRouter } from 'sv-router';
-import type { Routes } from 'sv-router';
+import { createRouter, type RouteComponent, type Routes } from 'sv-router';
 import HomePage from './pages/home/page.svelte';
 import QuestionsPage from './pages/questions/page.svelte';
 import TestsPage from './pages/tests/page.svelte';
 import TestDetailPage from './pages/tests/detail.svelte';
 import TestRevisionPage from './pages/tests/revision.svelte';
-
-export const isDebugRouteEnabled = import.meta.env.DEV || import.meta.env.MODE === 'debug';
+import { isDynamic, type RoutePath, routes } from './routes';
 
 const DebugGradingSheetPage = () => import('./pages/debug/grading-sheet.svelte');
 
-export type StaticPagePath = '/' | '/questions' | '/tests' | '/debug/grading-sheet';
-
-export interface PageEntry {
-	id: string;
-	label: string;
-	path: StaticPagePath;
-	component: unknown;
-}
-
-export const routes: PageEntry[] = [
-	{ id: 'home', label: 'Strona główna', path: '/', component: HomePage },
-	{ id: 'questions', label: 'Pytania', path: '/questions', component: QuestionsPage },
-	{ id: 'tests', label: 'Testy', path: '/tests', component: TestsPage },
-	...(isDebugRouteEnabled
-		? [
-				{
-					id: 'debug-grading-sheet',
-					label: 'DEBUG: karta odpowiedzi',
-					path: '/debug/grading-sheet' as const,
-					component: DebugGradingSheetPage,
-				},
-			]
-		: []),
-];
-
+type RoutesMap = { [key in RoutePath]: RouteComponent };
 const routesMap = {
 	'/': HomePage,
 	'/questions': QuestionsPage,
@@ -43,9 +17,59 @@ const routesMap = {
 	'/tests/:id': TestDetailPage,
 	'/tests/:id/revision/new': TestRevisionPage,
 	'/tests/:id/revision/:revisionId': TestRevisionPage,
-	...(isDebugRouteEnabled ? { '/debug/grading-sheet': DebugGradingSheetPage } : {}),
-} as const satisfies Routes;
+	'/debug/grading-sheet': DebugGradingSheetPage,
+} satisfies RoutesMap;
 
-export const { p, navigate, isActive, route } = createRouter(routesMap, {
+export type Route = keyof typeof routesMap;
+export type DynamicRoute = Extract<Route, `${string}/:${string}`>;
+export type StaticRoute = Exclude<Route, DynamicRoute>;
+
+function isRoutePath(path: string): path is keyof typeof routesMap {
+	return path in routesMap;
+}
+
+function filterRoutes(): typeof routesMap {
+	const result: Routes = {};
+
+	for (const r of routes) {
+		if (r.debug && !import.meta.env.DEV) continue;
+		if (!isRoutePath(r.path)) continue;
+
+		result[r.path] = routesMap[r.path];
+	}
+
+	return result as typeof routesMap;
+}
+
+interface PageEntryStatic {
+	id: string;
+	label: string;
+	path: StaticRoute;
+	debug?: boolean;
+}
+export const staticRoutes = routes.filter((r) => !isDynamic(r)) as PageEntryStatic[];
+
+export const staticRoutesChildren = (() => {
+	const mapping: { [key in RoutePath]: RoutePath[] } = {};
+	for (const r of routes) {
+		if (isDynamic(r)) {
+			const sPath = r.path.split('/:')[0];
+			const parent = routes.find((sr) => sr.path === sPath);
+			if (!parent) {
+				console.error(`No parent for dynamic route ${r.path}`);
+				continue;
+			}
+			if (!mapping[parent.path]) {
+				mapping[parent.path] = [];
+			}
+			mapping[parent.path].push(r.path);
+		}
+	}
+	return mapping as { [key in Route]: Route[] };
+})();
+
+const filteredRoutes = filterRoutes();
+
+export const { p, navigate, isActive, route } = createRouter(filteredRoutes, {
 	base: import.meta.env.BASE_URL,
 });

@@ -8,7 +8,6 @@
 	import Sidebar from './lib/components/Sidebar.svelte';
 	import LockScreen from './lib/components/LockScreen.svelte';
 	import Snackbar from './lib/ui/Snackbar.svelte';
-	import { routes } from './router';
 	import { initializeDatabase } from '@/db/client';
 
 	interface BeforeInstallPromptEvent extends Event {
@@ -70,7 +69,7 @@
 	onmenutoggle={() => (sidebarOpen = !sidebarOpen)}
 />
 <div id="main-container">
-	<Sidebar pages={routes} mobileOpen={sidebarOpen} onclose={() => (sidebarOpen = false)} />
+	<Sidebar mobileOpen={sidebarOpen} onclose={() => (sidebarOpen = false)} />
 	<main>
 		{#if isPWA}
 			<Router />

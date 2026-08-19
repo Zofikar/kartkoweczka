@@ -2,24 +2,18 @@
 	import List from '../ui/List/List.svelte';
 	import ListItem from '../ui/List/ListItem.svelte';
 	import { onMount } from 'svelte';
-
-	import { isActive, p, type StaticPagePath } from '@/router';
-
-	interface PageEntry {
-		id: string;
-		label: string;
-		path: StaticPagePath;
-	}
+	import { isActive, p, type Route, staticRoutes, staticRoutesChildren } from '@/router';
 
 	interface Props {
-		pages?: PageEntry[];
 		mobileOpen?: boolean;
 		onclose?: () => void;
 		class?: never;
 		[k: string]: unknown;
 	}
 
-	let { pages = [], mobileOpen = false, onclose, ...restProps }: Props = $props();
+	let { mobileOpen = false, onclose, ...restProps }: Props = $props();
+
+	const pages = staticRoutes.filter((r) => !r.debug || import.meta.env.DEV);
 
 	let isMobile = $state(false);
 
@@ -37,10 +31,10 @@
 		onclose?.();
 	}
 
-	/** Exact match for home, prefix match for sections so nested routes stay highlighted. */
-	function pageIsActive(path: StaticPagePath): boolean {
-		if (path === '/') return isActive(path);
-		return isActive.startsWith(path);
+	function pageIsActive(path: Route): boolean {
+		if (isActive(path)) return true;
+
+		return staticRoutesChildren[path]?.some((c) => isActive(c)) ?? false;
 	}
 
 	function handleDrawerKeydown(e: KeyboardEvent) {
