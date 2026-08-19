@@ -1,16 +1,16 @@
 <script lang="ts">
-	import {
-		OMR_DESIGN_HEIGHT,
-		OMR_DESIGN_WIDTH,
-		analyzeGradingSheetImage,
-		drawImageDataToCanvas,
-		type DetectedArucoMarker,
-		type DetectedQrCode,
-		type GradingSheetDebugResult,
-		type NormalizedOverlayRect,
-	} from '@/utils/omrDebugScanner';
+    import {
+        analyzeGradingSheetImage,
+        type DetectedArucoMarker,
+        type DetectedQrCode,
+        drawImageDataToCanvas,
+        type GradingSheetDebugResult,
+        type NormalizedOverlayRect,
+        OMR_DESIGN_HEIGHT,
+        OMR_DESIGN_WIDTH,
+    } from '@/utils/omrDebugScanner';
 
-	let result = $state<GradingSheetDebugResult | null>(null);
+    let result = $state<GradingSheetDebugResult | null>(null);
 	let isAnalyzing = $state(false);
 	let errorMessage = $state('');
 	let normalizedCanvas = $state<HTMLCanvasElement>();
@@ -18,7 +18,6 @@
 
 	let sourceSizeLabel = $derived(result ? `${result.image.width} × ${result.image.height}px` : '—');
 	let markedAreaQrMetadataJson = $derived(formatMetadata(result?.qrCodeInMarkedArea));
-	let sourceQrMetadataJson = $derived(formatMetadata(result?.qrCodeInSourceImage));
 
 	$effect(() => {
 		if (result?.normalizedImage && normalizedCanvas)
@@ -134,10 +133,6 @@
 								>{marker.corner ?? '?'} #{marker.id}</text
 							>
 						{/each}
-						{#if result.qrCodeInSourceImage}<polygon
-								class="qr-polygon"
-								points={qrPoints(result.qrCodeInSourceImage)}
-							/>{/if}
 					</svg>
 				</div>
 			</section>
@@ -166,10 +161,6 @@
 			<section class="panel">
 				<h2>QR metadanych w obszarze ArUco</h2>
 				<pre>{markedAreaQrMetadataJson}</pre>
-			</section>
-			<section class="panel">
-				<h2>QR metadanych w obrazie źródłowym</h2>
-				<pre>{sourceQrMetadataJson}</pre>
 			</section>
 			<section class="panel">
 				<h2>Markery ArUco</h2>

@@ -61,10 +61,10 @@ export const ARUCO_BOTTOM_RIGHT_ANCHOR_ID = 575;
 export const ARUCO_FORMAT_VERSION_IDS = [79, 426, 837, 896, 382, 224] as const;
 
 /** ArUco marker edge length in design units (80 = 8 mm, roughly text-line sized). */
-export const ARUCO_MARKER_SIZE = 80;
+export const ARUCO_MARKER_SIZE = 100;
 
 /** Inset of each marker's outer edge from the block edges, in design units. */
-export const ARUCO_MARKER_INSET = 50;
+export const ARUCO_MARKER_INSET = 10;
 
 /** Extra reserved space around scanner fiducials, in design units. */
 export const OMR_EXCLUSION_PADDING = 40;
@@ -142,7 +142,7 @@ export function answerSheetFormatVersionFromMarkerId(markerId: number): number |
 }
 
 /** QR code edge length in design units (180 = 18 mm). */
-export const QR_CODE_SIZE = 180;
+export const QR_CODE_SIZE = 200;
 
 /** Gap between right-side fiducials and metadata QR, in design units. */
 export const QR_METADATA_MARKER_GAP = 60;
