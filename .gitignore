@@ -29,3 +29,6 @@ dist-ssr
 # AI Bits that I'm not gonna share
 AGENTS.md
 .agents
+
+# Test stuff (generate with script)
+test_images/test_image_*.png
