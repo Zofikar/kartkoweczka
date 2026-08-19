@@ -1,0 +1,81 @@
+name: Build OpenCV.js ArUco
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git \
+            python3 \
+            cmake \
+            ninja-build
+
+      - name: Clone OpenCV
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch 4.14.0 \
+            https://github.com/opencv/opencv.git \
+            opencv
+
+      - name: Install Emscripten
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          ./emsdk install latest
+          ./emsdk activate latest
+
+      - name: Patch OpenCV TS hook
+        shell: bash
+        run: |
+          python3 "./.gitea/scripts/patch_opencv_embindgen.py" \
+            "$GITHUB_WORKSPACE/opencv/modules/js/generator/embindgen.py"
+
+          cp "$GITHUB_WORKSPACE/.gitea/scripts/generate_ts.py" \
+          "$GITHUB_WORKSPACE/opencv/modules/js/generator/generate_ts.py"
+
+      - name: Build minimal OpenCV.js
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          source "$PWD/emsdk/emsdk_env.sh"
+
+          export OPENCV_TS_OUTPUT="$GITHUB_WORKSPACE/opencv/build_aruco/bin/opencv.d.ts"
+
+          cd opencv
+
+          emcmake python3 platforms/js/build_js.py build_aruco \
+            --build_wasm \
+            --disable_single_file \
+            --config="$GITHUB_WORKSPACE/opencv_js_aruco.config.py" \
+            --cmake_option="-DCMAKE_CXX_STANDARD=17"
+          
+
+      - name: Debug OpenCV JS generation
+        if: failure()
+        shell: bash
+        run: |
+          source "$GITHUB_WORKSPACE/emsdk/emsdk_env.sh"
+          export OPENCV_TS_OUTPUT="$GITHUB_WORKSPACE/opencv/build_aruco/bin/opencv.d.ts"
+          
+          grep -n -A10 -B5 "OPENCV_TS_OUTPUT" \
+            "$GITHUB_WORKSPACE/opencv/modules/js/generator/embindgen.py"
+      
+          cd "$GITHUB_WORKSPACE/opencv/build_aruco"
+          make opencv.js -j1 VERBOSE=1
+
+      - name: Upload OpenCV build
+        uses: christopherhx/gitea-upload-artifact@v4
+        with:
+          name: opencv-aruco-wasm
+          path: opencv/build_aruco/bin/
