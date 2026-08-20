@@ -16,7 +16,13 @@ import {
 	type OmrRect,
 } from '@/utils/omr';
 
-import type {OpenCv, Mat, MatVector, aruco_DetectorParameters, OpenCvDeletable} from '@/types/opencv';
+import type {
+	OpenCv,
+	Mat,
+	MatVector,
+	aruco_DetectorParameters,
+	OpenCvDeletable,
+} from '@/types/opencv';
 
 let cvPromise: Promise<OpenCv> | undefined;
 let jsQrPromise: Promise<typeof import('jsqr')> | undefined;
@@ -255,19 +261,6 @@ async function detectOriginalArucoMarkersInImageData(
 	imageData: ImageData
 ): Promise<OriginalArucoMarker[]> {
 	const cv = await getOpenCv();
-    console.log(
-        Object.keys(cv)
-            .filter(k => k.toLowerCase().includes('aruco'))
-            .sort()
-    );
-    console.log(cv);
-    console.log({
-        DetectorParameters: (cv as any).aruco_DetectorParameters,
-        RefineParameters: (cv as any).aruco_RefineParameters,
-        ArucoDetector: (cv as any).aruco_ArucoDetector,
-        dictionary: (cv as any).DICT_ARUCO_ORIGINAL,
-        getPredefinedDictionary: (cv as any).getPredefinedDictionary,
-    });
 	const source = cv.matFromImageData(imageData);
 	const grayscale = new cv.Mat();
 
@@ -310,10 +303,10 @@ export function getOpenCv(): Promise<OpenCv> {
 }
 
 export async function getJsQr() {
-    jsQrPromise ??= import('jsqr');
+	jsQrPromise ??= import('jsqr');
 
-    const module = await jsQrPromise;
-    return module.default;
+	const module = await jsQrPromise;
+	return module.default;
 }
 
 async function loadOpenCv(): Promise<OpenCv> {
