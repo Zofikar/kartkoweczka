@@ -1,15 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>http://localhost:8080/kartkoweczka/</loc>
+    <loc>http://127.0.0.1:4173/kartkoweczka/</loc>
   </url>
   <url>
-    <loc>http://localhost:8080/kartkoweczka/questions</loc>
+    <loc>http://127.0.0.1:4173/kartkoweczka/questions</loc>
   </url>
   <url>
-    <loc>http://localhost:8080/kartkoweczka/tests</loc>
+    <loc>http://127.0.0.1:4173/kartkoweczka/tests</loc>
   </url>
   <url>
-    <loc>http://localhost:8080/kartkoweczka/tests/new</loc>
+    <loc>http://127.0.0.1:4173/kartkoweczka/tests/new</loc>
+  </url>
+  <url>
+    <loc>http://127.0.0.1:4173/kartkoweczka/licenses.html</loc>
   </url>
 </urlset>
