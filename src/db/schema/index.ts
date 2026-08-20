@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, boolean, integer, timestamp } from 'drizzle-orm/pg-core';
 import { v7 as uuidv7 } from 'uuid';
 import { snapshotJsonb } from './custom-types';
-import type { ImagePlacement } from '../repositories/types';
+import type { ImagePlacement } from '@/db/repositories';
 
 function generateId(): string {
 	return uuidv7();

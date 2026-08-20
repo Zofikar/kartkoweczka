@@ -1,7 +1,24 @@
-import { drizzle } from 'drizzle-orm/pglite';
-import { PGlite } from '@electric-sql/pglite';
+import type { PGlite as PGliteType } from '@electric-sql/pglite';
 import * as tables from './schema';
 import * as relations from './schema/relations';
+
+type PGliteConstructor = typeof import('@electric-sql/pglite').PGlite;
+type DrizzleConstructor = typeof import('drizzle-orm/pglite').drizzle;
+
+let pgLitePromise: Promise<PGliteConstructor> | undefined;
+let drizzlePromise: Promise<DrizzleConstructor> | undefined;
+
+async function getPgLite(): Promise<PGliteConstructor> {
+	pgLitePromise ??= import('@electric-sql/pglite').then((m) => m.PGlite);
+
+	return pgLitePromise;
+}
+
+async function getDrizzle(): Promise<DrizzleConstructor> {
+    drizzlePromise ??= import('drizzle-orm/pglite').then((m) => m.drizzle);
+
+    return drizzlePromise;
+}
 
 export type Database = Awaited<ReturnType<typeof initDb>>;
 
@@ -9,11 +26,14 @@ export async function initDb() {
 	if (!(await ensurePersistentStorage())) {
 		console.log('Storage is not persistent.');
 	}
+	const PGlite = await getPgLite();
 	const dbName = 'app.db';
-	const client = new PGlite(`idb://${dbName}`);
+	const client = await PGlite.create(`idb://${dbName}`);
 
 	await client.waitReady;
 	await runMigrations(client);
+
+    const drizzle = await getDrizzle();
 
 	return drizzle(client, { schema: { ...tables, ...relations } });
 }
@@ -42,7 +62,7 @@ async function ensurePersistentStorage() {
 	}
 }
 
-async function runMigrations(client: PGlite) {
+async function runMigrations(client: PGliteType) {
 	type MigrationRow = { name: string };
 
 	const migrations = import.meta.glob<string>('./drizzle/*.sql', {

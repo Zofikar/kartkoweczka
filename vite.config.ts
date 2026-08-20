@@ -12,8 +12,8 @@ export default defineConfig(({ mode }) => {
 		base: env.VITE_BASE_PATH,
 		resolve: {
 			alias: {
-				'@': path.resolve(__dirname, './src/'),
-				$lib: path.resolve(__dirname, './src/lib'),
+				'@': path.resolve(import.meta.dirname, './src/'),
+				$lib: path.resolve(import.meta.dirname, './src/lib'),
 			},
 		},
 		plugins: [
@@ -54,5 +54,12 @@ export default defineConfig(({ mode }) => {
 			}),
 		],
 		optimizeDeps: { exclude: ['svelte-navigator'] },
+		build: {
+			rolldownOptions: {
+				output: {
+					codeSplitting: true
+				},
+			},
+		},
 	};
 });

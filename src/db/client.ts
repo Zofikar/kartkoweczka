@@ -1,6 +1,7 @@
-import { initDb, type Database } from './db';
+import type { Database } from './db';
 
-let promise: Promise<Database> | null = null;
+
+let promise: Promise<Database> | undefined;
 
 /**
  * Returns the shared database handle, initializing it on first call.
@@ -9,10 +10,14 @@ let promise: Promise<Database> | null = null;
  * Internal to the db layer — pages/helpers must use `db/repositories` instead.
  */
 export function getDb(): Promise<Database> {
-	return (promise ??= initDb().catch((error) => {
-		promise = null;
-		throw error;
-	}));
+    promise ??= import('./db')
+        .then(({ initDb }) => initDb())
+        .catch((error) => {
+            promise = undefined;
+            throw error;
+        });
+
+    return promise;
 }
 
 /** Eagerly starts initialization so the first query doesn't pay the startup cost. */
