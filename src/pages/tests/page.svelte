@@ -31,6 +31,14 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Testy – Kartkóweczka</title>
+	<meta
+		name="description"
+		content="Przeglądaj i zarządzaj testami w Kartkóweczce. Twórz nowe testy, generuj arkusze odpowiedzi i automatycznie oceniaj wyniki."
+	/>
+</svelte:head>
+
 <div class="tests-page">
 	<PageHeader title="Testy">
 		{#snippet actions()}

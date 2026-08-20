@@ -267,6 +267,14 @@
 	}
 </script>
 
+<svelte:head>
+	<title>{isNew ? 'Nowa wersja' : name || 'Wersja'} – Kartkóweczka</title>
+	<meta
+		name="description"
+		content="Edytuj wersje testu w Kartkóweczce. Zmieniaj porjadok pytań, generuj arkusze odpowiedzi i drukuj testy."
+	/>
+</svelte:head>
+
 {#snippet viewQuestionCard(question: EditableQuestion, index: number)}
 	<Card padding="md">
 		<QuestionView

@@ -151,6 +151,14 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Pytania – Kartkóweczka</title>
+	<meta
+		name="description"
+		content="Zarządzaj bankiem pytań w Kartkóweczce. Twórz pytania jedno i wielokrotnego wyboru, dodawaj tagi i przygotuj je do testów."
+	/>
+</svelte:head>
+
 <div class="questions-page">
 	<PageHeader title="Pytania">
 		{#snippet actions()}

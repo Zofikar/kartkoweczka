@@ -10,6 +10,14 @@
 	let { ...restProps }: Props = $props();
 </script>
 
+<svelte:head>
+	<title>Kartkóweczka – generator testów i arkuszy odpowiedzi</title>
+	<meta
+		name="description"
+		content="Kartkóweczka – aplikacja do generowania i sprawdzania testów jedno lub wielokrotnego wyboru. Twórz pytania, generuj arkusze odpowiedzi i automatycznie oceniaj testy."
+	/>
+</svelte:head>
+
 <div class="home-page" {...restProps}>
 	<Card padding="lg">
 		<Heading level={1}>Witaj w Kartkówka</Heading>

@@ -244,6 +244,14 @@
 	}
 </script>
 
+<svelte:head>
+	<title>{isNew ? 'Nowy test' : name || 'Test'} – Kartkóweczka</title>
+	<meta
+		name="description"
+		content="Twórz i edytuj testy w Kartkóweczce. Przypisuj pytania, generuj arkusze odpowiedzi i automatycznie oceniaj wyniki."
+	/>
+</svelte:head>
+
 {#snippet questionCard(question: QuestionWithAnswers)}
 	<Card padding="md" active={selectedIds.includes(question.id)}>
 		<label class="question-select-row">

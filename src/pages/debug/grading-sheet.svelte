@@ -72,7 +72,11 @@
 </script>
 
 <svelte:head>
-	<title>Debug OMR karty odpowiedzi</title>
+	<title>Debug OMR karty odpowiedzi – Kartkóweczka</title>
+	<meta
+		name="description"
+		content="Diagnostyczna stronka do analizy karty odpowiedzi z markerami ArUco i QR kodami w Kartkóweczce."
+	/>
 </svelte:head>
 
 <section class="debug-page">
