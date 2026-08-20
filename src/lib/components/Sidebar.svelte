@@ -55,11 +55,11 @@
 				<nav aria-label="Nawigacja główna">
 					<List>
 						{#each pages as page (page.id)}
-							<a href={p(page.path)} class="sidebar-link" onclick={handleNav}>
-								<ListItem active={pageIsActive(page.path)}>
+							<ListItem active={pageIsActive(page.path)}>
+								<a href={p(page.path)} class="sidebar-link" onclick={handleNav}>
 									{page.label}
-								</ListItem>
-							</a>
+								</a>
+							</ListItem>
 						{/each}
 					</List>
 				</nav>
@@ -71,11 +71,11 @@
 		<nav aria-label="Nawigacja główna">
 			<List>
 				{#each pages as page (page.id)}
-					<a href={p(page.path)} class="sidebar-link">
-						<ListItem active={pageIsActive(page.path)}>
+					<ListItem active={pageIsActive(page.path)}>
+						<a href={p(page.path)} class="sidebar-link">
 							{page.label}
-						</ListItem>
-					</a>
+						</a>
+					</ListItem>
 				{/each}
 			</List>
 		</nav>
@@ -99,6 +99,7 @@
 	.sidebar-link {
 		text-decoration: none;
 		color: inherit;
+		display: block;
 	}
 
 	.sidebar-overlay {
