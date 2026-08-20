@@ -2,3 +2,5 @@ src-tauri/target
 src-tauri/gen
 src-tauri/Cargo.toml
 src-tauri/Cargo.lock
+
+public/opencv

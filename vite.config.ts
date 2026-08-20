@@ -7,9 +7,11 @@ import path from 'path';
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
+	const base = env.VITE_BASE_PATH || '/';
+	const normalizedBase = base.endsWith('/') ? base : `${base}/`;
 
 	return {
-		base: env.VITE_BASE_PATH,
+		base,
 		resolve: {
 			alias: {
 				'@': path.resolve(import.meta.dirname, './src/'),
@@ -21,20 +23,21 @@ export default defineConfig(({ mode }) => {
 			VitePWA({
 				registerType: 'autoUpdate',
 				injectRegister: 'auto',
-				includeAssets: ['favicon.ico', 'robots.txt', 'icons/*.png'],
+				includeAssets: ['favicon.ico', 'robots.txt', 'icon-192x192.png', 'icon-512x512.png'],
 				manifest: {
 					name: 'Kartkóweczka',
 					short_name: 'Kartkóweczka',
 					description:
 						'Aplikacja do generowania i sprawdzania testów jedno lub wielokrotnego wyboru',
+					lang: 'pl',
 					icons: [
 						{
-							src: '/icon-192x192.png',
+							src: `${normalizedBase}icon-192x192.png`,
 							sizes: '192x192',
 							type: 'image/png',
 						},
 						{
-							src: '/icon-512x512.png',
+							src: `${normalizedBase}icon-512x512.png`,
 							sizes: '512x512',
 							type: 'image/png',
 						},
@@ -44,8 +47,9 @@ export default defineConfig(({ mode }) => {
 					display: 'standalone',
 				},
 				workbox: {
-					navigateFallback: '/index.html',
-					globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
+					navigateFallback: `${normalizedBase}index.html`,
+					globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,wasm,data,woff2}'],
+                    maximumFileSizeToCacheInBytes: 11 * 1024 * 1024
 				},
 			}),
 			githubPagesSpa({
@@ -55,11 +59,18 @@ export default defineConfig(({ mode }) => {
 		],
 		optimizeDeps: { exclude: ['svelte-navigator'] },
 		build: {
+			sourcemap: true,
 			rolldownOptions: {
 				output: {
-					codeSplitting: true
+					codeSplitting: true,
 				},
 			},
 		},
+        css: {
+            devSourcemap: true
+        },
+        preview: {
+            allowedHosts: ["kartkoweczka.internal"]
+        }
 	};
 });
