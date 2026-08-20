@@ -59,7 +59,6 @@ jobs:
             --disable_single_file \
             --config="$GITHUB_WORKSPACE/opencv_js_aruco.config.py" \
             --cmake_option="-DCMAKE_CXX_STANDARD=17"
-          
 
       - name: Debug OpenCV JS generation
         if: failure()
@@ -67,10 +66,10 @@ jobs:
         run: |
           source "$GITHUB_WORKSPACE/emsdk/emsdk_env.sh"
           export OPENCV_TS_OUTPUT="$GITHUB_WORKSPACE/opencv/build_aruco/bin/opencv.d.ts"
-          
+
           grep -n -A10 -B5 "OPENCV_TS_OUTPUT" \
             "$GITHUB_WORKSPACE/opencv/modules/js/generator/embindgen.py"
-      
+
           cd "$GITHUB_WORKSPACE/opencv/build_aruco"
           make opencv.js -j1 VERBOSE=1
 
