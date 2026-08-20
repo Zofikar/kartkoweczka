@@ -30,6 +30,12 @@ def cpp_type_to_ts(tp: str, namespace_prefix = "") -> str:
         "Mat": "Mat",
         "cv::Mat": "Mat",
 
+        "AlgorithmHint": "number",
+        "cv::AlgorithmHint": "number",
+
+        "Scalar": "Scalar",
+        "cv::Scalar": "Scalar",
+
         # Important JS-facing mappings
         "std::vector<cv::Mat>": "MatVector",
         "std::vector<Mat>": "MatVector",
@@ -109,6 +115,13 @@ def emit_typescript(generator, white_list, namespace_prefix_override, output):
         "  size(): number;",
         "  get(index: number): Mat;",
         "  push_back(value: Mat): void;",
+        "}",
+        "",
+        "export interface Scalar {",
+        "  0: number;",
+        "  1: number;",
+        "  2: number;",
+        "  3: number;",
         "}",
         "",
     ]
@@ -198,7 +211,7 @@ def emit_typescript(generator, white_list, namespace_prefix_override, output):
             for variant in func.variants:
                 lines.append(
                     f"  {js_name}({emit_args(variant, ns_prefix)}): "
-                    f"{cpp_type_to_ts(variant.rettype)};"
+                    f"{cpp_type_to_ts(variant.rettype, ns_prefix)};"
                 )
 
     #

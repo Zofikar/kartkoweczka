@@ -18,6 +18,13 @@ export interface MatVector extends OpenCvDeletable {
 	push_back(value: Mat): void;
 }
 
+export interface Scalar {
+	0: number;
+	1: number;
+	2: number;
+	3: number;
+}
+
 export interface Algorithm extends OpenCvDeletable {}
 
 export interface GraphicalCodeDetector extends OpenCvDeletable {
@@ -104,8 +111,8 @@ export interface OpenCv {
 	MatVector: new (...args: any[]) => MatVector;
 	matFromImageData(image: ImageData): Mat;
 	mean(src: Mat, mask?: Mat): Scalar;
-	cvtColor(src: Mat, dst: Mat, code: number, dstCn?: number, hint?: AlgorithmHint): void;
-	getPredefinedDictionary(dict: number): Dictionary;
+	cvtColor(src: Mat, dst: Mat, code: number, dstCn?: number, hint?: number): void;
+	getPredefinedDictionary(dict: number): aruco_Dictionary;
 	SORT_EVERY_ROW: number;
 	SORT_EVERY_COLUMN: number;
 	SORT_ASCENDING: number;

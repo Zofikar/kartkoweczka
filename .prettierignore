@@ -4,3 +4,4 @@ src-tauri/Cargo.toml
 src-tauri/Cargo.lock
 
 public/opencv
+.venv
