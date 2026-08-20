@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Field from './Field.svelte';
-    import { v4 as randomUUID } from 'uuid';
+	import { v4 as randomUUID } from 'uuid';
 
 	let selectId = $state(randomUUID());
 

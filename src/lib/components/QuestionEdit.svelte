@@ -20,7 +20,7 @@
 	import { validateQuestionData } from '@/pages/questions/validation';
 	import { snackError } from '@/lib/stores/snackbar.svelte';
 	import { onMount } from 'svelte';
-    import { v4 as randomUUID } from 'uuid';
+	import { v4 as randomUUID } from 'uuid';
 
 	interface Props {
 		question?: QuestionWithAnswers | null;

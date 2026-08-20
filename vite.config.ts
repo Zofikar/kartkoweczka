@@ -49,7 +49,7 @@ export default defineConfig(({ mode }) => {
 				workbox: {
 					navigateFallback: `${normalizedBase}index.html`,
 					globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,wasm,data,woff2}'],
-                    maximumFileSizeToCacheInBytes: 11 * 1024 * 1024
+					maximumFileSizeToCacheInBytes: 11 * 1024 * 1024,
 				},
 			}),
 			githubPagesSpa({
@@ -66,11 +66,11 @@ export default defineConfig(({ mode }) => {
 				},
 			},
 		},
-        css: {
-            devSourcemap: true
-        },
-        preview: {
-            allowedHosts: ["kartkoweczka.internal"]
-        }
+		css: {
+			devSourcemap: true,
+		},
+		preview: {
+			allowedHosts: ['kartkoweczka.internal'],
+		},
 	};
 });
