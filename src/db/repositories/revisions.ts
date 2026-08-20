@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { getDb } from '../client';
+import { getDb } from '@/db';
 import { testRevisions } from '../schema';
 import { emitDataChanged } from './events';
 import type { CreateRevisionData, TestRevision, TestRevisionSummary } from './types';

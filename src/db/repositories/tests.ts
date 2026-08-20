@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { getDb } from '../client';
+import { getDb } from '@/db';
 import { testQuestions, tests } from '../schema';
 import { emitDataChanged } from './events';
 import type { SaveTestData, TestSummary, TestWithQuestions } from './types';

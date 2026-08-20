@@ -1,5 +1,6 @@
 import { eq, inArray, sql } from 'drizzle-orm';
-import { getDb, type Transaction } from '../client';
+import type { Transaction } from '../client';
+import { getDb } from '@/db';
 import { answers, questions, questionTags, tags } from '../schema';
 import { emitDataChanged } from './events';
 import type { QuestionEditData, QuestionFilters, QuestionWithAnswers } from './types';

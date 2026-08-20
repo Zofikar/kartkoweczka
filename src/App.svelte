@@ -8,7 +8,6 @@
 	import Sidebar from './lib/components/Sidebar.svelte';
 	import LockScreen from './lib/components/LockScreen.svelte';
 	import Snackbar from './lib/ui/Snackbar.svelte';
-	import { initializeDatabase } from '@/db/client';
 
 	interface BeforeInstallPromptEvent extends Event {
 		prompt: () => Promise<void>;
@@ -20,7 +19,7 @@
 	let isLight = $state(false);
 	let sidebarOpen = $state(false);
 
-	onMount(async () => {
+	onMount(() => {
 		try {
 			const stored = localStorage.getItem('theme');
 			if (stored === 'light') {
@@ -31,12 +30,20 @@
 			// localStorage not available, default to dark
 		}
 
-		window.addEventListener('beforeinstallprompt', (e: Event) => {
+		if (isPWA) {
+			import('@/db/client').then(({ initializeDatabase }) => initializeDatabase());
+		}
+
+		const handleBeforeInstallPrompt = (e: Event) => {
 			e.preventDefault();
 			deferredPrompt = e as BeforeInstallPromptEvent;
-		});
+		};
 
-		await initializeDatabase();
+		window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+		return () => {
+			window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+		};
 	});
 
 	function toggleTheme() {
@@ -51,13 +58,7 @@
 
 	async function handleInstall() {
 		if (!deferredPrompt) return;
-
 		await deferredPrompt.prompt();
-		const { outcome } = await deferredPrompt.userChoice;
-
-		if (outcome === 'accepted') {
-			isPWA = true;
-		}
 		deferredPrompt = null;
 	}
 </script>

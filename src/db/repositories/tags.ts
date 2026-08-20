@@ -1,4 +1,4 @@
-import { getDb } from '../client';
+import { getDb } from '@/db';
 import { tags } from '../schema';
 
 export async function listTags(): Promise<string[]> {

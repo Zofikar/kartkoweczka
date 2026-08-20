@@ -15,9 +15,9 @@ async function getPgLite(): Promise<PGliteConstructor> {
 }
 
 async function getDrizzle(): Promise<DrizzleConstructor> {
-    drizzlePromise ??= import('drizzle-orm/pglite').then((m) => m.drizzle);
+	drizzlePromise ??= import('drizzle-orm/pglite').then((m) => m.drizzle);
 
-    return drizzlePromise;
+	return drizzlePromise;
 }
 
 export type Database = Awaited<ReturnType<typeof initDb>>;
@@ -33,7 +33,7 @@ export async function initDb() {
 	await client.waitReady;
 	await runMigrations(client);
 
-    const drizzle = await getDrizzle();
+	const drizzle = await getDrizzle();
 
 	return drizzle(client, { schema: { ...tables, ...relations } });
 }
