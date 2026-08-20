@@ -1,5 +1,3 @@
-import cvModule, { type Mat, type MatVector } from '@techstark/opencv-js';
-import jsQR from 'jsqr';
 import {
 	ANSWER_SHEET_FORMAT_VERSION,
 	answerSheetFormatVersionFromMarkerId,
@@ -17,6 +15,11 @@ import {
 	omrExclusionZones,
 	type OmrRect,
 } from '@/utils/omr';
+
+import type {OpenCv, Mat, MatVector, aruco_DetectorParameters, OpenCvDeletable} from '@/types/opencv';
+
+let cvPromise: Promise<OpenCv> | undefined;
+let jsQrPromise: Promise<typeof import('jsqr')> | undefined;
 
 export interface DebugPoint {
 	x: number;
@@ -69,52 +72,6 @@ interface AnalysisImage {
 	pointToSource: (point: DebugPoint) => DebugPoint;
 }
 
-interface OpenCvArucoDetectorParameters {
-	adaptiveThreshWinSizeMin: number;
-	adaptiveThreshWinSizeMax: number;
-	adaptiveThreshWinSizeStep: number;
-	minMarkerPerimeterRate: number;
-	cornerRefinementMaxIterations: number;
-	cornerRefinementMethod: number;
-	errorCorrectionRate: number;
-	minOtsuStdDev: number;
-	perspectiveRemovePixelPerCell: number;
-	useAruco3Detection: boolean;
-	delete(): void;
-}
-
-interface OpenCvArucoDetector {
-	detectMarkers(image: Mat, corners: MatVector, ids: Mat, rejected: MatVector): void;
-	delete(): void;
-}
-
-interface OpenCvArucoRefineParameters {
-	delete(): void;
-}
-
-interface OpenCvDeletable {
-	delete?: () => void;
-}
-
-type OpenCv = typeof cvModule & {
-	COLOR_RGBA2GRAY: number;
-	DICT_ARUCO_ORIGINAL: number;
-	CORNER_REFINE_SUBPIX: number;
-	cvtColor(source: Mat, destination: Mat, code: number): void;
-	getPredefinedDictionary(dictionary: number): unknown;
-	aruco_DetectorParameters: new () => OpenCvArucoDetectorParameters;
-	aruco_RefineParameters: new (
-		minimumRepDistance: number,
-		errorCorrectionRate: number,
-		checkAllOrders: boolean
-	) => OpenCvArucoRefineParameters;
-	aruco_ArucoDetector: new (
-		dictionary: unknown,
-		parameters: OpenCvArucoDetectorParameters,
-		refineParameters: OpenCvArucoRefineParameters
-	) => OpenCvArucoDetector;
-};
-
 interface SheetMetadata {
 	r?: unknown;
 	f?: unknown;
@@ -126,14 +83,13 @@ const VALID_ANSWER_SHEET_MARKER_IDS = new Set<number>([
 	ARUCO_BOTTOM_RIGHT_ANCHOR_ID,
 	...ARUCO_FORMAT_VERSION_IDS,
 ]);
-let openCvPromise: Promise<OpenCv> | undefined;
 
 export async function analyzeGradingSheetImage(file: File): Promise<GradingSheetDebugResult> {
 	const image = await createImageBitmap(file);
 	const { imageData, pointToSource } = readAnalysisImage(image);
 	const analysisMarkers = await detectArucoMarkers(imageData);
 	const normalizedImage = normalizeImageIfPossible(imageData, analysisMarkers);
-	const qrCodeInMarkedArea = normalizedImage ? detectQrCode(normalizedImage) : null;
+	const qrCodeInMarkedArea = normalizedImage ? await detectQrCode(normalizedImage) : null;
 	const arucoMarkers = analysisMarkers.map((marker) => mapMarkerPoints(marker, pointToSource));
 	const markersWithExpectedMetadata = addExpectedMarkerMetadata(arucoMarkers);
 
@@ -218,7 +174,8 @@ function getOffscreenCanvasContext(canvas: OffscreenCanvas): OffscreenCanvasRend
 	return context;
 }
 
-function detectQrCode(imageData: ImageData): DetectedQrCode | null {
+async function detectQrCode(imageData: ImageData): Promise<DetectedQrCode | null> {
+	const jsQR = await getJsQr();
 	const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
 		inversionAttempts: 'attemptBoth',
 	});
@@ -298,6 +255,19 @@ async function detectOriginalArucoMarkersInImageData(
 	imageData: ImageData
 ): Promise<OriginalArucoMarker[]> {
 	const cv = await getOpenCv();
+    console.log(
+        Object.keys(cv)
+            .filter(k => k.toLowerCase().includes('aruco'))
+            .sort()
+    );
+    console.log(cv);
+    console.log({
+        DetectorParameters: (cv as any).aruco_DetectorParameters,
+        RefineParameters: (cv as any).aruco_RefineParameters,
+        ArucoDetector: (cv as any).aruco_ArucoDetector,
+        dictionary: (cv as any).DICT_ARUCO_ORIGINAL,
+        getPredefinedDictionary: (cv as any).getPredefinedDictionary,
+    });
 	const source = cv.matFromImageData(imageData);
 	const grayscale = new cv.Mat();
 
@@ -323,13 +293,8 @@ function detectOriginalArucoMarkersInGrayscaleImage(cv: OpenCv, image: Mat): Ori
 	);
 
 	try {
-		console.log(image.cols, image.rows, image.type());
 		detector.detectMarkers(image, corners, ids, rejected);
-		console.log('number detected:', ids.rows * ids.cols);
-		console.log('ids:', Array.from(ids.data32S));
-		console.log('corners:', corners.size());
-		console.log('rejected:', rejected.size());
-		return readDetectedArucoMarkers(corners, ids);
+		return readDetectedArucoMarkers(corners as unknown as MatVector, ids);
 	} finally {
 		deleteOpenCvObject(detector);
 		deleteOpenCvObject(refineParameters);
@@ -339,14 +304,45 @@ function detectOriginalArucoMarkersInGrayscaleImage(cv: OpenCv, image: Mat): Ori
 	}
 }
 
-async function getOpenCv(): Promise<OpenCv> {
-	openCvPromise ??= Promise.resolve(cvModule instanceof Promise ? cvModule : cvModule).then(
-		(module) => module as OpenCv
-	);
-	return openCvPromise;
+export function getOpenCv(): Promise<OpenCv> {
+	cvPromise ??= loadOpenCv();
+	return cvPromise;
 }
 
-function buildArucoDetectorParameters(cv: OpenCv): OpenCvArucoDetectorParameters {
+export async function getJsQr() {
+    jsQrPromise ??= import('jsqr');
+
+    const module = await jsQrPromise;
+    return module.default;
+}
+
+async function loadOpenCv(): Promise<OpenCv> {
+	const script = document.createElement('script');
+	script.src = `${import.meta.env.BASE_URL}/opencv/opencv.js`;
+	script.async = true;
+
+	const loaded = new Promise<void>((resolve, reject) => {
+		script.onload = () => resolve();
+		script.onerror = () => reject(new Error('Failed to load OpenCV.js'));
+	});
+
+	document.head.appendChild(script);
+	await loaded;
+
+	const cv = (
+		globalThis as typeof globalThis & {
+			cv?: OpenCv | Promise<OpenCv>;
+		}
+	).cv;
+
+	if (!cv) {
+		throw new Error('OpenCV.js loaded but cv was not initialized');
+	}
+
+	return await cv;
+}
+
+function buildArucoDetectorParameters(cv: OpenCv): aruco_DetectorParameters {
 	const parameters = new cv.aruco_DetectorParameters();
 	parameters.minMarkerPerimeterRate = 0.01;
 	parameters.cornerRefinementMethod = cv.CORNER_REFINE_SUBPIX;

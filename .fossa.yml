@@ -9,5 +9,10 @@ targets:
     - type: yarn
       path: .
 
+referenced-dependencies:
+  - type: git
+    name: https://github.com/opencv/opencv.git
+    version: "4.14.0"
+
 telemetry:
   scope: 'off'

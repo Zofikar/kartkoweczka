@@ -2440,13 +2440,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@techstark/opencv-js@npm:^5.0.0-release.1":
-  version: 5.0.0-release.1
-  resolution: "@techstark/opencv-js@npm:5.0.0-release.1"
-  checksum: 10c0/f9a3e8451c29518c3d03fbc3345b00abd9786136527d7a0a8959abc3abf5027f47e8f1d72a6fd65611981123f3eedd30a5631a8848aed491ecbb39a548f69a8a
-  languageName: node
-  linkType: hard
-
 "@trickfilm400/rollup-plugin-off-main-thread@npm:^3.0.0-pre1":
   version: 3.0.0-pre1
   resolution: "@trickfilm400/rollup-plugin-off-main-thread@npm:3.0.0-pre1"
@@ -4771,7 +4764,6 @@ __metadata:
     "@tauri-apps/api": "npm:^2.11.1"
     "@tauri-apps/cli": "npm:^2.11.4"
     "@tauri-apps/plugin-fs": "npm:^2.5.1"
-    "@techstark/opencv-js": "npm:^5.0.0-release.1"
     "@tsconfig/svelte": "npm:^5.0.8"
     "@types/node": "npm:^26.2.0"
     "@types/qrcode": "npm:^1.5.6"
