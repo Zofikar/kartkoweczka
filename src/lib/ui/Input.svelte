@@ -1,7 +1,9 @@
 <script lang="ts">
 	import Field from './Field.svelte';
 
-	let inputId = $state(crypto.randomUUID());
+    import { v4 as randomUUID } from 'uuid';
+
+    let inputId = $state(randomUUID());
 
 	interface Props {
 		type?: 'text' | 'number' | 'email' | 'password';

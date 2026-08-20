@@ -1,7 +1,8 @@
 <script lang="ts">
 	import Field from './Field.svelte';
+    import { v4 as randomUUID } from 'uuid';
 
-	let selectId = $state(crypto.randomUUID());
+	let selectId = $state(randomUUID());
 
 	interface Props<T extends string> {
 		value?: T | null;

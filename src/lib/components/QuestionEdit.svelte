@@ -20,6 +20,7 @@
 	import { validateQuestionData } from '@/pages/questions/validation';
 	import { snackError } from '@/lib/stores/snackbar.svelte';
 	import { onMount } from 'svelte';
+    import { v4 as randomUUID } from 'uuid';
 
 	interface Props {
 		question?: QuestionWithAnswers | null;
@@ -153,8 +154,8 @@
 		type = newType;
 		if (newType === 'true_false') {
 			answerList = [
-				{ key: crypto.randomUUID(), content: 'Prawda', isCorrect: false },
-				{ key: crypto.randomUUID(), content: 'Fałsz', isCorrect: false },
+				{ key: randomUUID(), content: 'Prawda', isCorrect: false },
+				{ key: randomUUID(), content: 'Fałsz', isCorrect: false },
 			];
 		} else {
 			// Clear answers when switching to choice — user must provide at least 3
@@ -180,7 +181,7 @@
 	}
 
 	function addAnswer() {
-		answerList = [...answerList, { key: crypto.randomUUID(), content: '', isCorrect: false }];
+		answerList = [...answerList, { key: randomUUID(), content: '', isCorrect: false }];
 	}
 
 	function removeAnswer(key: string) {
