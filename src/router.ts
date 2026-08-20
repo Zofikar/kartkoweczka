@@ -1,11 +1,11 @@
 import { createRouter, type RouteComponent, type Routes } from 'sv-router';
 import HomePage from './pages/home/page.svelte';
-import QuestionsPage from './pages/questions/page.svelte';
-import TestsPage from './pages/tests/page.svelte';
-import TestDetailPage from './pages/tests/detail.svelte';
-import TestRevisionPage from './pages/tests/revision.svelte';
 import { isDynamic, type RoutePath, routes } from './routes';
 
+const QuestionsPage = () => import('./pages/questions/page.svelte');
+const TestsPage = () => import('./pages/tests/page.svelte');
+const TestDetailPage = () => import('./pages/tests/detail.svelte');
+const TestRevisionPage = () => import('./pages/tests/revision.svelte');
 const DebugGradingSheetPage = () => import('./pages/debug/grading-sheet.svelte');
 
 type RoutesMap = { [key in RoutePath]: RouteComponent };
