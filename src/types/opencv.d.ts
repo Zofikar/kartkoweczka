@@ -29,15 +29,9 @@ export interface Algorithm extends OpenCvDeletable {}
 
 export interface GraphicalCodeDetector extends OpenCvDeletable {
 	detectAndDecode(img: Mat, points?: Mat, straight_code?: Mat): string;
-	detectAndDecodeMulti(
-		img: Mat,
-		decoded_info: Array<string>,
-		points?: Mat,
-		straight_code?: MatVector
-	): boolean;
 }
 
-export interface QRCodeDetectorAruco extends OpenCvDeletable {
+export interface QRCodeDetectorAruco extends GraphicalCodeDetector {
 	setDetectorParameters(params: QRCodeDetectorAruco_Params): QRCodeDetectorAruco;
 	setArucoParameters(params: aruco_DetectorParameters): void;
 }
@@ -52,7 +46,7 @@ export interface QRCodeDetectorAruco_Params extends OpenCvDeletable {
 	scaleTimingPatternScore: number;
 }
 
-export interface aruco_ArucoDetector extends OpenCvDeletable {
+export interface aruco_ArucoDetector extends Algorithm {
 	detectMarkers(image: Mat, corners: MatVector, ids: Mat, rejectedImgPoints?: MatVector): void;
 }
 
@@ -110,9 +104,17 @@ export interface OpenCv {
 	Mat: new (...args: any[]) => Mat;
 	MatVector: new (...args: any[]) => MatVector;
 	matFromImageData(image: ImageData): Mat;
+	encodeQRCode(text: string, correctionLevel: number): Mat;
 	mean(src: Mat, mask?: Mat): Scalar;
 	cvtColor(src: Mat, dst: Mat, code: number, dstCn?: number, hint?: number): void;
-	getPredefinedDictionary(dict: number): Dictionary;
+	generateImageMarker(
+		dictionary: Dictionary,
+		id: number,
+		sidePixels: number,
+		img: Mat,
+		borderBits?: number
+	): void;
+	getPredefinedDictionary(dict: number): aruco_Dictionary;
 	SORT_EVERY_ROW: number;
 	SORT_EVERY_COLUMN: number;
 	SORT_ASCENDING: number;

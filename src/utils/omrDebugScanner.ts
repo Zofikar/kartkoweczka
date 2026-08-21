@@ -24,8 +24,10 @@ import type {
 	OpenCvDeletable,
 } from '@/types/opencv';
 
+/** Extra design units around the known metadata QR position to search in. */
+const QR_SEARCH_SAFETY_MARGIN = 80;
+
 let cvPromise: Promise<OpenCv> | undefined;
-let jsQrPromise: Promise<typeof import('jsqr')> | undefined;
 
 export interface DebugPoint {
 	x: number;
@@ -181,21 +183,39 @@ function getOffscreenCanvasContext(canvas: OffscreenCanvas): OffscreenCanvasRend
 }
 
 async function detectQrCode(imageData: ImageData): Promise<DetectedQrCode | null> {
-	const jsQR = await getJsQr();
-	const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
-		inversionAttempts: 'attemptBoth',
+	const cv = await getOpenCv();
+	const searchRect = expandRect(metadataQrPlacement(), QR_SEARCH_SAFETY_MARGIN, {
+		width: OMR_DESIGN_WIDTH,
+		height: OMR_DESIGN_HEIGHT,
 	});
-	if (!qrCode) return null;
-	return {
-		data: qrCode.data,
-		metadata: parseQrMetadata(qrCode.data),
-		corners: [
-			qrCode.location.topLeftCorner,
-			qrCode.location.topRightCorner,
-			qrCode.location.bottomRightCorner,
-			qrCode.location.bottomLeftCorner,
-		].map(copyPoint),
-	};
+	const cropped = cropImageData(imageData, searchRect);
+	const source = cv.matFromImageData(cropped);
+	const grayscale = new cv.Mat();
+	const points = new cv.Mat();
+	const detector = new cv.QRCodeDetectorAruco();
+
+	try {
+		cv.cvtColor(source, grayscale, cv.COLOR_RGBA2GRAY);
+		const data = detector.detectAndDecode(grayscale, points);
+		if (!data) return null;
+		const corners = readQrCorners(points);
+		if (!corners) return null;
+		return {
+			data,
+			metadata: parseQrMetadata(data),
+			corners: corners.map((corner) => ({
+				x: corner.x + searchRect.x,
+				y: corner.y + searchRect.y,
+			})),
+		};
+	} catch {
+		return null;
+	} finally {
+		deleteOpenCvObject(detector);
+		deleteOpenCvObject(points);
+		deleteOpenCvObject(grayscale);
+		deleteOpenCvObject(source);
+	}
 }
 
 function parseQrMetadata(data: string): unknown {
@@ -302,13 +322,6 @@ export function getOpenCv(): Promise<OpenCv> {
 	return cvPromise;
 }
 
-export async function getJsQr() {
-	jsQrPromise ??= import('jsqr');
-
-	const module = await jsQrPromise;
-	return module.default;
-}
-
 async function loadOpenCv(): Promise<OpenCv> {
 	const script = document.createElement('script');
 	script.src = `${import.meta.env.BASE_URL}/opencv/opencv.js`;
@@ -407,6 +420,51 @@ function polygonCenter(points: DebugPoint[]): DebugPoint {
 
 function copyPoint(point: DebugPoint): DebugPoint {
 	return { x: point.x, y: point.y };
+}
+
+function expandRect(
+	rect: OmrRect,
+	margin: number,
+	bounds: { width: number; height: number }
+): OmrRect {
+	const left = Math.max(0, rect.x - margin);
+	const top = Math.max(0, rect.y - margin);
+	return {
+		x: left,
+		y: top,
+		width: Math.min(bounds.width, rect.x + rect.width + margin) - left,
+		height: Math.min(bounds.height, rect.y + rect.height + margin) - top,
+	};
+}
+
+function cropImageData(image: ImageData, rect: OmrRect): ImageData {
+	const width = Math.round(rect.width);
+	const height = Math.round(rect.height);
+	const cropped = new ImageData(width, height);
+	const originX = Math.round(rect.x);
+	const originY = Math.round(rect.y);
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width; x++) {
+			const srcX = originX + x;
+			const srcY = originY + y;
+			if (srcX < 0 || srcY < 0 || srcX >= image.width || srcY >= image.height) continue;
+			const srcIndex = (srcY * image.width + srcX) * 4;
+			const dstIndex = (y * width + x) * 4;
+			cropped.data[dstIndex] = image.data[srcIndex];
+			cropped.data[dstIndex + 1] = image.data[srcIndex + 1];
+			cropped.data[dstIndex + 2] = image.data[srcIndex + 2];
+			cropped.data[dstIndex + 3] = 255;
+		}
+	}
+	return cropped;
+}
+
+function readQrCorners(points: Mat | undefined): DebugPoint[] | undefined {
+	if (!points?.data32F || points.data32F.length < 8) return undefined;
+	return Array.from({ length: 4 }, (_, index) => ({
+		x: points.data32F[index * 2],
+		y: points.data32F[index * 2 + 1],
+	}));
 }
 
 function normalizeImageIfPossible(

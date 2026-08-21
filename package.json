@@ -45,7 +45,6 @@
 		"aruco-marker": "^3.0.1",
 		"comlink": "^4.4.2",
 		"drizzle-orm": "^0.45.2",
-		"jsqr": "^1.4.0",
 		"katex": "^0.18.2",
 		"mathlive": "^0.110.0",
 		"qrcode": "^1.5.4",

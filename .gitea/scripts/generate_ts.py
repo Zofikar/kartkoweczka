@@ -234,6 +234,7 @@ def emit_typescript(generator, white_list, namespace_prefix_override, output):
     lines.append("  Mat: new (...args: any[]) => Mat;")
     lines.append("  MatVector: new (...args: any[]) => MatVector;")
     lines.append("  matFromImageData(image: ImageData): Mat;")
+    lines.append("  encodeQRCode(text: string, correctionLevel: number): Mat;")
 
     #
     # Global functions
