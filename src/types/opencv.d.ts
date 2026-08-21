@@ -8,8 +8,13 @@ export interface OpenCvDeletable {
 export interface Mat extends OpenCvDeletable {
 	readonly rows: number;
 	readonly cols: number;
+	readonly data: Uint8Array;
+	readonly data8S: Int8Array;
+	readonly data16U: Uint16Array;
+	readonly data16S: Int16Array;
 	readonly data32S: Int32Array;
 	readonly data32F: Float32Array;
+	readonly data64F: Float64Array;
 }
 
 export interface MatVector extends OpenCvDeletable {

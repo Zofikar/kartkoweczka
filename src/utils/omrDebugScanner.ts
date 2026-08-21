@@ -16,18 +16,11 @@ import {
 	type OmrRect,
 } from '@/utils/omr';
 
-import type {
-	OpenCv,
-	Mat,
-	MatVector,
-	aruco_DetectorParameters,
-	OpenCvDeletable,
-} from '@/types/opencv';
+import type { OpenCv, Mat, MatVector, aruco_DetectorParameters } from '@/types/opencv';
+import { deleteOpenCvObject, getOpenCv } from '@/utils/opencv';
 
 /** Extra design units around the known metadata QR position to search in. */
 const QR_SEARCH_SAFETY_MARGIN = 80;
-
-let cvPromise: Promise<OpenCv> | undefined;
 
 export interface DebugPoint {
 	x: number;
@@ -317,37 +310,6 @@ function detectOriginalArucoMarkersInGrayscaleImage(cv: OpenCv, image: Mat): Ori
 	}
 }
 
-export function getOpenCv(): Promise<OpenCv> {
-	cvPromise ??= loadOpenCv();
-	return cvPromise;
-}
-
-async function loadOpenCv(): Promise<OpenCv> {
-	const script = document.createElement('script');
-	script.src = `${import.meta.env.BASE_URL}/opencv/opencv.js`;
-	script.async = true;
-
-	const loaded = new Promise<void>((resolve, reject) => {
-		script.onload = () => resolve();
-		script.onerror = () => reject(new Error('Failed to load OpenCV.js'));
-	});
-
-	document.head.appendChild(script);
-	await loaded;
-
-	const cv = (
-		globalThis as typeof globalThis & {
-			cv?: OpenCv | Promise<OpenCv>;
-		}
-	).cv;
-
-	if (!cv) {
-		throw new Error('OpenCV.js loaded but cv was not initialized');
-	}
-
-	return await cv;
-}
-
 function buildArucoDetectorParameters(cv: OpenCv): aruco_DetectorParameters {
 	const parameters = new cv.aruco_DetectorParameters();
 	parameters.minMarkerPerimeterRate = 0.01;
@@ -389,10 +351,6 @@ function readMarkerCorners(corners: Mat | undefined): DebugPoint[] {
 	} finally {
 		deleteOpenCvObject(corners);
 	}
-}
-
-function deleteOpenCvObject(object: OpenCvDeletable | undefined): void {
-	object?.delete?.();
 }
 
 function mapMarkerPoints(

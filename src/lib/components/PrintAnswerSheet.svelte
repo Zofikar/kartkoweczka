@@ -27,18 +27,37 @@
 	/** Instruction block always reserves exactly this many lines of height. */
 	const INSTRUCTION_LINES = 6;
 
-	// The metadata QR payload is deterministic per revision, so the SVG is
-	// computed synchronously — no async gap where a print could happen without it.
-	let metadataPayload = $derived(sheetMetadataQrPayload(revisionId));
-	let metadataQr = $derived(qrCodeSvg(metadataPayload));
 	const qrPlacement = metadataQrPlacement();
-	let markerSvgs = $derived(
-		arucoMarkerPlacements().map((marker) => ({
-			...marker,
-			svg: arucoMarkerSvg(marker.id),
-		}))
-	);
 	const exclusionZones = omrExclusionZones();
+
+	let metadataQr = $state<string | null>(null);
+	let markerSvgs = $state<
+		Array<ReturnType<typeof arucoMarkerPlacements>[number] & { svg: string }>
+	>([]);
+
+	// OpenCV.js loads asynchronously, so the marker/QR SVGs are generated once
+	// the wasm is ready. The print flow must wait for these to be populated.
+	$effect(() => {
+		const payload = sheetMetadataQrPayload(revisionId);
+		const placements = arucoMarkerPlacements();
+		let cancelled = false;
+
+		Promise.all([
+			qrCodeSvg(payload),
+			...placements.map((marker) => arucoMarkerSvg(marker.id)),
+		]).then(([qr, ...markerSvgList]) => {
+			if (cancelled) return;
+			metadataQr = qr;
+			markerSvgs = placements.map((marker, index) => ({
+				...marker,
+				svg: markerSvgList[index],
+			}));
+		});
+
+		return () => {
+			cancelled = true;
+		};
+	});
 </script>
 
 <div class="answer-sheet">
