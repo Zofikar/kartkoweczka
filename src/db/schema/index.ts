@@ -1,7 +1,6 @@
-import { pgTable, uuid, text, boolean, integer, timestamp } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core';
 import { v7 as uuidv7 } from 'uuid';
-import { snapshotJsonb } from './custom-types';
-import type { ImagePlacement } from '@/db/repositories';
+import type { ImagePlacement, SnapshotQuestion } from '@/db/repositories';
 
 function generateId(): string {
 	return uuidv7();
@@ -9,86 +8,150 @@ function generateId(): string {
 
 // ─── tags ───────────────────────────────────────────────────────────────────
 
-export const tags = pgTable('tags', {
+export const tags = sqliteTable('tags', {
 	tagName: text('tag_name').primaryKey().notNull(),
 });
 
 // ─── questions ──────────────────────────────────────────────────────────────
 
-export const questions = pgTable('questions', {
-	id: uuid('id').primaryKey().$defaultFn(generateId),
+export const questions = sqliteTable('questions', {
+	id: text('id').primaryKey().$defaultFn(generateId),
+
 	content: text('content').notNull(),
+
 	type: text('type').notNull().$type<'choice' | 'true_false'>(),
+
 	image: text('image'),
+
 	imageHeight: integer('image_height'),
+
 	imagePlacement: text('image_placement').notNull().default('over').$type<ImagePlacement>(),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+
+	createdAt: integer('created_at', {
+		mode: 'timestamp_ms',
+	})
+		.notNull()
+		.$defaultFn(() => new Date()),
+
+	updatedAt: integer('updated_at', {
+		mode: 'timestamp_ms',
+	})
+		.notNull()
+		.$defaultFn(() => new Date()),
 });
 
 // ─── question_tags ──────────────────────────────────────────────────────────
 
-export const questionTags = pgTable(
+export const questionTags = sqliteTable(
 	'question_tags',
 	{
-		questionId: uuid('question_id')
+		questionId: text('question_id')
 			.notNull()
-			.references(() => questions.id, { onDelete: 'cascade' }),
+			.references(() => questions.id, {
+				onDelete: 'cascade',
+			}),
+
 		tagName: text('tag_name')
 			.notNull()
-			.references(() => tags.tagName, { onDelete: 'cascade' }),
+			.references(() => tags.tagName, {
+				onDelete: 'cascade',
+			}),
 	},
-	(table) => ({
-		pk: { columns: [table.questionId, table.tagName] },
-	})
+	(table) => [
+		primaryKey({
+			columns: [table.questionId, table.tagName],
+		}),
+	]
 );
 
 // ─── answers ────────────────────────────────────────────────────────────────
 
-export const answers = pgTable('answers', {
-	id: uuid('id').primaryKey().$defaultFn(generateId),
-	questionId: uuid('question_id')
+export const answers = sqliteTable('answers', {
+	id: text('id').primaryKey().$defaultFn(generateId),
+
+	questionId: text('question_id')
 		.notNull()
-		.references(() => questions.id, { onDelete: 'cascade' }),
+		.references(() => questions.id, {
+			onDelete: 'cascade',
+		}),
+
 	content: text('content').notNull(),
-	isCorrect: boolean('is_correct').notNull().default(false),
+
+	isCorrect: integer('is_correct', {
+		mode: 'boolean',
+	})
+		.notNull()
+		.default(false),
 });
 
 // ─── tests ──────────────────────────────────────────────────────────────────
 
-export const tests = pgTable('tests', {
-	id: uuid('id').primaryKey().$defaultFn(generateId),
+export const tests = sqliteTable('tests', {
+	id: text('id').primaryKey().$defaultFn(generateId),
+
 	name: text('name').notNull(),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+
+	createdAt: integer('created_at', {
+		mode: 'timestamp_ms',
+	})
+		.notNull()
+		.$defaultFn(() => new Date()),
+
+	updatedAt: integer('updated_at', {
+		mode: 'timestamp_ms',
+	})
+		.notNull()
+		.$defaultFn(() => new Date()),
 });
 
 // ─── test_questions ─────────────────────────────────────────────────────────
 
-export const testQuestions = pgTable(
+export const testQuestions = sqliteTable(
 	'test_questions',
 	{
-		testId: uuid('test_id')
+		testId: text('test_id')
 			.notNull()
-			.references(() => tests.id, { onDelete: 'cascade' }),
-		questionId: uuid('question_id')
+			.references(() => tests.id, {
+				onDelete: 'cascade',
+			}),
+
+		questionId: text('question_id')
 			.notNull()
-			.references(() => questions.id, { onDelete: 'restrict' }),
+			.references(() => questions.id, {
+				onDelete: 'restrict',
+			}),
+
 		questionOrder: integer('question_order').notNull(),
 	},
-	(table) => ({
-		pk: { columns: [table.testId, table.questionId] },
-	})
+	(table) => [
+		primaryKey({
+			columns: [table.testId, table.questionId],
+		}),
+	]
 );
 
 // ─── test_revisions ─────────────────────────────────────────────────────────
 
-export const testRevisions = pgTable('test_revisions', {
-	id: uuid('id').primaryKey().$defaultFn(generateId),
-	testId: uuid('test_id')
+export const testRevisions = sqliteTable('test_revisions', {
+	id: text('id').primaryKey().$defaultFn(generateId),
+
+	testId: text('test_id')
 		.notNull()
-		.references(() => tests.id, { onDelete: 'cascade' }),
+		.references(() => tests.id, {
+			onDelete: 'cascade',
+		}),
+
 	name: text('name').notNull(),
-	content: snapshotJsonb('content').notNull(),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+
+	content: text('content', {
+		mode: 'json',
+	})
+		.$type<SnapshotQuestion[]>()
+		.notNull(),
+
+	createdAt: integer('created_at', {
+		mode: 'timestamp_ms',
+	})
+		.notNull()
+		.$defaultFn(() => new Date()),
 });

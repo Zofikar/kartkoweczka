@@ -112,7 +112,7 @@ export interface OpenCv {
 	matFromImageData(image: ImageData): Mat;
 	mean(src: Mat, mask?: Mat): Scalar;
 	cvtColor(src: Mat, dst: Mat, code: number, dstCn?: number, hint?: number): void;
-	getPredefinedDictionary(dict: number): aruco_Dictionary;
+	getPredefinedDictionary(dict: number): Dictionary;
 	SORT_EVERY_ROW: number;
 	SORT_EVERY_COLUMN: number;
 	SORT_ASCENDING: number;

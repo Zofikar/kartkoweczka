@@ -1,36 +1,39 @@
 {
-	"id": "36f65bd7-6e12-4b6f-9859-40e44b761634",
+	"version": "6",
+	"dialect": "sqlite",
+	"id": "16f908f0-0220-40cc-9e67-4df638e918df",
 	"prevId": "00000000-0000-0000-0000-000000000000",
-	"version": "7",
-	"dialect": "postgresql",
 	"tables": {
-		"public.answers": {
+		"answers": {
 			"name": "answers",
-			"schema": "",
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": true,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"question_id": {
 					"name": "question_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"content": {
 					"name": "content",
 					"type": "text",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"is_correct": {
 					"name": "is_correct",
-					"type": "boolean",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true,
+					"autoincrement": false,
 					"default": false
 				}
 			},
@@ -48,25 +51,24 @@
 			},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {},
-			"isRLSEnabled": false
+			"checkConstraints": {}
 		},
-		"public.question_tags": {
+		"question_tags": {
 			"name": "question_tags",
-			"schema": "",
 			"columns": {
 				"question_id": {
 					"name": "question_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"tag_name": {
 					"name": "tag_name",
 					"type": "text",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				}
 			},
 			"indexes": {},
@@ -90,97 +92,122 @@
 					"onUpdate": "no action"
 				}
 			},
-			"compositePrimaryKeys": {},
+			"compositePrimaryKeys": {
+				"question_tags_question_id_tag_name_pk": {
+					"columns": ["question_id", "tag_name"],
+					"name": "question_tags_question_id_tag_name_pk"
+				}
+			},
 			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {},
-			"isRLSEnabled": false
+			"checkConstraints": {}
 		},
-		"public.questions": {
+		"questions": {
 			"name": "questions",
-			"schema": "",
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": true,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"content": {
 					"name": "content",
 					"type": "text",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"type": {
 					"name": "type",
 					"type": "text",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
+				},
+				"image": {
+					"name": "image",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"image_height": {
+					"name": "image_height",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"image_placement": {
+					"name": "image_placement",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "'over'"
 				},
 				"created_at": {
 					"name": "created_at",
-					"type": "timestamp with time zone",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true,
-					"default": "now()"
+					"autoincrement": false
 				},
 				"updated_at": {
 					"name": "updated_at",
-					"type": "timestamp with time zone",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true,
-					"default": "now()"
+					"autoincrement": false
 				}
 			},
 			"indexes": {},
 			"foreignKeys": {},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {},
-			"isRLSEnabled": false
+			"checkConstraints": {}
 		},
-		"public.tags": {
+		"tags": {
 			"name": "tags",
-			"schema": "",
 			"columns": {
 				"tag_name": {
 					"name": "tag_name",
 					"type": "text",
 					"primaryKey": true,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				}
 			},
 			"indexes": {},
 			"foreignKeys": {},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {},
-			"isRLSEnabled": false
+			"checkConstraints": {}
 		},
-		"public.test_questions": {
+		"test_questions": {
 			"name": "test_questions",
-			"schema": "",
 			"columns": {
 				"test_id": {
 					"name": "test_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"question_id": {
 					"name": "question_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"question_order": {
 					"name": "question_order",
 					"type": "integer",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				}
 			},
 			"indexes": {},
@@ -204,46 +231,52 @@
 					"onUpdate": "no action"
 				}
 			},
-			"compositePrimaryKeys": {},
+			"compositePrimaryKeys": {
+				"test_questions_test_id_question_id_pk": {
+					"columns": ["test_id", "question_id"],
+					"name": "test_questions_test_id_question_id_pk"
+				}
+			},
 			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {},
-			"isRLSEnabled": false
+			"checkConstraints": {}
 		},
-		"public.test_revisions": {
+		"test_revisions": {
 			"name": "test_revisions",
-			"schema": "",
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": true,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"test_id": {
 					"name": "test_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"name": {
 					"name": "name",
 					"type": "text",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"content": {
 					"name": "content",
-					"type": "jsonb",
+					"type": "text",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"created_at": {
 					"name": "created_at",
-					"type": "timestamp with time zone",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true,
-					"default": "now()"
+					"autoincrement": false
 				}
 			},
 			"indexes": {},
@@ -260,59 +293,55 @@
 			},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {},
-			"isRLSEnabled": false
+			"checkConstraints": {}
 		},
-		"public.tests": {
+		"tests": {
 			"name": "tests",
-			"schema": "",
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": true,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"name": {
 					"name": "name",
 					"type": "text",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"autoincrement": false
 				},
 				"created_at": {
 					"name": "created_at",
-					"type": "timestamp with time zone",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true,
-					"default": "now()"
+					"autoincrement": false
 				},
 				"updated_at": {
 					"name": "updated_at",
-					"type": "timestamp with time zone",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true,
-					"default": "now()"
+					"autoincrement": false
 				}
 			},
 			"indexes": {},
 			"foreignKeys": {},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {},
-			"isRLSEnabled": false
+			"checkConstraints": {}
 		}
 	},
-	"enums": {},
-	"schemas": {},
-	"sequences": {},
-	"roles": {},
-	"policies": {},
 	"views": {},
+	"enums": {},
 	"_meta": {
-		"columns": {},
 		"schemas": {},
-		"tables": {}
+		"tables": {},
+		"columns": {}
+	},
+	"internal": {
+		"indexes": {}
 	}
 }

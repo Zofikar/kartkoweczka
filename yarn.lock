@@ -1160,13 +1160,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@electric-sql/pglite@npm:^0.5.4":
-  version: 0.5.4
-  resolution: "@electric-sql/pglite@npm:0.5.4"
-  checksum: 10c0/056118aae82f3446520564b96b50d961bbb54a9df6d00105860c60ad1c1e0048e579fa80c6c9f8e40fb859c0204c9a3c066f3eba4722747f4879c6a7452783ff
-  languageName: node
-  linkType: hard
-
 "@esbuild-kit/core-utils@npm:^3.3.2":
   version: 3.3.2
   resolution: "@esbuild-kit/core-utils@npm:3.3.2"
@@ -2272,6 +2265,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@sqlite.org/sqlite-wasm@npm:^3.53.0-build1":
+  version: 3.53.0-build1
+  resolution: "@sqlite.org/sqlite-wasm@npm:3.53.0-build1"
+  checksum: 10c0/9a03c170aa2bd07c346097ca1709b3721a46213ed82d67330966e1aecdcd25f39d5ce664b2471c1268a7b8b47a8f6d6783e464b3eece15ad6f96dccd15a5bb92
+  languageName: node
+  linkType: hard
+
 "@sveltejs/acorn-typescript@npm:^1.0.10":
   version: 1.0.11
   resolution: "@sveltejs/acorn-typescript@npm:1.0.11"
@@ -2980,6 +2980,13 @@ __metadata:
   version: 1.1.4
   resolution: "color-name@npm:1.1.4"
   checksum: 10c0/a1a3f914156960902f46f7f56bc62effc6c94e84b2cae157a526b1c1f74b677a47ec602bf68a61abfa2b42d15b7c5651c6dbe72a43af720bc588dff885b10f95
+  languageName: node
+  linkType: hard
+
+"comlink@npm:^4.4.2":
+  version: 4.4.2
+  resolution: "comlink@npm:4.4.2"
+  checksum: 10c0/38aa1f455cf08e94aaa8fc494fd203cc0ef02ece6c21404b7931ce17567e8a72deacddab98aa5650cfd78332ff24c34610586f6fb27fd19dc77e753ed1980deb
   languageName: node
   linkType: hard
 
@@ -4757,9 +4764,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "kartkoweczka@workspace:."
   dependencies:
-    "@electric-sql/pglite": "npm:^0.5.4"
     "@eslint/js": "npm:^10.0.1"
     "@sctg/vite-plugin-github-pages-spa": "npm:^0.2.0"
+    "@sqlite.org/sqlite-wasm": "npm:^3.53.0-build1"
     "@sveltejs/vite-plugin-svelte": "npm:^7.3.0"
     "@tauri-apps/api": "npm:^2.11.1"
     "@tauri-apps/cli": "npm:^2.11.4"
@@ -4768,6 +4775,7 @@ __metadata:
     "@types/node": "npm:^26.2.0"
     "@types/qrcode": "npm:^1.5.6"
     aruco-marker: "npm:^3.0.1"
+    comlink: "npm:^4.4.2"
     drizzle-kit: "npm:^0.31.10"
     drizzle-orm: "npm:^0.45.2"
     eslint: "npm:^10.8.1"
