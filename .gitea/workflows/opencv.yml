@@ -44,6 +44,13 @@ jobs:
           cp "$GITHUB_WORKSPACE/.gitea/scripts/generate_ts.py" \
           "$GITHUB_WORKSPACE/opencv/modules/js/generator/generate_ts.py"
 
+      - name: Add OpenCV QR encoder shim
+        shell: bash
+        run: |
+          python3 "$GITHUB_WORKSPACE/.gitea/scripts/patch_opencv_qr_shim.py" \
+            "$GITHUB_WORKSPACE/opencv" \
+            "$GITHUB_WORKSPACE/opencv-setup/opencv_js_qr_shim.cpp"
+
       - name: Build minimal OpenCV.js
         if: steps.opencv-cache.outputs.cache-hit != 'true'
         shell: bash
@@ -57,7 +64,7 @@ jobs:
           emcmake python3 platforms/js/build_js.py build_aruco \
             --build_wasm \
             --disable_single_file \
-            --config="$GITHUB_WORKSPACE/opencv_js_aruco.config.py" \
+            --config="$GITHUB_WORKSPACE/opencv-setup/opencv_js_aruco.config.py" \
             --cmake_option="-DCMAKE_CXX_STANDARD=17"
 
       - name: Debug OpenCV JS generation

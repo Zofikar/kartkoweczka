@@ -3,5 +3,6 @@ src-tauri/gen
 src-tauri/Cargo.toml
 src-tauri/Cargo.lock
 
-public/opencv
+public/opencv/
 .venv
+opencv-setup/

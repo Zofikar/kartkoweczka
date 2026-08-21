@@ -16,11 +16,11 @@ imgproc = {
 objdetect = {
     '': [
         'getPredefinedDictionary',
+        'generateImageMarker',
     ],
 
     'GraphicalCodeDetector': [
         'detectAndDecode',
-        'detectAndDecodeMulti',
     ],
 
     'aruco_PredefinedDictionaryType': [],
@@ -49,7 +49,6 @@ objdetect = {
     'QRCodeDetectorAruco': [
         'QRCodeDetectorAruco',
         'detectAndDecode',
-        'detectAndDecodeMulti',
         'setDetectorParameters',
         'setArucoParameters',
     ],

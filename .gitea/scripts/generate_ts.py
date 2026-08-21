@@ -81,6 +81,44 @@ def class_namespace_prefix(name: str) -> str:
 
     return name.rsplit("_", 1)[0]
 
+def normalize_class_name(name: str) -> str:
+    return (
+        name
+        .replace("cv::", "")
+        .replace("::", "_")
+        .replace(".", "_")
+    )
+
+
+def get_ts_bases(class_info, included_classes: set[str]) -> list[str]:
+    bases = []
+
+    for base in getattr(class_info, "bases", []):
+        ts_base = normalize_class_name(base)
+
+        if ts_base in included_classes:
+            bases.append(ts_base)
+
+    return bases
+
+
+def is_factory_variant(class_info, func, variant) -> bool:
+    """
+    Mirror OpenCV embindgen's factory handling.
+
+    create(...) methods and methods returning Ptr<ThisClass>
+    are exposed as JS constructors by embindgen.
+    """
+    ret = variant.rettype.strip()
+
+    if not ret:
+        return False
+
+    if func.name.startswith("create"):
+        return True
+
+    return ret == f"Ptr<{class_info.name}>"
+
 def emit_args(variant, namespace_prefix: str = "") -> str:
     result = []
 
@@ -129,17 +167,28 @@ def emit_typescript(generator, white_list, namespace_prefix_override, output):
     #
     # Classes
     #
-    emitted_classes = set()
+    included_classes = {
+        name
+        for name in generator.classes
+        if name in white_list
+    }
 
     for name, class_info in sorted(generator.classes.items()):
         if name not in white_list:
             continue
 
-        emitted_classes.add(name)
-
         ns_prefix = class_namespace_prefix(name)
 
-        lines.append(f"export interface {name} extends OpenCvDeletable {{")
+        bases = get_ts_bases(class_info, included_classes)
+
+        if bases:
+            extends = ", ".join(bases)
+        else:
+            extends = "OpenCvDeletable"
+
+        lines.append(
+            f"export interface {name} extends {extends} {{"
+        )
 
         for prop in class_info.props:
             lines.append(
@@ -154,8 +203,21 @@ def emit_typescript(generator, white_list, namespace_prefix_override, output):
                 continue
 
             for variant in method.variants:
-                args = emit_args(variant, ns_prefix)
-                ret = cpp_type_to_ts(variant.rettype, ns_prefix)
+                if variant.is_class_method:
+                    continue
+
+                if is_factory_variant(class_info, method, variant):
+                    continue
+
+                args = emit_args(
+                    variant,
+                    ns_prefix,
+                )
+
+                ret = cpp_type_to_ts(
+                    variant.rettype,
+                    ns_prefix,
+                )
 
                 lines.append(
                     f"  {method.name}({args}): {ret};"
@@ -203,7 +265,7 @@ def emit_typescript(generator, white_list, namespace_prefix_override, output):
                 "func=", func.name,
                 "js_name=", js_name,
                 "whitelisted=", js_name in white_list.get("", []),
-            )
+                                )
 
             if js_name not in white_list.get("", []):
                 continue
@@ -224,6 +286,9 @@ def emit_typescript(generator, white_list, namespace_prefix_override, output):
     #
     # Constructors
     #
+    #
+    # Constructors + static class methods
+    #
     for name, class_info in sorted(generator.classes.items()):
         if name not in white_list:
             continue
@@ -231,23 +296,65 @@ def emit_typescript(generator, white_list, namespace_prefix_override, output):
         ns_prefix = class_namespace_prefix(name)
 
         constructors = []
+        static_methods = []
 
         for method in class_info.methods.values():
-            if not method.is_constructor:
-                continue
-
             if method.name not in white_list[name]:
                 continue
 
             for variant in method.variants:
-                constructors.append(
-                    f"new ({emit_args(variant, ns_prefix)}): {name};"
+                #
+                # Normal C++ constructor
+                #
+                if method.is_constructor:
+                    constructors.append(
+                        f"new ({emit_args(variant, ns_prefix)}): {name};"
+                    )
+                    continue
+
+                #
+                # Factory method.
+                #
+                # OpenCV embindgen turns things such as
+                # QRCodeEncoder::create(...) into JS constructors.
+                #
+                if is_factory_variant(class_info, method, variant):
+                    constructors.append(
+                        f"new ({emit_args(variant, ns_prefix)}): {name};"
+                    )
+                    continue
+
+                #
+                # Other static/class methods
+                #
+                if variant.is_class_method:
+                    args = emit_args(
+                        variant,
+                        ns_prefix,
+                    )
+
+                    ret = cpp_type_to_ts(
+                        variant.rettype,
+                        ns_prefix,
+                    )
+
+                    static_methods.append(
+                        f"{method.name}({args}): {ret};"
+                    )
+
+        if constructors or static_methods:
+            lines.append(f"  {name}: {{")
+
+            for ctor in constructors:
+                lines.append(
+                    f"    {ctor}"
                 )
 
-        if constructors:
-            lines.append(f"  {name}: {{")
-            for ctor in constructors:
-                lines.append(f"    {ctor}")
+            for method in static_methods:
+                lines.append(
+                    f"    {method}"
+                )
+
             lines.append("  };")
 
     lines.append("}")
