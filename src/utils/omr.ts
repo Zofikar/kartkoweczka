@@ -102,8 +102,8 @@ export interface OmrArucoConfig {
  * bottom-left ArUco marker) so print and scan can cross-check.
  */
 const sheetMetadataSchema = z.object({
-    revisionId: z.uuid(),
-})
+	revisionId: z.uuid(),
+});
 export type SheetMetadata = z.infer<typeof sheetMetadataSchema>;
 
 /** Sheet metadata QR code size, placement, and payload codec. */
@@ -123,19 +123,23 @@ export interface OmrQrCodeConfig {
 	decodePayload(data: string): Readonly<SheetMetadata> | undefined;
 }
 
-function sheetMetadataQrCodec(_ /*version*/: number) {
+function sheetMetadataQrCodec(version: number) {
 	return {
 		encodePayload(metadata: SheetMetadata): string {
 			return metadata.revisionId;
 		},
 		decodePayload(data: string): SheetMetadata | undefined {
-            const {success, data: metadata, error} = sheetMetadataSchema.safeParse({revisionId: data});
-            if (!success) {
-                console.error(error)
-                return undefined;
-            }
+			const {
+				success,
+				data: metadata,
+				error,
+			} = sheetMetadataSchema.safeParse({ revisionId: data });
+			if (!success) {
+				console.error(error, version);
+				return undefined;
+			}
 
-            return metadata;
+			return metadata;
 		},
 	};
 }
@@ -209,7 +213,7 @@ export const OMR_CONFIG_VERSIONS: readonly OmrConfig[] = [
 		},
 		qrCode: {
 			size: 200,
-        },
+		},
 		grid: {
 			exclusionPadding: 10,
 		},

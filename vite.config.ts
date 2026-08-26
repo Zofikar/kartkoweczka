@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 import { githubPagesSpa } from '@sctg/vite-plugin-github-pages-spa';
+import zodCompiler from 'zod-compiler/vite';
 import path from 'path';
 
 // https://vite.dev/config/
@@ -56,6 +57,7 @@ export default defineConfig(({ mode }) => {
 				verbose: true,
 				injectScript: true,
 			}),
+			zodCompiler(),
 		],
 		optimizeDeps: { exclude: ['svelte-navigator', '@sqlite.org/sqlite-wasm'] },
 		build: {

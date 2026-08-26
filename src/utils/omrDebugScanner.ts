@@ -103,11 +103,7 @@ export async function analyzeGradingSheetImage(file: File): Promise<GradingSheet
 		qrCodeInMarkedArea,
 		normalizedImage,
 		overlayRects: buildOverlayRects(omrConfig),
-		warnings: buildWarnings(
-			markersWithExpectedMetadata,
-			qrCodeInMarkedArea,
-			normalizedImage,
-		),
+		warnings: buildWarnings(markersWithExpectedMetadata, qrCodeInMarkedArea, normalizedImage),
 	};
 }
 
@@ -799,7 +795,7 @@ function markerOverlayRect(config: OmrConfig, marker: ArucoMarkerPlacement): Nor
 function buildWarnings(
 	markers: DetectedArucoMarker[],
 	qrCodeInMarkedArea: DetectedQrCode | null,
-	normalizedImage: ImageData | undefined,
+	normalizedImage: ImageData | undefined
 ): string[] {
 	const markerFormatVersion = readMarkerFormatVersion(markers);
 	const hasVersionMarker = markers.some((marker) => marker.corner === 'bl');
