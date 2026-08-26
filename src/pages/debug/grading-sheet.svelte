@@ -8,15 +8,34 @@
 		type NormalizedOverlayRect,
 	} from '@/utils/omrDebugScanner';
 	import { LATEST_OMR_CONFIG } from '@/utils/omr';
+	import { getTestRevision } from '@/db/repositories';
 
 	let result = $state<GradingSheetDebugResult | null>(null);
 	let isAnalyzing = $state(false);
 	let errorMessage = $state('');
 	let normalizedCanvas = $state<HTMLCanvasElement>();
 	let sourceObjectUrl = $state('');
+	/** Manual answer-counts input, auto-filled when QR metadata resolves the revision. */
+	let answerCountsInput = $state('');
+	/** Whether answer counts were resolved from the database (not manually typed). */
+	let answerCountsFromDb = $state(false);
 
 	let sourceSizeLabel = $derived(result ? `${result.image.width} × ${result.image.height}px` : '—');
 	let markedAreaQrMetadataJson = $derived(formatMetadata(result?.qrCodeInMarkedArea));
+
+	/** Comma-separated answer counts → number array (e.g. "4,4,5,4"). */
+	let answersPerQuestion = $derived(parseAnswerCounts(answerCountsInput));
+
+	function parseAnswerCounts(raw: string): number[] {
+		return raw
+			.split(',')
+			.map((s) => parseInt(s.trim(), 10))
+			.filter((n) => Number.isFinite(n) && n >= 1 && n <= 26);
+	}
+
+	function formatAnswerCounts(counts: number[]): string {
+		return counts.join(', ');
+	}
 
 	$effect(() => {
 		if (result?.normalizedImage && normalizedCanvas)
@@ -33,11 +52,54 @@
 		try {
 			startAnalysis(file);
 			result = await analyzeGradingSheetImage(file);
+			await resolveAnswerCountsFromQr();
+			await runGridScan();
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : String(error);
 		} finally {
 			isAnalyzing = false;
 		}
+	}
+
+	/**
+	 * If the decoded QR carries a revision ID, load that revision from the
+	 * database and auto-fill the answer-counts input.
+	 */
+	async function resolveAnswerCountsFromQr() {
+		if (!result) return;
+		const revisionId = result.qrCodeInMarkedArea?.metadata?.revisionId;
+		if (!revisionId) return;
+
+		try {
+			const revision = await getTestRevision(revisionId);
+			if (revision) {
+				const counts = revision.content.map((q) => q.answers.length);
+				answerCountsInput = formatAnswerCounts(counts);
+				answerCountsFromDb = true;
+			}
+		} catch (err) {
+			console.warn('Nie udało się wczytać rewizji po QR:', err);
+		}
+	}
+
+	/**
+	 * Run the grid scanner when we have both a normalized image and valid
+	 * answer counts (from DB lookup or manual input).
+	 */
+	async function runGridScan() {
+		if (!result || !result.normalizedImage) return;
+		const counts = answersPerQuestion;
+		if (counts.length === 0) return;
+
+		const omrConfig = LATEST_OMR_CONFIG;
+		const gridBounds = omrConfig.grid.calculateGridBounds(omrConfig);
+		const columns = omrConfig.grid.calculateGridColumns(omrConfig, gridBounds, counts);
+
+		// Clone the result object so the table re-renders reactively.
+		result = {
+			...result,
+			scannedAnswers: omrConfig.grid.scanGrid(omrConfig, result.normalizedImage, columns),
+		};
 	}
 
 	function startAnalysis(file: File) {
@@ -96,6 +158,35 @@
 		<span>Obraz karty odpowiedzi</span>
 		<input type="file" accept="image/*" onchange={handleFileChange} disabled={isAnalyzing} />
 		<small>{isAnalyzing ? 'Analizuję obraz…' : 'PNG, JPG, WebP lub zdjęcie z telefonu'}</small>
+	</label>
+
+	<label class="upload-card">
+		<span>Liczba odpowiedzi na pytanie</span>
+		<div class="counts-row">
+			<input
+				type="text"
+				bind:value={answerCountsInput}
+				placeholder="np. 4,4,4,5,4"
+				disabled={isAnalyzing}
+			/>
+			{#if result?.normalizedImage && answersPerQuestion.length > 0}
+				<button
+					type="button"
+					class="scan-button"
+					disabled={isAnalyzing}
+					onclick={() => runGridScan()}
+				>
+					Skanuj siatkę
+				</button>
+			{/if}
+		</div>
+		<small>
+			{#if answerCountsFromDb}
+				<span class="db-badge">z bazy (QR)</span>
+			{/if}
+			Liczby oddzielone przecinkami, np. <code>4,4,4,5,4</code>. Przy poprawnym kodzie QR pole
+			wypełnia się automatycznie z bazy danych.
+		</small>
 	</label>
 
 	{#if errorMessage}
@@ -182,6 +273,38 @@
 					</tbody>
 				</table>
 			</section>
+
+			{#if result.scannedAnswers}
+				<section class="panel">
+					<h2>Odczytane odpowiedzi (scanGrid)</h2>
+					<table class="answers-table">
+						<thead>
+							<tr>
+								<th>Pytanie</th>
+								<th>Wybrana odp.</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each result.scannedAnswers as answer, i (i)}
+								<tr>
+									<td>{i + 1}</td>
+									<td class:answer-valid={answer >= 0} class:answer-empty={answer < 0}>
+										{answer >= 0 ? String.fromCharCode(65 + answer) : '—'}
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</section>
+			{:else if result.normalizedImage}
+				<section class="panel">
+					<h2>Odczytane odpowiedzi (scanGrid)</h2>
+					<p class="scan-hint">
+						Podaj liczbę opcji odpowiedzi dla każdego pytania i kliknij „Skanuj siatkę”. Jeśli na
+						karcie jest poprawny kod QR, pole wypełni się automatycznie.
+					</p>
+				</section>
+			{/if}
 		</div>
 	{/if}
 </section>
@@ -342,5 +465,57 @@
 		border-bottom: 1px solid var(--border);
 		padding: var(--space-2);
 		text-align: left;
+	}
+
+	.answers-table {
+		max-width: 320px;
+	}
+
+	.answer-valid {
+		font-weight: 700;
+		color: #166534;
+	}
+
+	.answer-empty {
+		color: #9ca3af;
+	}
+
+	.db-badge {
+		display: inline-block;
+		background: #dbeafe;
+		color: #1e40af;
+		font-size: 0.75rem;
+		font-weight: 700;
+		padding: 0 4px;
+		border-radius: 3px;
+		margin-right: 4px;
+		vertical-align: middle;
+	}
+
+	.counts-row {
+		display: flex;
+		gap: var(--space-2);
+	}
+
+	.scan-button {
+		flex-shrink: 0;
+		align-self: flex-start;
+		padding: 0 var(--space-3);
+		height: 36px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		background: var(--surface);
+		font-size: 0.875rem;
+		cursor: pointer;
+	}
+
+	.scan-button:hover {
+		background: var(--primary-light, #dbeafe);
+		border-color: var(--primary, #2563eb);
+	}
+
+	.scan-hint {
+		color: #6b7280;
+		margin: 0;
 	}
 </style>

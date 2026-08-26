@@ -144,10 +144,190 @@ function sheetMetadataQrCodec(version: number) {
 	};
 }
 
+function sheetAnswerGrid(version: number) {
+	if (version === 1)
+		return {
+			calculateGridBounds(config: OmrConfig): OmrRect {
+				const start_XY = config.aruco.markerInset * 2 + config.aruco.markerSize;
+				const end_X =
+					config.geometry.designWidth - config.aruco.markerInset * 2 - config.qrCode.size;
+				const end_Y =
+					config.geometry.designHeight - config.aruco.markerInset * 2 - config.aruco.markerSize;
+				return {
+					x: start_XY,
+					y: start_XY,
+					width: end_X - start_XY,
+					height: end_Y - start_XY,
+				};
+			},
+			calculateGridColumns(
+				config: OmrConfig,
+				gridBounds: OmrRect,
+				data: OmrGridCalculateData
+			): OmrGridColumnsPositions {
+				const maxRows = Math.floor(gridBounds.height / config.grid.gridElementSize) - 1; // Save one for noting answer code
+				const cols = Array.from({ length: Math.ceil(data.length / maxRows) }, (_, i) =>
+					data.slice(i * maxRows, (i + 1) * maxRows)
+				);
+				const colsSizes = cols.map((x) => Math.max(...x) + 1); // save one for noting the question number
+				const requiredWidth = colsSizes.reduce((a, b) => a + b + 1, 0); // additional space for spacing
+				if (requiredWidth > gridBounds.width) throw new Error('Too many questions');
+
+				const positions: OmrGridColumnsPositions = [];
+
+				for (let i = 0; i < cols.length; i++) {
+					const firstQuestion = i * maxRows;
+					positions.push({
+						questionNumberStart: firstQuestion,
+						questionAnswerBoxes: cols[i],
+						x:
+							gridBounds.x +
+							colsSizes
+								.slice(0, i)
+								.reduce((acc, b) => acc + (b + 1) * config.grid.gridElementSize, 0),
+						y: gridBounds.y,
+						width: colsSizes[i] * config.grid.gridElementSize + config.grid.gridElementSize,
+						height: config.grid.gridElementSize * cols[i].length + config.grid.gridElementSize,
+					});
+				}
+
+				return positions;
+			},
+			scanGrid(
+				config: OmrConfig,
+				imageData: ImageData,
+				columns: OmrGridColumnsPositions
+			): number[] {
+				const { gridElementSize, gridElementInternalSquareSize } = config.grid;
+				const innerGap = (gridElementSize - gridElementInternalSquareSize) / 2;
+				const darkThreshold = 128;
+				const innerFillRatio = 0.4; // at least 40 % of inner pixels must be dark
+				const outerMistakeRatio = 0.15; // at least 15 % of outer-ring pixels = correction
+
+				// Build a flat mapping: question index → answer cells to check.
+				interface AnswerCell {
+					questionIndex: number;
+					answerIndex: number;
+					outerX: number;
+					outerY: number;
+				}
+
+				const cells: AnswerCell[] = [];
+				let totalQuestions = 0;
+				for (const col of columns) {
+					for (let row = 0; row < col.questionAnswerBoxes.length; row++) {
+						const questionIndex = col.questionNumberStart + row;
+						const answerCount = col.questionAnswerBoxes[row];
+						const rowY = col.y + (row + 1) * gridElementSize;
+						for (let a = 0; a < answerCount; a++) {
+							cells.push({
+								questionIndex,
+								answerIndex: a,
+								outerX: col.x + (a + 1) * gridElementSize,
+								outerY: rowY,
+							});
+						}
+						totalQuestions = Math.max(totalQuestions, questionIndex + 1);
+					}
+				}
+
+				// Per-question results: { answerIndex, innerDark, outerDark }[]
+				const questionResults: Array<
+					Array<{ answerIndex: number; innerDark: boolean; outerDark: boolean }>
+				> = Array.from({ length: totalQuestions }, () => []);
+
+				const { data, width } = imageData;
+				const size = gridElementSize;
+
+				for (const cell of cells) {
+					let innerDarkCount = 0;
+					let innerTotal = 0;
+					let outerDarkCount = 0;
+					let outerTotal = 0;
+
+					const ox = Math.round(cell.outerX);
+					const oy = Math.round(cell.outerY);
+					const innerSize = gridElementInternalSquareSize;
+
+					for (let dy = 0; dy < size; dy++) {
+						const py = oy + dy;
+						if (py < 0 || py >= imageData.height) continue;
+						const rowOffset = py * width * 4;
+						const isInnerRow = dy >= innerGap && dy < innerGap + innerSize;
+
+						for (let dx = 0; dx < size; dx++) {
+							const px = ox + dx;
+							if (px < 0 || px >= width) continue;
+
+							const idx = rowOffset + px * 4;
+							const luminance = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+							const isDark = luminance < darkThreshold;
+
+							const isInnerCol = dx >= innerGap && dx < innerGap + innerSize;
+
+							if (isInnerRow && isInnerCol) {
+								innerTotal++;
+								if (isDark) innerDarkCount++;
+							} else {
+								outerTotal++;
+								if (isDark) outerDarkCount++;
+							}
+						}
+					}
+
+					const innerDark = innerTotal > 0 && innerDarkCount / innerTotal >= innerFillRatio;
+					const outerDark = outerTotal > 0 && outerDarkCount / outerTotal >= outerMistakeRatio;
+
+					questionResults[cell.questionIndex].push({
+						answerIndex: cell.answerIndex,
+						innerDark,
+						outerDark,
+					});
+				}
+
+				// Final decision per question: pick the first answer where inner is
+				// filled AND outer ring is NOT marked as a correction. If an answer
+				// has a filled inner but its outer ring is also dark, it is treated
+				// as a correction scratch — ignore it.
+				return questionResults.map((results) => {
+					for (const r of results) {
+						if (r.innerDark && !r.outerDark) return r.answerIndex;
+					}
+					return -1;
+				});
+			},
+		};
+
+	throw new Error(`Brak konfiguracji OMR dla formatu karty odpowiedzi v${version}.`);
+}
+
+/** Data used to compute the answer grid. All we realistically need is the number of questions and number of answers in each question, so... voilà */
+export type OmrGridCalculateData = number[];
+export type OmrGridColumnPosition = {
+	questionNumberStart: number;
+	questionAnswerBoxes: number[];
+} & OmrRect;
+export type OmrGridColumnsPositions = OmrGridColumnPosition[];
+
+/** Well, you won't believe it, but all we need to return is an index of the answer selected for each question... I know... */
+export type OmrGridScanResultsData = number[];
+
 /** Answer grid (future bubbles) placement rules. */
 export interface OmrGridConfig {
 	/** Extra reserved space around scanner fiducials, in design units. */
 	exclusionPadding: number;
+
+	/** Square side length... */
+	gridElementSize: number;
+	gridElementInternalSquareSize: number;
+
+	calculateGridBounds(config: OmrConfig): OmrRect;
+	calculateGridColumns(
+		config: OmrConfig,
+		gridBounds: OmrRect,
+		data: OmrGridCalculateData
+	): OmrGridColumnsPositions;
+	scanGrid(config: OmrConfig, imageData: ImageData, columns: OmrGridColumnsPositions): number[];
 }
 
 /** Complete, self-contained configuration of one answer-sheet OMR format version. */
@@ -165,7 +345,7 @@ interface OmrConfigInput {
 	geometry: Omit<OmrGeometryConfig, 'designWidth' | 'designHeight'>;
 	aruco: Omit<OmrArucoConfig, 'dictionaryName'> & { dictionaryName?: 'ARUCO_ORIGINAL' };
 	qrCode: Omit<OmrQrCodeConfig, 'encodePayload' | 'decodePayload'>;
-	grid: OmrGridConfig;
+	grid: Omit<OmrGridConfig, 'calculateGridBounds' | 'calculateGridColumns' | 'scanGrid'>;
 }
 
 function defineOmrConfig(input: OmrConfigInput): OmrConfig {
@@ -184,12 +364,15 @@ function defineOmrConfig(input: OmrConfigInput): OmrConfig {
 			...input.qrCode,
 			...sheetMetadataQrCodec(input.version),
 		},
-		grid: input.grid,
+		grid: {
+			...input.grid,
+			...sheetAnswerGrid(input.version),
+		},
 	};
 }
 
 /**
- * Known answer-sheet format configurations, indexed by version:
+ * Known answer-sheet format configurations, indexed by a version:
  * `OMR_CONFIG_VERSIONS[version - 1]` is the config for that version.
  * Never modify an existing entry — add a new one and bump the version.
  */
@@ -216,6 +399,8 @@ export const OMR_CONFIG_VERSIONS: readonly OmrConfig[] = [
 		},
 		grid: {
 			exclusionPadding: 10,
+			gridElementSize: 100,
+			gridElementInternalSquareSize: 40,
 		},
 	}),
 ];

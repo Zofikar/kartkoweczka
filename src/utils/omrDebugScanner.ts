@@ -52,6 +52,8 @@ export interface GradingSheetDebugResult {
 	normalizedImage?: ImageData;
 	overlayRects: NormalizedOverlayRect[];
 	warnings: string[];
+	/** Answer indices selected per question, or `null` when scan data isn't yet available. */
+	scannedAnswers: number[] | null;
 }
 
 interface PointPair {
@@ -104,6 +106,7 @@ export async function analyzeGradingSheetImage(file: File): Promise<GradingSheet
 		normalizedImage,
 		overlayRects: buildOverlayRects(omrConfig),
 		warnings: buildWarnings(markersWithExpectedMetadata, qrCodeInMarkedArea, normalizedImage),
+		scannedAnswers: null,
 	};
 }
 

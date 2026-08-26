@@ -303,7 +303,12 @@
 	{/each}
 	{#if includeAnswerSheet && revisionId}
 		<div class="print-page print-page--{variant}">
-			<PrintAnswerSheet {testName} {revisionName} {revisionId} />
+			<PrintAnswerSheet
+				{testName}
+				{revisionName}
+				{revisionId}
+				answersPerQuestion={prepared.map((q) => q.answers.length)}
+			/>
 		</div>
 	{/if}
 {/snippet}
