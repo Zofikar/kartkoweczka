@@ -32,7 +32,14 @@
 	}
 
 	function pageIsActive(path: Route): boolean {
-		if (isActive(path)) return true;
+		if (isActive(path)) {
+			return true;
+		}
+
+		const matchingStatics = pages
+			.filter((page) => isActive.startsWith(page.path))
+			.toSorted((a, b) => b.path.length - a.path.length);
+		if (matchingStatics.some((rs) => isActive(rs.path))) return false;
 
 		return staticRoutesChildren[path]?.some((c) => isActive(c)) ?? false;
 	}
