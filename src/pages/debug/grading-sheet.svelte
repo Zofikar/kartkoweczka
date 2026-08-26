@@ -139,7 +139,7 @@
 
 			<section class="panel">
 				<h2>Znormalizowana geometria</h2>
-				<div class="normalized-stage">
+				<div class="normalized-stage" style:aspect-ratio="{OMR_DESIGN_WIDTH} / {OMR_DESIGN_HEIGHT}">
 					{#if result.normalizedImage}
 						<canvas bind:this={normalizedCanvas} aria-label="Znormalizowany obraz karty odpowiedzi"
 						></canvas>
@@ -148,9 +148,7 @@
 					{/if}
 					<div class="normalized-overlay" aria-hidden="true">
 						{#each result.overlayRects as rect (rect.key)}
-							<div class="overlay-rect overlay-rect--{rect.kind}" style={overlayStyle(rect)}>
-								<span>{rect.label}</span>
-							</div>
+							<div class="overlay-rect overlay-rect--{rect.kind}" style={overlayStyle(rect)}></div>
 						{/each}
 					</div>
 				</div>
@@ -290,9 +288,6 @@
 		paint-order: stroke;
 		stroke: #000000;
 		stroke-width: 3px;
-	}
-	.normalized-stage {
-		aspect-ratio: 1800 / 2050;
 	}
 	.normalized-stage canvas {
 		height: auto;

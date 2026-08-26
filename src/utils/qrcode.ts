@@ -12,9 +12,6 @@
 import { deleteOpenCvObject, getOpenCv } from '@/utils/opencv';
 import type { Mat } from '@/types/opencv';
 
-/** Quiet-zone modules OpenCV's QR encoder adds around every code. */
-const QR_QUIET_ZONE = 4;
-
 const svgCache = new Map<string, string>();
 
 /**
@@ -43,18 +40,18 @@ async function buildQrSvg(payload: string): Promise<string> {
 }
 
 function readQrMatrix(image: Mat): boolean[][] {
+	console.assert(image.cols === image.rows, 'QR code must be square');
 	const size = image.rows;
 	const data = image.data;
-	const inner = size - 2 * QR_QUIET_ZONE;
-	const matrix: boolean[][] = [];
+	const matrix: boolean[][] = Array.from({ length: size }, () => new Array(size).fill(false));
 
-	for (let y = 0; y < inner; y++) {
-		const row: boolean[] = [];
-		for (let x = 0; x < inner; x++) {
-			row.push(data[(y + QR_QUIET_ZONE) * size + (x + QR_QUIET_ZONE)] === 0);
+	for (let y = 0; y < size; y++) {
+		for (let x = 0; x < size; x++) {
+			const pixelIndex = y * size + x;
+			matrix[y][x] = data[pixelIndex] === 0;
 		}
-		matrix.push(row);
 	}
+
 	return matrix;
 }
 

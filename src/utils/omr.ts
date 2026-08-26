@@ -67,7 +67,7 @@ export const ARUCO_MARKER_SIZE = 100;
 export const ARUCO_MARKER_INSET = 10;
 
 /** Extra reserved space around scanner fiducials, in design units. */
-export const OMR_EXCLUSION_PADDING = 40;
+export const OMR_EXCLUSION_PADDING = 10;
 
 export type OmrCorner = 'tl' | 'tr' | 'br' | 'bl';
 
@@ -86,7 +86,6 @@ export interface ArucoMarkerPlacement extends OmrRect {
 
 export interface OmrExclusionZone extends OmrRect {
 	key: string;
-	label: string;
 }
 
 /**
@@ -141,11 +140,11 @@ export function answerSheetFormatVersionFromMarkerId(markerId: number): number |
 	return index === -1 ? undefined : index + 1;
 }
 
-/** QR code edge length in design units (180 = 18 mm). */
+/** QR code edge length in design units (200 = 20 mm). */
 export const QR_CODE_SIZE = 200;
 
-/** Gap between right-side fiducials and metadata QR, in design units. */
-export const QR_METADATA_MARKER_GAP = 60;
+/** Extra quiet-zone padding around the QR inside its placement box, in design units. */
+export const QR_CODE_QUIET_ZONE = 4;
 
 /**
  * The full answer grid design plane. Future bubbles may use this whole area as
@@ -163,9 +162,9 @@ export function metadataQrPlacement(): OmrRect {
 		x: OMR_DESIGN_WIDTH - ARUCO_MARKER_INSET - QR_CODE_SIZE,
 		y:
 			OMR_DESIGN_HEIGHT -
-			ARUCO_MARKER_INSET -
 			ARUCO_MARKER_SIZE -
-			QR_METADATA_MARKER_GAP -
+			OMR_EXCLUSION_PADDING * 2 -
+			ARUCO_MARKER_INSET -
 			QR_CODE_SIZE,
 		width: QR_CODE_SIZE,
 		height: QR_CODE_SIZE,
@@ -175,17 +174,14 @@ export function metadataQrPlacement(): OmrRect {
 /** Reserved areas future bubble/grid content must avoid. */
 export function omrExclusionZones(): OmrExclusionZone[] {
 	return [
-		...arucoMarkerPlacements().map((marker) =>
-			exclusionZone(`aruco-${marker.corner}`, `ArUco ${marker.corner.toUpperCase()}`, marker)
-		),
-		exclusionZone('metadata-qr', 'QR metadanych', metadataQrPlacement()),
+		...arucoMarkerPlacements().map((marker) => exclusionZone(`aruco-${marker.corner}`, marker)),
+		exclusionZone('metadata-qr', metadataQrPlacement()),
 	];
 }
 
-function exclusionZone(key: string, label: string, rect: OmrRect): OmrExclusionZone {
+function exclusionZone(key: string, rect: OmrRect): OmrExclusionZone {
 	return {
 		key,
-		label,
 		x: Math.max(0, rect.x - OMR_EXCLUSION_PADDING),
 		y: Math.max(0, rect.y - OMR_EXCLUSION_PADDING),
 		width:

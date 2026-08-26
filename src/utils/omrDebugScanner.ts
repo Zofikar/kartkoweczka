@@ -42,7 +42,6 @@ export interface DetectedQrCode {
 
 export interface NormalizedOverlayRect extends OmrRect {
 	key: string;
-	label: string;
 	kind: 'marker' | 'qr' | 'grid' | 'exclusion';
 }
 
@@ -756,7 +755,6 @@ function buildOverlayRects(): NormalizedOverlayRect[] {
 	return [
 		{
 			key: 'grid',
-			label: 'Grid',
 			kind: 'grid',
 			x: 0,
 			y: 0,
@@ -769,14 +767,13 @@ function buildOverlayRects(): NormalizedOverlayRect[] {
 			key: `exclusion-${zone.key}`,
 			kind: 'exclusion' as const,
 		})),
-		{ key: 'metadata-qr', label: 'QR metadata', kind: 'qr', ...metadataQrPlacement() },
+		{ key: 'metadata-qr', kind: 'qr', ...metadataQrPlacement() },
 	];
 }
 
 function markerOverlayRect(marker: ArucoMarkerPlacement): NormalizedOverlayRect {
 	return {
 		key: `marker-${marker.corner}`,
-		label: `${marker.corner.toUpperCase()} #${marker.id}`,
 		kind: 'marker',
 		x: marker.x,
 		y: marker.y,

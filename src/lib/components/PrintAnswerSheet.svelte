@@ -12,6 +12,7 @@
 		metadataQrPlacement,
 		omrExclusionZones,
 		sheetMetadataQrPayload,
+		QR_CODE_QUIET_ZONE,
 	} from '@/utils/omr';
 	import { LINE_HEIGHT_MM } from '@/utils/paper';
 	import { qrCodeSvg } from '@/utils/qrcode';
@@ -104,9 +105,7 @@
 				style:width="{zone.width}px"
 				style:height="{zone.height}px"
 				aria-hidden="true"
-			>
-				<span>{zone.label}</span>
-			</div>
+			></div>
 		{/each}
 
 		{#each markerSvgs as marker (marker.id)}
@@ -128,6 +127,7 @@
 			style:top="{qrPlacement.y}px"
 			style:width="{QR_CODE_SIZE}px"
 			style:height="{QR_CODE_SIZE}px"
+			style:padding="{QR_CODE_QUIET_ZONE}px"
 		>
 			<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 			{@html metadataQr}
