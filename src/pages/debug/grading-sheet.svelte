@@ -6,9 +6,8 @@
 		drawImageDataToCanvas,
 		type GradingSheetDebugResult,
 		type NormalizedOverlayRect,
-		OMR_DESIGN_HEIGHT,
-		OMR_DESIGN_WIDTH,
 	} from '@/utils/omrDebugScanner';
+	import { LATEST_OMR_CONFIG } from '@/utils/omr';
 
 	let result = $state<GradingSheetDebugResult | null>(null);
 	let isAnalyzing = $state(false);
@@ -54,7 +53,10 @@
 	}
 
 	function formatMetadata(qrCode: DetectedQrCode | null | undefined): string {
-		return qrCode ? JSON.stringify(qrCode.metadata, null, 2) : 'Nie wykryto metadanych QR';
+		if (!qrCode) return 'Nie wykryto metadanych QR';
+		return qrCode.metadata
+			? JSON.stringify(qrCode.metadata, null, 2)
+			: `Nierozpoznana treść QR: ${qrCode.data}`;
 	}
 
 	function markerPoints(marker: DetectedArucoMarker): string {
@@ -62,11 +64,12 @@
 	}
 
 	function overlayStyle(rect: NormalizedOverlayRect): string {
+		const { designWidth, designHeight } = LATEST_OMR_CONFIG.geometry;
 		return [
-			`left: ${(rect.x / OMR_DESIGN_WIDTH) * 100}%`,
-			`top: ${(rect.y / OMR_DESIGN_HEIGHT) * 100}%`,
-			`width: ${(rect.width / OMR_DESIGN_WIDTH) * 100}%`,
-			`height: ${(rect.height / OMR_DESIGN_HEIGHT) * 100}%`,
+			`left: ${(rect.x / designWidth) * 100}%`,
+			`top: ${(rect.y / designHeight) * 100}%`,
+			`width: ${(rect.width / designWidth) * 100}%`,
+			`height: ${(rect.height / designHeight) * 100}%`,
 		].join('; ');
 	}
 </script>
@@ -139,7 +142,11 @@
 
 			<section class="panel">
 				<h2>Znormalizowana geometria</h2>
-				<div class="normalized-stage" style:aspect-ratio="{OMR_DESIGN_WIDTH} / {OMR_DESIGN_HEIGHT}">
+				<div
+					class="normalized-stage"
+					style:aspect-ratio="{LATEST_OMR_CONFIG.geometry.designWidth} / {LATEST_OMR_CONFIG.geometry
+						.designHeight}"
+				>
 					{#if result.normalizedImage}
 						<canvas bind:this={normalizedCanvas} aria-label="Znormalizowany obraz karty odpowiedzi"
 						></canvas>

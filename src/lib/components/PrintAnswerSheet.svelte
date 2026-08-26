@@ -2,17 +2,11 @@
 	import FixedCanvas from '@/lib/ui/FixedCanvas.svelte';
 	import { arucoMarkerSvg } from '@/utils/aruco';
 	import {
-		ARUCO_MARKER_SIZE,
-		GRID_AREA,
-		OMR_BLOCK_WIDTH_MM,
-		OMR_DESIGN_HEIGHT,
-		OMR_DESIGN_WIDTH,
-		QR_CODE_SIZE,
 		arucoMarkerPlacements,
+		gridArea,
+		LATEST_OMR_CONFIG,
 		metadataQrPlacement,
 		omrExclusionZones,
-		sheetMetadataQrPayload,
-		QR_CODE_QUIET_ZONE,
 	} from '@/utils/omr';
 	import { LINE_HEIGHT_MM } from '@/utils/paper';
 	import { qrCodeSvg } from '@/utils/qrcode';
@@ -28,8 +22,10 @@
 	/** Instruction block always reserves exactly this many lines of height. */
 	const INSTRUCTION_LINES = 6;
 
-	const qrPlacement = metadataQrPlacement();
-	const exclusionZones = omrExclusionZones();
+	const omrConfig = LATEST_OMR_CONFIG;
+	const grid = gridArea(omrConfig);
+	const qrPlacement = metadataQrPlacement(omrConfig);
+	const exclusionZones = omrExclusionZones(omrConfig);
 
 	let metadataQr = $state<string | null>(null);
 	let markerSvgs = $state<
@@ -39,8 +35,10 @@
 	// OpenCV.js loads asynchronously, so the marker/QR SVGs are generated once
 	// the wasm is ready. The print flow must wait for these to be populated.
 	$effect(() => {
-		const payload = sheetMetadataQrPayload(revisionId);
-		const placements = arucoMarkerPlacements();
+		const payload = omrConfig.qrCode.encodePayload({
+			revisionId,
+		});
+		const placements = arucoMarkerPlacements(omrConfig);
 		let cancelled = false;
 
 		Promise.all([
@@ -83,16 +81,16 @@
 
 	<FixedCanvas
 		class="omr-block"
-		designWidth={OMR_DESIGN_WIDTH}
-		designHeight={OMR_DESIGN_HEIGHT}
-		widthMm={OMR_BLOCK_WIDTH_MM}
+		designWidth={omrConfig.geometry.designWidth}
+		designHeight={omrConfig.geometry.designHeight}
+		widthMm={omrConfig.geometry.blockWidthMm}
 	>
 		<div
 			class="omr-grid-plane"
-			style:left="{GRID_AREA.x}px"
-			style:top="{GRID_AREA.y}px"
-			style:width="{GRID_AREA.width}px"
-			style:height="{GRID_AREA.height}px"
+			style:left="{grid.x}px"
+			style:top="{grid.y}px"
+			style:width="{grid.width}px"
+			style:height="{grid.height}px"
 		>
 			<span>Obszar siatki odpowiedzi (z wyłączeniami)</span>
 		</div>
@@ -113,8 +111,8 @@
 				class="omr-marker"
 				style:left="{marker.x}px"
 				style:top="{marker.y}px"
-				style:width="{ARUCO_MARKER_SIZE}px"
-				style:height="{ARUCO_MARKER_SIZE}px"
+				style:width="{omrConfig.aruco.markerSize}px"
+				style:height="{omrConfig.aruco.markerSize}px"
 			>
 				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 				{@html marker.svg}
@@ -125,9 +123,8 @@
 			class="omr-qr"
 			style:left="{qrPlacement.x}px"
 			style:top="{qrPlacement.y}px"
-			style:width="{QR_CODE_SIZE}px"
-			style:height="{QR_CODE_SIZE}px"
-			style:padding="{QR_CODE_QUIET_ZONE}px"
+			style:width="{omrConfig.qrCode.size}px"
+			style:height="{omrConfig.qrCode.size}px"
 		>
 			<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 			{@html metadataQr}
@@ -206,14 +203,12 @@
 	}
 
 	.omr-exclusion-zone {
-		border: 2px solid #777777;
-		background: rgba(0, 0, 0, 0.06);
+		border: 4px dashed #999999;
 		box-sizing: border-box;
 		display: flex;
 		align-items: flex-start;
 		justify-content: center;
 		color: #777777;
-		font-size: 18px;
 		padding-top: 6px;
 	}
 </style>

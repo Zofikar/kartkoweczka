@@ -1,19 +1,17 @@
 import {
-	ANSWER_SHEET_FORMAT_VERSION,
-	answerSheetFormatVersionFromMarkerId,
-	ARUCO_BOTTOM_RIGHT_ANCHOR_ID,
-	ARUCO_FORMAT_VERSION_IDS,
-	ARUCO_MARKER_SIZE,
-	ARUCO_TOP_LEFT_ANCHOR_ID,
-	ARUCO_TOP_RIGHT_ANCHOR_ID,
-	type ArucoMarkerPlacement,
 	arucoMarkerPlacements,
+	gridArea,
+	LATEST_OMR_CONFIG,
 	metadataQrPlacement,
-	OMR_DESIGN_HEIGHT,
-	OMR_DESIGN_WIDTH,
-	type OmrCorner,
+	OMR_CONFIG_VERSIONS,
+	omrConfigForVersion,
 	omrExclusionZones,
+	omrVersionFromMarkerId,
+	type ArucoMarkerPlacement,
+	type OmrConfig,
+	type OmrCorner,
 	type OmrRect,
+	type SheetMetadata,
 } from '@/utils/omr';
 
 import type { OpenCv, Mat, MatVector, aruco_DetectorParameters } from '@/types/opencv';
@@ -36,7 +34,8 @@ export interface DetectedArucoMarker {
 
 export interface DetectedQrCode {
 	data: string;
-	metadata: unknown;
+	/** Decoded sheet metadata, or `undefined` for a non-metadata QR payload. */
+	metadata: SheetMetadata | undefined;
 	corners: DebugPoint[];
 }
 
@@ -72,26 +71,30 @@ interface AnalysisImage {
 	pointToSource: (point: DebugPoint) => DebugPoint;
 }
 
-interface SheetMetadata {
-	r?: unknown;
-	f?: unknown;
-}
-
-const VALID_ANSWER_SHEET_MARKER_IDS = new Set<number>([
-	ARUCO_TOP_LEFT_ANCHOR_ID,
-	ARUCO_TOP_RIGHT_ANCHOR_ID,
-	ARUCO_BOTTOM_RIGHT_ANCHOR_ID,
-	...ARUCO_FORMAT_VERSION_IDS,
-]);
+/**
+ * Marker ids a sheet may legitimately contain: anchors and version markers of
+ * every known format version, so detection stays backwards compatible.
+ */
+const VALID_ANSWER_SHEET_MARKER_IDS = new Set<number>(
+	OMR_CONFIG_VERSIONS.flatMap((config) => [
+		config.aruco.anchorIds.topLeft,
+		config.aruco.anchorIds.topRight,
+		config.aruco.anchorIds.bottomRight,
+		...config.aruco.formatVersionIds,
+	])
+);
 
 export async function analyzeGradingSheetImage(file: File): Promise<GradingSheetDebugResult> {
 	const image = await createImageBitmap(file);
 	const { imageData, pointToSource } = readAnalysisImage(image);
 	const analysisMarkers = await detectArucoMarkers(imageData);
-	const normalizedImage = normalizeImageIfPossible(imageData, analysisMarkers);
-	const qrCodeInMarkedArea = normalizedImage ? await detectQrCode(normalizedImage) : null;
+	const omrConfig = resolveOmrConfig(analysisMarkers);
+	const normalizedImage = normalizeImageIfPossible(omrConfig, imageData, analysisMarkers);
+	const qrCodeInMarkedArea = normalizedImage
+		? await detectQrCode(omrConfig, normalizedImage)
+		: null;
 	const arucoMarkers = analysisMarkers.map((marker) => mapMarkerPoints(marker, pointToSource));
-	const markersWithExpectedMetadata = addExpectedMarkerMetadata(arucoMarkers);
+	const markersWithExpectedMetadata = addExpectedMarkerMetadata(omrConfig, arucoMarkers);
 
 	return {
 		image,
@@ -99,14 +102,26 @@ export async function analyzeGradingSheetImage(file: File): Promise<GradingSheet
 		arucoMarkers: markersWithExpectedMetadata,
 		qrCodeInMarkedArea,
 		normalizedImage,
-		overlayRects: buildOverlayRects(),
+		overlayRects: buildOverlayRects(omrConfig),
 		warnings: buildWarnings(
 			markersWithExpectedMetadata,
 			qrCodeInMarkedArea,
 			normalizedImage,
-			readQrFormatVersion(qrCodeInMarkedArea)
 		),
 	};
+}
+
+/**
+ * Resolve the OMR config for the detected sheet from its bottom-left version
+ * marker. Falls back to the latest known config when no version marker was
+ * detected (e.g. fewer than four markers).
+ */
+function resolveOmrConfig(markers: Omit<DetectedArucoMarker, 'corner'>[]): OmrConfig {
+	const versionMarker = markers.find((marker) =>
+		LATEST_OMR_CONFIG.aruco.formatVersionIds.some((id) => id === marker.id)
+	);
+	const version = versionMarker ? omrVersionFromMarkerId(versionMarker.id) : undefined;
+	return version === undefined ? LATEST_OMR_CONFIG : omrConfigForVersion(version);
 }
 
 function readAnalysisImage(image: ImageBitmap): AnalysisImage {
@@ -174,11 +189,14 @@ function getOffscreenCanvasContext(canvas: OffscreenCanvas): OffscreenCanvasRend
 	return context;
 }
 
-async function detectQrCode(imageData: ImageData): Promise<DetectedQrCode | null> {
+async function detectQrCode(
+	config: OmrConfig,
+	imageData: ImageData
+): Promise<DetectedQrCode | null> {
 	const cv = await getOpenCv();
-	const searchRect = expandRect(metadataQrPlacement(), QR_SEARCH_SAFETY_MARGIN, {
-		width: OMR_DESIGN_WIDTH,
-		height: OMR_DESIGN_HEIGHT,
+	const searchRect = expandRect(metadataQrPlacement(config), QR_SEARCH_SAFETY_MARGIN, {
+		width: config.geometry.designWidth,
+		height: config.geometry.designHeight,
 	});
 	const cropped = cropImageData(imageData, searchRect);
 	const source = cv.matFromImageData(cropped);
@@ -194,7 +212,7 @@ async function detectQrCode(imageData: ImageData): Promise<DetectedQrCode | null
 		if (!corners) return null;
 		return {
 			data,
-			metadata: parseQrMetadata(data),
+			metadata: config.qrCode.decodePayload(data),
 			corners: corners.map((corner) => ({
 				x: corner.x + searchRect.x,
 				y: corner.y + searchRect.y,
@@ -210,24 +228,6 @@ async function detectQrCode(imageData: ImageData): Promise<DetectedQrCode | null
 	}
 }
 
-function parseQrMetadata(data: string): unknown {
-	try {
-		return JSON.parse(data);
-	} catch {
-		return data;
-	}
-}
-
-function readQrFormatVersion(markedAreaQrCode: DetectedQrCode | null): number | undefined {
-	return readFormatVersion(markedAreaQrCode?.metadata);
-}
-
-function readFormatVersion(metadata: unknown): number | undefined {
-	if (!metadata || typeof metadata !== 'object') return undefined;
-	const formatVersion = (metadata as SheetMetadata).f;
-	return typeof formatVersion === 'number' ? formatVersion : undefined;
-}
-
 async function detectArucoMarkers(imageData: ImageData): Promise<DetectedArucoMarker[]> {
 	const markers = (await detectOriginalArucoMarkers(imageData)).map((marker) => ({
 		id: marker.id,
@@ -237,8 +237,11 @@ async function detectArucoMarkers(imageData: ImageData): Promise<DetectedArucoMa
 	return assignCornersByGeometry(markers);
 }
 
-function addExpectedMarkerMetadata(markers: DetectedArucoMarker[]): DetectedArucoMarker[] {
-	const expectedPlacements = arucoMarkerPlacements();
+function addExpectedMarkerMetadata(
+	config: OmrConfig,
+	markers: DetectedArucoMarker[]
+): DetectedArucoMarker[] {
+	const expectedPlacements = arucoMarkerPlacements(config);
 	return markers.map((marker) => ({
 		...marker,
 		corner:
@@ -425,30 +428,42 @@ function readQrCorners(points: Mat | undefined): DebugPoint[] | undefined {
 }
 
 function normalizeImageIfPossible(
+	config: OmrConfig,
 	imageData: ImageData,
 	markers: DetectedArucoMarker[]
 ): ImageData | undefined {
-	const pointPairs = findNormalizationPointPairs(markers);
+	const pointPairs = findNormalizationPointPairs(config, markers);
 	if (pointPairs.length !== 4) return undefined;
 
 	const homography = calculateHomography(pointPairs);
-	return warpImage(imageData, homography, OMR_DESIGN_WIDTH, OMR_DESIGN_HEIGHT);
+	return warpImage(
+		imageData,
+		homography,
+		config.geometry.designWidth,
+		config.geometry.designHeight
+	);
 }
 
-function findNormalizationPointPairs(markers: DetectedArucoMarker[]): PointPair[] {
-	const geometryPairs = pointPairsFromDetectedCorners(markers);
+function findNormalizationPointPairs(
+	config: OmrConfig,
+	markers: DetectedArucoMarker[]
+): PointPair[] {
+	const geometryPairs = pointPairsFromDetectedCorners(config, markers);
 	if (geometryPairs.length === 4) return geometryPairs;
-	const knownIdPairs = findPointPairsByKnownMarkerIds(markers);
+	const knownIdPairs = findPointPairsByKnownMarkerIds(config, markers);
 	if (knownIdPairs.length === 4) return knownIdPairs;
-	return findPointPairsByGeometry(markers);
+	return findPointPairsByGeometry(config, markers);
 }
 
-function pointPairsFromDetectedCorners(markers: DetectedArucoMarker[]): PointPair[] {
+function pointPairsFromDetectedCorners(
+	config: OmrConfig,
+	markers: DetectedArucoMarker[]
+): PointPair[] {
 	const markersByCorner = new Map<OmrCorner, DetectedArucoMarker>();
 	for (const marker of markers) {
 		if (marker.corner) markersByCorner.set(marker.corner, marker);
 	}
-	return pointPairsFromCornerMap(markersByCorner);
+	return pointPairsFromCornerMap(config, markersByCorner);
 }
 
 function estimateSheetOrientation(markers: DetectedArucoMarker[]): {
@@ -512,11 +527,14 @@ function dot(point: DebugPoint, vector: DebugPoint): number {
 	return point.x * vector.x + point.y * vector.y;
 }
 
-function findPointPairsByKnownMarkerIds(markers: DetectedArucoMarker[]): PointPair[] {
+function findPointPairsByKnownMarkerIds(
+	config: OmrConfig,
+	markers: DetectedArucoMarker[]
+): PointPair[] {
 	const markersByCorner = new Map<OmrCorner, DetectedArucoMarker>();
 	for (const marker of markers) assignKnownMarkerCorner(markersByCorner, marker);
 	assignUnknownBottomLeftMarker(markersByCorner, markers);
-	return pointPairsFromCornerMap(markersByCorner);
+	return pointPairsFromCornerMap(config, markersByCorner);
 }
 
 function assignKnownMarkerCorner(
@@ -537,33 +555,36 @@ function assignUnknownBottomLeftMarker(
 }
 
 function pointPairsFromCornerMap(
+	config: OmrConfig,
 	markersByCorner: Map<OmrCorner, DetectedArucoMarker>
 ): PointPair[] {
 	return (['tl', 'tr', 'br', 'bl'] as const).flatMap((corner) => {
 		const marker = markersByCorner.get(corner);
-		const placement = findCanonicalPlacement(corner);
+		const placement = findCanonicalPlacement(config, corner);
 		return marker ? [{ source: marker.center, destination: markerCenter(placement) }] : [];
 	});
 }
 
-function findCanonicalPlacement(corner: OmrCorner): ArucoMarkerPlacement {
-	const placement = arucoMarkerPlacements().find((marker) => marker.corner === corner);
+function findCanonicalPlacement(config: OmrConfig, corner: OmrCorner): ArucoMarkerPlacement {
+	const placement = arucoMarkerPlacements(config).find((marker) => marker.corner === corner);
 	if (!placement) throw new Error(`Brak kanonicznego położenia markera ${corner}.`);
 	return placement;
 }
 
 function findKnownCorner(id: number): OmrCorner | undefined {
-	if (id === ARUCO_TOP_LEFT_ANCHOR_ID) return 'tl';
-	if (id === ARUCO_TOP_RIGHT_ANCHOR_ID) return 'tr';
-	if (id === ARUCO_BOTTOM_RIGHT_ANCHOR_ID) return 'br';
-	if (answerSheetFormatVersionFromMarkerId(id) !== undefined) return 'bl';
+	for (const config of OMR_CONFIG_VERSIONS) {
+		if (id === config.aruco.anchorIds.topLeft) return 'tl';
+		if (id === config.aruco.anchorIds.topRight) return 'tr';
+		if (id === config.aruco.anchorIds.bottomRight) return 'br';
+	}
+	if (omrVersionFromMarkerId(id) !== undefined) return 'bl';
 	return undefined;
 }
 
-function findPointPairsByGeometry(markers: DetectedArucoMarker[]): PointPair[] {
+function findPointPairsByGeometry(config: OmrConfig, markers: DetectedArucoMarker[]): PointPair[] {
 	if (markers.length < 4) return [];
 	const orderedMarkers = orderMarkersByPosition(markers);
-	const destinations = canonicalMarkerCenters();
+	const destinations = canonicalMarkerCenters(config);
 	return orderedMarkers.map((marker, index) => ({
 		source: marker.center,
 		destination: destinations[index],
@@ -602,8 +623,8 @@ function minMaxBy<T>(items: T[], selector: (item: T) => number): [T, T] {
 	];
 }
 
-function canonicalMarkerCenters(): DebugPoint[] {
-	return arucoMarkerPlacements().map(markerCenter);
+function canonicalMarkerCenters(config: OmrConfig): DebugPoint[] {
+	return arucoMarkerPlacements(config).map(markerCenter);
 }
 
 function markerCenter(rect: OmrRect): DebugPoint {
@@ -751,34 +772,27 @@ function copyPixel(
 	destination[destinationIndex + 3] = 255;
 }
 
-function buildOverlayRects(): NormalizedOverlayRect[] {
+function buildOverlayRects(config: OmrConfig): NormalizedOverlayRect[] {
 	return [
-		{
-			key: 'grid',
-			kind: 'grid',
-			x: 0,
-			y: 0,
-			width: OMR_DESIGN_WIDTH,
-			height: OMR_DESIGN_HEIGHT,
-		},
-		...arucoMarkerPlacements().map(markerOverlayRect),
-		...omrExclusionZones().map((zone) => ({
+		{ key: 'grid', kind: 'grid', ...gridArea(config) },
+		...arucoMarkerPlacements(config).map((marker) => markerOverlayRect(config, marker)),
+		...omrExclusionZones(config).map((zone) => ({
 			...zone,
 			key: `exclusion-${zone.key}`,
 			kind: 'exclusion' as const,
 		})),
-		{ key: 'metadata-qr', kind: 'qr', ...metadataQrPlacement() },
+		{ key: 'metadata-qr', kind: 'qr', ...metadataQrPlacement(config) },
 	];
 }
 
-function markerOverlayRect(marker: ArucoMarkerPlacement): NormalizedOverlayRect {
+function markerOverlayRect(config: OmrConfig, marker: ArucoMarkerPlacement): NormalizedOverlayRect {
 	return {
 		key: `marker-${marker.corner}`,
 		kind: 'marker',
 		x: marker.x,
 		y: marker.y,
-		width: ARUCO_MARKER_SIZE,
-		height: ARUCO_MARKER_SIZE,
+		width: config.aruco.markerSize,
+		height: config.aruco.markerSize,
 	};
 }
 
@@ -786,30 +800,25 @@ function buildWarnings(
 	markers: DetectedArucoMarker[],
 	qrCodeInMarkedArea: DetectedQrCode | null,
 	normalizedImage: ImageData | undefined,
-	qrFormatVersion: number | undefined
 ): string[] {
 	const markerFormatVersion = readMarkerFormatVersion(markers);
+	const hasVersionMarker = markers.some((marker) => marker.corner === 'bl');
 	return [
 		...(markers.length < 4
 			? [`Wykryto ${markers.length} marker(y) ArUco; normalizacja wymaga 4.`]
 			: []),
 		...(qrCodeInMarkedArea ? [] : ['Nie wykryto QR w obszarze oznaczonym markerami ArUco.']),
 		...(normalizedImage ? [] : ['Podgląd znormalizowanej karty jest niedostępny.']),
-		...(markerFormatVersion === undefined ? ['Nie wykryto markera wersji formatu karty.'] : []),
-		...(markerFormatVersion !== undefined && markerFormatVersion !== ANSWER_SHEET_FORMAT_VERSION
-			? [`Marker wskazuje nieobsługiwany format karty v${markerFormatVersion}.`]
+		...(hasVersionMarker && markerFormatVersion === undefined
+			? ['Marker wersji karty wskazuje nieobsługiwany format.']
 			: []),
-		...(markerFormatVersion !== undefined &&
-		qrFormatVersion !== undefined &&
-		markerFormatVersion !== qrFormatVersion
-			? [`Niezgodna wersja formatu: marker v${markerFormatVersion}, QR v${qrFormatVersion}.`]
-			: []),
+		...(!hasVersionMarker ? ['Nie wykryto markera wersji formatu karty.'] : []),
 	];
 }
 
 function readMarkerFormatVersion(markers: DetectedArucoMarker[]): number | undefined {
 	const versionMarker = markers.find((marker) => marker.corner === 'bl');
-	return versionMarker ? answerSheetFormatVersionFromMarkerId(versionMarker.id) : undefined;
+	return versionMarker ? omrVersionFromMarkerId(versionMarker.id) : undefined;
 }
 
 export function drawImageDataToCanvas(canvas: HTMLCanvasElement, imageData: ImageData): void {
@@ -819,5 +828,3 @@ export function drawImageDataToCanvas(canvas: HTMLCanvasElement, imageData: Imag
 	if (!context) throw new Error('Nie można utworzyć kontekstu canvas 2D.');
 	context.putImageData(imageData, 0, 0);
 }
-
-export { OMR_DESIGN_HEIGHT, OMR_DESIGN_WIDTH };
