@@ -57,7 +57,7 @@ export default defineConfig(({ mode }) => {
 				injectScript: true,
 			}),
 		],
-		optimizeDeps: { exclude: ['svelte-navigator'] },
+		optimizeDeps: { exclude: ['svelte-navigator', '@sqlite.org/sqlite-wasm'] },
 		build: {
 			sourcemap: true,
 			rolldownOptions: {
