@@ -200,9 +200,9 @@ function sheetAnswerGrid(version: number) {
 			): number[] {
 				const { gridElementSize, gridElementInternalSquareSize } = config.grid;
 				const innerGap = (gridElementSize - gridElementInternalSquareSize) / 2;
-				const darkThreshold = 128;
-				const innerFillRatio = 0.4; // at least 40 % of inner pixels must be dark
-				const outerMistakeRatio = 0.15; // at least 15 % of outer-ring pixels = correction
+				const outerExclusion = Math.max(1, Math.round(gridElementSize * 0.06));
+				const innerFillRatio = 0.2; // enough locally non-white pixels in the answer box
+				const outerMistakeRatio = 0.1; // outer-ring pixels from correction scratches
 
 				// Build a flat mapping: question index → answer cells to check.
 				interface AnswerCell {
@@ -231,56 +231,70 @@ function sheetAnswerGrid(version: number) {
 					}
 				}
 
-				// Per-question results: { answerIndex, innerDark, outerDark }[]
+				// Per-question results: { answerIndex, innerDark, innerFillRatio, outerDark }[]
 				const questionResults: Array<
-					Array<{ answerIndex: number; innerDark: boolean; outerDark: boolean }>
+					Array<{
+						answerIndex: number;
+						innerDark: boolean;
+						innerFillRatio: number;
+						outerDark: boolean;
+					}>
 				> = Array.from({ length: totalQuestions }, () => []);
 
 				const { data, width } = imageData;
 				const size = gridElementSize;
 
 				for (const cell of cells) {
-					let innerDarkCount = 0;
+					let innerMarkedCount = 0;
 					let innerTotal = 0;
-					let outerDarkCount = 0;
+					let outerMarkedCount = 0;
 					let outerTotal = 0;
 
 					const ox = Math.round(cell.outerX);
 					const oy = Math.round(cell.outerY);
 					const innerSize = gridElementInternalSquareSize;
 
+					const background = estimateCellBackgroundLuminance(imageData, ox, oy, size);
+
 					for (let dy = 0; dy < size; dy++) {
 						const py = oy + dy;
 						if (py < 0 || py >= imageData.height) continue;
 						const rowOffset = py * width * 4;
 						const isInnerRow = dy >= innerGap && dy < innerGap + innerSize;
+						const isGridBorderRow = dy < outerExclusion || dy >= size - outerExclusion;
 
 						for (let dx = 0; dx < size; dx++) {
 							const px = ox + dx;
 							if (px < 0 || px >= width) continue;
 
 							const idx = rowOffset + px * 4;
-							const luminance = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-							const isDark = luminance < darkThreshold;
+							const isMarked = isMarkedPixel(data, idx, background);
 
 							const isInnerCol = dx >= innerGap && dx < innerGap + innerSize;
+							const isGridBorderCol = dx < outerExclusion || dx >= size - outerExclusion;
 
 							if (isInnerRow && isInnerCol) {
 								innerTotal++;
-								if (isDark) innerDarkCount++;
-							} else {
+								if (isMarked) innerMarkedCount++;
+							} else if (!(isGridBorderRow || isGridBorderCol)) {
+								// Outer ring but NOT on the grid border — only
+								// here do correction scratches actually appear.
 								outerTotal++;
-								if (isDark) outerDarkCount++;
+								if (isMarked) outerMarkedCount++;
 							}
+							// else: grid border pixel → skip (never counts as
+							// inner NOR outer)
 						}
 					}
 
-					const innerDark = innerTotal > 0 && innerDarkCount / innerTotal >= innerFillRatio;
-					const outerDark = outerTotal > 0 && outerDarkCount / outerTotal >= outerMistakeRatio;
+					const innerDark = innerTotal > 0 && innerMarkedCount / innerTotal >= innerFillRatio;
+					const outerDark = outerTotal > 0 && outerMarkedCount / outerTotal >= outerMistakeRatio;
+					const fillRatio = innerTotal > 0 ? innerMarkedCount / innerTotal : 0;
 
 					questionResults[cell.questionIndex].push({
 						answerIndex: cell.answerIndex,
 						innerDark,
+						innerFillRatio: fillRatio,
 						outerDark,
 					});
 				}
@@ -289,11 +303,23 @@ function sheetAnswerGrid(version: number) {
 				// filled AND outer ring is NOT marked as a correction. If an answer
 				// has a filled inner but its outer ring is also dark, it is treated
 				// as a correction scratch — ignore it.
+				//
+				// Soft fallback: when no answer passes the strict check, pick the
+				// one with the highest inner fill ratio (ignoring outerDark).
 				return questionResults.map((results) => {
 					for (const r of results) {
 						if (r.innerDark && !r.outerDark) return r.answerIndex;
 					}
-					return -1;
+					let bestIndex = -1;
+					let bestRatio = 0;
+					for (const r of results) {
+						if (r.innerFillRatio > bestRatio) {
+							bestRatio = r.innerFillRatio;
+							bestIndex = r.answerIndex;
+						}
+					}
+					// Only accept the fallback if some inner fill was detected
+					return bestRatio >= innerFillRatio ? bestIndex : -1;
 				});
 			},
 		};
@@ -328,6 +354,70 @@ export interface OmrGridConfig {
 		data: OmrGridCalculateData
 	): OmrGridColumnsPositions;
 	scanGrid(config: OmrConfig, imageData: ImageData, columns: OmrGridColumnsPositions): number[];
+}
+
+function estimateCellBackgroundLuminance(
+	imageData: ImageData,
+	cellX: number,
+	cellY: number,
+	cellSize: number
+): number {
+	const samples = readCellBorderLuminanceSamples(imageData, cellX, cellY, cellSize);
+	if (samples.length === 0) return 255;
+	return percentile(samples, 0.85);
+}
+
+function readCellBorderLuminanceSamples(
+	imageData: ImageData,
+	cellX: number,
+	cellY: number,
+	cellSize: number
+): number[] {
+	const samples: number[] = [];
+	const { data, width, height } = imageData;
+	for (let dy = 0; dy < cellSize; dy++) {
+		const py = cellY + dy;
+		if (py < 0 || py >= height) continue;
+		for (let dx = 0; dx < cellSize; dx++) {
+			if (!isCellBorderPixel(dx, dy, cellSize)) continue;
+			const px = cellX + dx;
+			if (px < 0 || px >= width) continue;
+			samples.push(luminance(data, (py * width + px) * 4));
+		}
+	}
+	return samples;
+}
+
+function isCellBorderPixel(dx: number, dy: number, cellSize: number): boolean {
+	const borderWidth = Math.max(2, Math.round(cellSize * 0.12));
+	return (
+		dx < borderWidth ||
+		dy < borderWidth ||
+		dx >= cellSize - borderWidth ||
+		dy >= cellSize - borderWidth
+	);
+}
+
+function isMarkedPixel(
+	data: Uint8ClampedArray,
+	index: number,
+	backgroundLuminance: number
+): boolean {
+	// After cv.normalize(NORM_MINMAX) the pipeline delivers grayscale
+	// RGBA pixels (all channels equal).  Use a relative threshold so the
+	// check adapts to the per-cell background estimated from border pixels.
+	const pixelLuminance = luminance(data, index);
+	return backgroundLuminance - pixelLuminance >= backgroundLuminance * 0.18;
+}
+
+function luminance(data: Uint8ClampedArray, index: number): number {
+	return 0.299 * data[index] + 0.587 * data[index + 1] + 0.114 * data[index + 2];
+}
+
+function percentile(values: number[], fraction: number): number {
+	const sorted = [...values].sort((a, b) => a - b);
+	const index = Math.min(sorted.length - 1, Math.max(0, Math.floor(sorted.length * fraction)));
+	return sorted[index];
 }
 
 /** Complete, self-contained configuration of one answer-sheet OMR format version. */

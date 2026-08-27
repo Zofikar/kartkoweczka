@@ -152,6 +152,8 @@ def emit_typescript(generator, white_list, namespace_prefix_override, output):
         "  readonly data32S: Int32Array;",
         "  readonly data32F: Float32Array;",
         "  readonly data64F: Float64Array;",
+        "",
+        "  copyTo(dst: Mat): void;"
         "}",
         "",
         "export interface MatVector extends OpenCvDeletable {",

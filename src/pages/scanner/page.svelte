@@ -3,12 +3,15 @@
 		scanGradingSheetImage,
 		detectMarkersInFrame,
 		detectQrCode,
-		normalizeImageIfPossible,
+		imageDataToGrayscaleMat,
+		matToImageData,
+		normalizeMat,
 		resolveOmrConfig,
 		computeScore,
 		type DetectedQrCode,
 		type OmrScanResult,
 	} from '@/utils/omrScanner';
+	import { deleteOpenCvObject, getOpenCv } from '@/utils/opencv';
 	import type { OmrConfig } from '@/utils/omr';
 	import { getTest, getTestRevision } from '@/db/repositories';
 	import Button from '$lib/ui/Button.svelte';
@@ -118,13 +121,7 @@
 		statusLabel = 'Szukam karty odpowiedzi…';
 
 		try {
-			stream = await navigator.mediaDevices.getUserMedia({
-				video: {
-					facingMode: 'environment',
-					width: { min: 1280, ideal: 1920 },
-					height: { min: 720, ideal: 1080 },
-				},
-			});
+			stream = await openPortraitCameraStream();
 		} catch {
 			errorMessage = 'Kamera jest niedostępna. Sprawdź uprawnienia lub użyj trybu zdjęcia.';
 			cameraState = 'error';
@@ -137,6 +134,23 @@
 		videoElement.srcObject = stream;
 		await videoElement.play();
 		requestAnimationFrame(searchFrame);
+	}
+
+	async function openPortraitCameraStream(): Promise<MediaStream> {
+		const portraitConstraints: MediaStreamConstraints = {
+			video: {
+				facingMode: { ideal: 'environment' },
+				width: { ideal: 1440 },
+				aspectRatio: { ideal: 1 / Math.SQRT2 },
+				/* @ts-expect-error resize mode exists */
+				resizeMode: 'none',
+			},
+		};
+		try {
+			return await navigator.mediaDevices.getUserMedia(portraitConstraints);
+		} catch {
+			return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+		}
 	}
 
 	function stopCamera() {
@@ -161,31 +175,43 @@
 			const ctx = canvas.getContext('2d')!;
 			ctx.drawImage(videoElement, 0, 0);
 			const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-			const markers = await detectMarkersInFrame(imageData);
 
-			if (markers.length < 4) {
-				scheduleNextFrame();
-				return;
+			const cv = await getOpenCv();
+			const grayMat = imageDataToGrayscaleMat(cv, imageData);
+
+			try {
+				const markers = detectMarkersInFrame(cv, grayMat);
+
+				if (markers.length < 4) {
+					scheduleNextFrame();
+					return;
+				}
+
+				const omrConfig = resolveOmrConfig(markers);
+				const normalizedMat = normalizeMat(cv, omrConfig, grayMat, markers);
+				if (!normalizedMat) {
+					scheduleNextFrame();
+					return;
+				}
+
+				const qrCode = await detectQrCode(cv, omrConfig, normalizedMat);
+				if (!qrCode?.metadata?.revisionId) {
+					deleteOpenCvObject(normalizedMat);
+					scheduleNextFrame();
+					return;
+				}
+
+				const normalized = matToImageData(cv, normalizedMat);
+				deleteOpenCvObject(normalizedMat);
+
+				cameraState = 'processing';
+				stopCamera();
+				statusLabel = 'Przetwarzanie…';
+				result = await processFrozenFrame(omrConfig, normalized, qrCode);
+				cameraState = 'result';
+			} finally {
+				deleteOpenCvObject(grayMat);
 			}
-
-			const omrConfig = resolveOmrConfig(markers);
-			const normalized = normalizeImageIfPossible(omrConfig, imageData, markers);
-			if (!normalized) {
-				scheduleNextFrame();
-				return;
-			}
-
-			const qrCode = await detectQrCode(omrConfig, normalized);
-			if (!qrCode?.metadata?.revisionId) {
-				scheduleNextFrame();
-				return;
-			}
-
-			cameraState = 'processing';
-			stopCamera();
-			statusLabel = 'Przetwarzanie…';
-			result = await processFrozenFrame(omrConfig, normalized, qrCode);
-			cameraState = 'result';
 		} catch {
 			scheduleNextFrame();
 		}
@@ -451,7 +477,8 @@
 	.video-preview {
 		display: block;
 		width: 100%;
-		aspect-ratio: 4/3;
+		aspect-ratio: 9/16;
+		max-height: 75vh;
 		object-fit: cover;
 	}
 

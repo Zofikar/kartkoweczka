@@ -107,33 +107,50 @@ export async function scanGradingSheetImage(file: File): Promise<{
 }> {
 	const image = await createImageBitmap(file);
 	const { imageData } = readAnalysisImage(image);
-	const markers = await detectArucoMarkers(imageData);
-	if (markers.length < 4) {
-		throw new Error(
-			'Nie wykryto czterech markerów ArUco na karcie. Spróbuj z lepszym oświetleniem.'
-		);
+
+	const cv = await getOpenCv();
+
+	const grayscale = imageDataToGrayscaleMat(cv, imageData);
+
+	try {
+		const markers = detectArucoMarkersInMat(cv, grayscale);
+		if (markers.length < 4) {
+			throw new Error(
+				'Nie wykryto czterech markerów ArUco na karcie. Spróbuj z lepszym oświetleniem.'
+			);
+		}
+		const omrConfig = resolveOmrConfig(markers);
+		const normalizedMat = normalizeMat(cv, omrConfig, grayscale, markers);
+		if (!normalizedMat) {
+			throw new Error('Nie udało się znormalizować obrazu karty. Markery są zdegenerowane.');
+		}
+		const qrCode = await detectQrCode(cv, omrConfig, normalizedMat);
+		if (!qrCode) {
+			deleteOpenCvObject(normalizedMat);
+			throw new Error('Nie znaleziono kodu QR w obszarze karty odpowiedzi.');
+		}
+		if (!qrCode.metadata?.revisionId) {
+			deleteOpenCvObject(normalizedMat);
+			throw new Error('Kod QR nie zawiera poprawnego identyfikatora rewizji.');
+		}
+		const normalizedImage = matToImageData(cv, normalizedMat);
+		deleteOpenCvObject(normalizedMat);
+		return { imageData, normalizedImage, omrConfig, markers, qrCode };
+	} finally {
+		deleteOpenCvObject(grayscale);
 	}
-	const omrConfig = resolveOmrConfig(markers);
-	const normalizedImage = normalizeImageIfPossible(omrConfig, imageData, markers);
-	if (!normalizedImage) {
-		throw new Error('Nie udało się znormalizować obrazu karty. Markery są zdegenerowane.');
-	}
-	const qrCode = await detectQrCode(omrConfig, normalizedImage);
-	if (!qrCode) {
-		throw new Error('Nie znaleziono kodu QR w obszarze karty odpowiedzi.');
-	}
-	if (!qrCode.metadata?.revisionId) {
-		throw new Error('Kod QR nie zawiera poprawnego identyfikatora rewizji.');
-	}
-	return { imageData, normalizedImage, omrConfig, markers, qrCode };
 }
 
 /**
  * Lightweight ArUco marker detection on a single frame — used by camera mode
  * during the continuous-search loop. Returns markers with valid sheet IDs only.
+ *
+ * Prefer this signature when the caller already holds a cv instance and
+ * grayscale Mat (e.g. inside a frame loop) — avoids redundant ImageData→Mat
+ * conversion.
  */
-export async function detectMarkersInFrame(imageData: ImageData): Promise<DetectedArucoMarker[]> {
-	return detectArucoMarkers(imageData);
+export function detectMarkersInFrame(cv: OpenCv, grayscale: Mat): DetectedArucoMarker[] {
+	return detectArucoMarkersInMat(cv, grayscale);
 }
 
 /**
@@ -187,18 +204,61 @@ export function readAnalysisImage(image: ImageBitmap): AnalysisImage {
 	};
 }
 
+// ─── Grayscale Mat preparation ─────────────────────────────────────────────────
+
+/**
+ * Convert a web-native ImageData (RGBA) to a single-channel grayscale OpenCV Mat.
+ * The caller owns the returned Mat and must delete it.
+ *
+ * Applying grayscale once at the pipeline entry point allows every downstream
+ * step — ArUco detection, homography normalization, QR decode, grid scan — to
+ * work from the same consistent luminance data, improving reliability for both
+ * black and blue-ink answer sheets.
+ */
+export function imageDataToGrayscaleMat(cv: OpenCv, imageData: ImageData): Mat {
+	const source = cv.matFromImageData(imageData);
+	const grayscale = new cv.Mat();
+	try {
+		cv.cvtColor(source, grayscale, cv.COLOR_RGBA2GRAY);
+		cv.normalize(grayscale, grayscale, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
+		return grayscale;
+	} finally {
+		deleteOpenCvObject(source);
+	}
+}
+
 // ─── ArUco detection ───────────────────────────────────────────────────────────
 
+/**
+ * Detect ArUco markers in a pre-allocated grayscale Mat.
+ *
+ * This is the preferred entry point when the caller already holds a cv instance
+ * and has converted the source image to grayscale — the ArUco detector expects
+ * single-channel input internally, so passing RGBA forces OpenCV to convert
+ * again inside the detector.
+ */
+export function detectArucoMarkersInMat(cv: OpenCv, grayscale: Mat): DetectedArucoMarker[] {
+	return detectMarkersInMat(cv, grayscale).map(toDetectedArucoMarker);
+}
+
+/**
+ * Legacy entry point that accepts a web-native image and handles the
+ * ImageData → Mat → grayscale conversion internally.
+ *
+ * Prefer {@link detectArucoMarkersInMat} when a cv instance and grayscale Mat
+ * are already available (e.g. inside a frame loop).
+ */
 export async function detectArucoMarkers(
 	image: ImageData | HTMLCanvasElement | OffscreenCanvas
 ): Promise<DetectedArucoMarker[]> {
 	const cv = await getOpenCv();
-	const source = cv.matFromImageData(
-		image instanceof ImageData ? image : readCanvasImageData(image)
-	);
-	const markers = detectMarkersInMat(cv, source).map(toDetectedArucoMarker);
-	deleteOpenCvObject(source);
-	return markers;
+	const imageData = image instanceof ImageData ? image : readCanvasImageData(image);
+	const grayscale = imageDataToGrayscaleMat(cv, imageData);
+	try {
+		return detectArucoMarkersInMat(cv, grayscale);
+	} finally {
+		deleteOpenCvObject(grayscale);
+	}
 }
 
 function readCanvasImageData(canvas: HTMLCanvasElement | OffscreenCanvas): ImageData {
@@ -295,44 +355,141 @@ export function resolveOmrConfig(markers: Pick<DetectedArucoMarker, 'id'>[]): Om
 // ─── QR code detection ─────────────────────────────────────────────────────────
 
 export async function detectQrCode(
+	cv: OpenCv,
 	config: OmrConfig,
-	imageData: ImageData
+	grayscale: Mat
 ): Promise<DetectedQrCode | null> {
-	const cv = await getOpenCv();
 	const searchRect = expandRect(metadataQrPlacement(config), QR_SEARCH_SAFETY_MARGIN, {
 		width: config.geometry.designWidth,
 		height: config.geometry.designHeight,
 	});
-	const cropped = cropImageData(imageData, searchRect);
-	const source = cv.matFromImageData(cropped);
-	const grayscale = new cv.Mat();
-	const points = new cv.Mat();
+
+	const cropped = cropGrayscaleMat(cv, grayscale, searchRect);
 	const detector = new cv.QRCodeDetectorAruco();
 
 	try {
-		cv.cvtColor(source, grayscale, cv.COLOR_RGBA2GRAY);
-		const data = detector.detectAndDecode(grayscale, points);
-		if (!data) return null;
-		const corners = readQrCorners(points);
-		if (!corners) return null;
-		return {
-			data,
-			metadata: config.qrCode.decodePayload(data),
-			corners: corners.map((corner) => ({
-				x: corner.x + searchRect.x,
-				y: corner.y + searchRect.y,
-			})),
-		};
+		for (const candidate of qrDecodeCandidates(cv, cropped)) {
+			const result = decodeQrCandidate(cv, detector, config, candidate, searchRect);
+			if (result) return result;
+		}
+		return null;
 	} finally {
 		deleteOpenCvObject(detector);
+		deleteOpenCvObject(cropped);
+	}
+}
+
+function cropGrayscaleMat(cv: OpenCv, src: Mat, rect: OmrRect): Mat {
+	const imageData = matToImageData(cv, src);
+	const cropped = cropImageData(imageData, rect);
+	const result = cv.matFromImageData(cropped);
+	const gray = new cv.Mat();
+	cv.cvtColor(result, gray, cv.COLOR_RGBA2GRAY);
+	deleteOpenCvObject(result);
+	return gray;
+}
+
+function qrDecodeCandidates(cv: OpenCv, grayscale: Mat): Mat[] {
+	const normalized = new cv.Mat();
+	cv.normalize(grayscale, normalized, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
+	const deepCopy = new cv.Mat();
+	grayscale.copyTo(deepCopy);
+	return [normalized, deepCopy];
+}
+
+function decodeQrCandidate(
+	cv: OpenCv,
+	detector: { detectAndDecode(img: Mat, points?: Mat): string },
+	config: OmrConfig,
+	grayscale: Mat,
+	searchRect: OmrRect
+): DetectedQrCode | null {
+	const points = new cv.Mat();
+	try {
+		const data = detector.detectAndDecode(grayscale, points);
+		return data ? decodedQrCodeFromPoints(config, data, points, searchRect) : null;
+	} finally {
 		deleteOpenCvObject(points);
-		deleteOpenCvObject(grayscale);
-		deleteOpenCvObject(source);
+	}
+}
+
+function decodedQrCodeFromPoints(
+	config: OmrConfig,
+	data: string,
+	points: Mat,
+	searchRect: OmrRect
+): DetectedQrCode | null {
+	const corners = readQrCorners(points);
+	if (!corners) return null;
+	return {
+		data,
+		metadata: config.qrCode.decodePayload(data),
+		corners: corners.map((corner) => ({ x: corner.x + searchRect.x, y: corner.y + searchRect.y })),
+	};
+}
+
+// ─── Mat → ImageData bridge (for grid scanner compatibility) ────────────────────
+
+export function matToImageData(cv: OpenCv, grayscale: Mat): ImageData {
+	const rgba = new cv.Mat();
+	try {
+		cv.cvtColor(grayscale, rgba, cv.COLOR_GRAY2RGBA);
+		const imageData = new ImageData(grayscale.cols, grayscale.rows);
+		imageData.data.set(new Uint8ClampedArray(rgba.data));
+		return imageData;
+	} finally {
+		deleteOpenCvObject(rgba);
 	}
 }
 
 // ─── Normalization / homography ─────────────────────────────────────────────────
 
+/**
+ * Normalize a grayscale Mat to the canonical design-plane using OpenCV's
+ * perspective warp, followed by contrast stretching.
+ *
+ * Uses bilinear interpolation and white-padding for out-of-bounds pixels.
+ * Returns a **grayscale CV_8UC1 Mat** the caller owns and must delete.
+ * The input grayscale Mat is NOT modified.
+ */
+export function normalizeMat(
+	cv: OpenCv,
+	config: OmrConfig,
+	grayscale: Mat,
+	markers: DetectedArucoMarker[]
+): Mat | undefined {
+	const pointPairs = findNormalizationPointPairs(config, markers);
+	if (pointPairs.length !== 4) return undefined;
+
+	const homography = calculateHomography(pointPairs);
+	const targetWidth = config.geometry.designWidth;
+	const targetHeight = config.geometry.designHeight;
+
+	const homographyMat = cv.matFromArray(3, 3, cv.CV_64FC1, homography);
+	const warped = new cv.Mat();
+
+	try {
+		cv.warpPerspective(
+			grayscale,
+			warped,
+			homographyMat,
+			new cv.Size(targetWidth, targetHeight),
+			cv.INTER_LINEAR | cv.WARP_INVERSE_MAP,
+			cv.BORDER_CONSTANT,
+			new cv.Scalar(255)
+		);
+		cv.normalize(warped, warped, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
+		return warped;
+	} finally {
+		deleteOpenCvObject(homographyMat);
+	}
+}
+
+/**
+ * Legacy entry point that normalizes from web-native ImageData using a
+ * JS pixel-loop warp. Prefer {@link normalizeMat} when a cv instance and
+ * grayscale Mat are already available.
+ */
 export function normalizeImageIfPossible(
 	config: OmrConfig,
 	imageData: ImageData,

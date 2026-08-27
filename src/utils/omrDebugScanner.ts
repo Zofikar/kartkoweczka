@@ -11,15 +11,18 @@ import {
 } from '@/utils/omr';
 
 import {
-	detectArucoMarkers,
+	detectArucoMarkersInMat,
 	detectQrCode,
-	normalizeImageIfPossible,
+	imageDataToGrayscaleMat,
+	matToImageData,
+	normalizeMat,
 	readAnalysisImage,
 	resolveOmrConfig,
 	type DebugPoint,
 	type DetectedArucoMarker,
 	type DetectedQrCode,
 } from '@/utils/omrScanner';
+import { deleteOpenCvObject, getOpenCv } from '@/utils/opencv';
 
 export type { DebugPoint, DetectedArucoMarker, DetectedQrCode };
 
@@ -42,12 +45,29 @@ export interface GradingSheetDebugResult {
 export async function analyzeGradingSheetImage(file: File): Promise<GradingSheetDebugResult> {
 	const image = await createImageBitmap(file);
 	const { imageData, pointToSource } = readAnalysisImage(image);
-	const analysisMarkers = await detectArucoMarkers(imageData);
-	const omrConfig = resolveOmrConfig(analysisMarkers);
-	const normalizedImage = normalizeImageIfPossible(omrConfig, imageData, analysisMarkers);
-	const qrCodeInMarkedArea = normalizedImage
-		? await detectQrCode(omrConfig, normalizedImage)
-		: null;
+
+	const cv = await getOpenCv();
+	const grayMat = imageDataToGrayscaleMat(cv, imageData);
+
+	let analysisMarkers: DetectedArucoMarker[];
+	/* eslint-disable-next-line no-useless-assignment -- `omrConfig` is used in the "finally" block. */
+	let omrConfig: OmrConfig = resolveOmrConfig([]);
+	let normalizedImage: ImageData | undefined;
+	let qrCodeInMarkedArea: DetectedQrCode | null = null;
+
+	try {
+		analysisMarkers = detectArucoMarkersInMat(cv, grayMat);
+		omrConfig = resolveOmrConfig(analysisMarkers);
+		const normalizedMat = normalizeMat(cv, omrConfig, grayMat, analysisMarkers);
+		if (normalizedMat) {
+			qrCodeInMarkedArea = await detectQrCode(cv, omrConfig, normalizedMat);
+			normalizedImage = matToImageData(cv, normalizedMat);
+			deleteOpenCvObject(normalizedMat);
+		}
+	} finally {
+		deleteOpenCvObject(grayMat);
+	}
+
 	const arucoMarkers = analysisMarkers.map((marker) => mapMarkerPoints(marker, pointToSource));
 	const markersWithExpectedMetadata = addExpectedMarkerMetadata(omrConfig, arucoMarkers);
 

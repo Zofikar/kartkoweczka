@@ -15,6 +15,8 @@ export interface Mat extends OpenCvDeletable {
 	readonly data32S: Int32Array;
 	readonly data32F: Float32Array;
 	readonly data64F: Float64Array;
+
+	copyTo(dst: Mat): void;
 }
 
 export interface MatVector extends OpenCvDeletable {
@@ -29,6 +31,13 @@ export interface Scalar {
 	2: number;
 	3: number;
 }
+
+export interface Size {
+	width: number;
+	height: number;
+}
+
+export type Dictionary = aruco_Dictionary;
 
 export interface Algorithm extends OpenCvDeletable {}
 
@@ -108,9 +117,40 @@ export interface aruco_RefineParameters extends OpenCvDeletable {
 export interface OpenCv {
 	Mat: new (...args: any[]) => Mat;
 	MatVector: new (...args: any[]) => MatVector;
+	Size: new (width: number, height: number) => Size;
+	Scalar: new (v0?: number, v1?: number, v2?: number, v3?: number) => Scalar;
 	matFromImageData(image: ImageData): Mat;
+	matFromArray(rows: number, cols: number, type: number, data: ArrayLike<number>): Mat;
 	encodeQRCode(text: string, correctionLevel: number): Mat;
+	CV_8UC1: number;
+	CV_8UC2: number;
+	CV_8UC3: number;
+	CV_8UC4: number;
+	CV_8SC1: number;
+	CV_16UC1: number;
+	CV_16SC1: number;
+	CV_32SC1: number;
+	CV_32FC1: number;
+	CV_64FC1: number;
 	mean(src: Mat, mask?: Mat): Scalar;
+	normalize(
+		src: Mat,
+		dst: Mat,
+		alpha?: number,
+		beta?: number,
+		norm_type?: number,
+		dtype?: number,
+		mask?: Mat
+	): void;
+	warpPerspective(
+		src: Mat,
+		dst: Mat,
+		M: Mat,
+		dsize: Size,
+		flags?: number,
+		borderMode?: number,
+		borderValue?: Scalar
+	): void;
 	cvtColor(src: Mat, dst: Mat, code: number, dstCn?: number, hint?: number): void;
 	generateImageMarker(
 		dictionary: Dictionary,
@@ -119,7 +159,7 @@ export interface OpenCv {
 		img: Mat,
 		borderBits?: number
 	): void;
-	getPredefinedDictionary(dict: number): aruco_Dictionary;
+	getPredefinedDictionary(dict: number): Dictionary;
 	SORT_EVERY_ROW: number;
 	SORT_EVERY_COLUMN: number;
 	SORT_ASCENDING: number;
