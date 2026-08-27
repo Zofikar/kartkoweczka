@@ -13,6 +13,9 @@
     <loc>http://127.0.0.1:4173/kartkoweczka/tests/new</loc>
   </url>
   <url>
+    <loc>http://127.0.0.1:4173/kartkoweczka/scanner</loc>
+  </url>
+  <url>
     <loc>http://127.0.0.1:4173/kartkoweczka/licenses.html</loc>
   </url>
 </urlset>

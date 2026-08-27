@@ -28,6 +28,7 @@ export const routes = [
 	{ id: 'tests_edit', label: 'Edytuj Test', path: '/tests/:id' },
 	{ id: 'test_new_revision', label: 'Nowa wersja', path: '/tests/:id/revision/new' },
 	{ id: 'test_revision', label: 'Edytuj wersje', path: '/tests/:id/revision/:revisionId' },
+	{ id: 'scanner', label: 'Skaner', path: '/scanner' },
 	{
 		id: 'debug-grading-sheet',
 		label: 'DEBUG: karta odpowiedzi',

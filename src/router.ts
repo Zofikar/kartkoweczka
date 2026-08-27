@@ -6,6 +6,7 @@ const QuestionsPage = () => import('./pages/questions/page.svelte');
 const TestsPage = () => import('./pages/tests/page.svelte');
 const TestDetailPage = () => import('./pages/tests/detail.svelte');
 const TestRevisionPage = () => import('./pages/tests/revision.svelte');
+const ScannerPage = () => import('./pages/scanner/page.svelte');
 const DebugGradingSheetPage = () => import('./pages/debug/grading-sheet.svelte');
 
 type RoutesMap = { [key in RoutePath]: RouteComponent };
@@ -17,6 +18,7 @@ const routesMap = {
 	'/tests/:id': TestDetailPage,
 	'/tests/:id/revision/new': TestRevisionPage,
 	'/tests/:id/revision/:revisionId': TestRevisionPage,
+	'/scanner': ScannerPage,
 	'/debug/grading-sheet': DebugGradingSheetPage,
 } satisfies RoutesMap;
 

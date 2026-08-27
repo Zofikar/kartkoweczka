@@ -279,7 +279,6 @@
 	}
 
 	.omr-grid-bounds {
-		border: 3px solid #0055ff;
 		box-sizing: border-box;
 		pointer-events: none;
 	}
