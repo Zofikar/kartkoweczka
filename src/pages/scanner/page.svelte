@@ -137,10 +137,12 @@
 	}
 
 	async function openPortraitCameraStream(): Promise<MediaStream> {
+		await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
 		const portraitConstraints: MediaStreamConstraints = {
 			video: {
 				facingMode: { ideal: 'environment' },
-				width: { ideal: 1440 },
+				width: { ideal: 9999 },
+				height: { ideal: 9999 },
 				aspectRatio: { ideal: 1 / Math.SQRT2 },
 				/* @ts-expect-error resize mode exists */
 				resizeMode: 'none',
@@ -476,9 +478,9 @@
 
 	.video-preview {
 		display: block;
-		width: 100%;
+		width: fit-content;
 		aspect-ratio: 9/16;
-		max-height: 75vh;
+		max-height: 60vh;
 		object-fit: cover;
 	}
 
