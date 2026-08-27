@@ -167,6 +167,13 @@ def emit_typescript(generator, white_list, namespace_prefix_override, output):
         "  3: number;",
         "}",
         "",
+        "export interface Size {",
+        "  width: number;",
+        "  height: number;",
+        "}",
+        "",
+        "export type Dictionary = aruco_Dictionary;",
+        "",
     ]
 
     #
@@ -238,8 +245,26 @@ def emit_typescript(generator, white_list, namespace_prefix_override, output):
 
     lines.append("  Mat: new (...args: any[]) => Mat;")
     lines.append("  MatVector: new (...args: any[]) => MatVector;")
+    lines.append("  Size: new (width: number, height: number) => Size;")
+    lines.append("  Scalar: new (v0?: number, v1?: number, v2?: number, v3?: number) => Scalar;")
     lines.append("  matFromImageData(image: ImageData): Mat;")
+    lines.append("  matFromArray(rows: number, cols: number, type: number, data: ArrayLike<number>): Mat;")
     lines.append("  encodeQRCode(text: string, correctionLevel: number): Mat;")
+    opencv_js_constants = [
+        "CV_8UC1",
+        "CV_8UC2",
+        "CV_8UC3",
+        "CV_8UC4",
+        "CV_8SC1",
+        "CV_16UC1",
+        "CV_16SC1",
+        "CV_32SC1",
+        "CV_32FC1",
+        "CV_64FC1",
+    ]
+
+    for name in opencv_js_constants:
+        lines.append(f"  {name}: number;")
 
     #
     # Global functions

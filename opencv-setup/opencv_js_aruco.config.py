@@ -3,6 +3,8 @@
 core = {
     '': [
         'mean',
+        'matFromArray',
+        'normalize',
     ],
     'Algorithm': [],
 }
@@ -10,6 +12,7 @@ core = {
 imgproc = {
     '': [
         'cvtColor',
+        'warpPerspective'
     ]
 }
 
