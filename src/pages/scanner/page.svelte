@@ -137,7 +137,6 @@
 	}
 
 	async function openPortraitCameraStream(): Promise<MediaStream> {
-		await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
 		const portraitConstraints: MediaStreamConstraints = {
 			video: {
 				facingMode: { ideal: 'environment' },
