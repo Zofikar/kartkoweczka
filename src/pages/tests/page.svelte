@@ -8,11 +8,13 @@
 	import PageHeader from '@/lib/ui/PageHeader.svelte';
 	import EmptyState from '@/lib/components/EmptyState.svelte';
 	import { listTests, type TestSummary } from '@/db/repositories';
+	import ImportTestModal from '@/lib/components/ImportTestModal.svelte';
 	import { snackError } from '@/lib/stores/snackbar.svelte';
 	import { navigate, p } from '@/router';
 
 	let tests = $state<TestSummary[]>([]);
 	let loading = $state(true);
+	let importOpen = $state(false);
 
 	onMount(() => {
 		void refreshTests();
@@ -42,6 +44,7 @@
 <div class="tests-page">
 	<PageHeader title="Testy">
 		{#snippet actions()}
+			<Button variant="outline" onclick={() => (importOpen = true)}>Importuj test</Button>
 			<Button variant="primary" onclick={() => navigate('/tests/new')}>+ Nowy test</Button>
 		{/snippet}
 	</PageHeader>
@@ -76,6 +79,12 @@
 		</div>
 	{/if}
 </div>
+
+<ImportTestModal
+	open={importOpen}
+	onclose={() => (importOpen = false)}
+	onImported={(id) => navigate('/tests/:id', { params: { id } })}
+/>
 
 <style>
 	.tests-page {

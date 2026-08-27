@@ -37,7 +37,8 @@ export const questions = sqliteTable('questions', {
 		mode: 'timestamp_ms',
 	})
 		.notNull()
-		.$defaultFn(() => new Date()),
+		.$defaultFn(() => new Date())
+		.$onUpdateFn(() => new Date()),
 });
 
 // ─── question_tags ──────────────────────────────────────────────────────────
@@ -101,7 +102,8 @@ export const tests = sqliteTable('tests', {
 		mode: 'timestamp_ms',
 	})
 		.notNull()
-		.$defaultFn(() => new Date()),
+		.$defaultFn(() => new Date())
+		.$onUpdateFn(() => new Date()),
 });
 
 // ─── test_questions ─────────────────────────────────────────────────────────

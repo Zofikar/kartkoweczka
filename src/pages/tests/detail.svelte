@@ -11,6 +11,7 @@
 	import QuestionFiltersBar from '@/lib/components/QuestionFiltersBar.svelte';
 	import QuestionView from '@/lib/components/QuestionView.svelte';
 	import EmptyState from '@/lib/components/EmptyState.svelte';
+	import ExportTestModal from '@/lib/components/ExportTestModal.svelte';
 	import {
 		createTest,
 		deleteTest,
@@ -40,6 +41,7 @@
 	let loaded = $state(false);
 	let error = $state<string | null>(null);
 	let saving = $state(false);
+	let exportOpen = $state(false);
 
 	// Default to view mode for existing tests; new tests open in edit mode.
 	let editMode = $state(false);
@@ -288,6 +290,7 @@
 	<PageHeader title={isNew ? 'Nowy test' : editMode ? 'Edytuj test' : name}>
 		{#snippet actions()}
 			{#if !isNew}
+				<Button variant="outline" size="sm" onclick={() => (exportOpen = true)}>Eksportuj</Button>
 				<SegmentedControl
 					role="tablist"
 					aria-label="Tryb widoku"
@@ -486,6 +489,13 @@
 >
 	Masz niezapisane zmiany. Przejście do podglądu spowoduje ich utratę.
 </ConfirmModal>
+
+<ExportTestModal
+	open={exportOpen}
+	onclose={() => (exportOpen = false)}
+	testId={testId ?? ''}
+	testName={name}
+/>
 
 <style>
 	.detail-page {
