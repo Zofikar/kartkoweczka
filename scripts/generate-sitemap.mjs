@@ -4,7 +4,11 @@ import { loadEnv } from 'vite';
 const mode = process.env.NODE_ENV || 'production';
 const env = loadEnv(mode, process.cwd(), '');
 const origin = env.VITE_ORIGIN;
-const basePath = env.VITE_BASE_PATH || '';
+const basePath = env.VITE_BASE_PATH
+	? env.VITE_BASE_PATH.endsWith('/')
+		? env.VITE_BASE_PATH.substring(0, -1)
+		: env.VITE_BASE_PATH
+	: '';
 const schema = env.VITE_SCHEMA || 'http';
 const siteUrl = schema + '://' + origin + basePath;
 

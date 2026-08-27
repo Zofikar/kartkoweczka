@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /debug/
 
-Sitemap: http://127.0.0.1:4173/kartkoweczka/sitemap.xml
+Sitemap: https://kartkoweczka.internal/sitemap.xml

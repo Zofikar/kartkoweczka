@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>http://127.0.0.1:4173/kartkoweczka/</loc>
+    <loc>https://kartkoweczka.internal/</loc>
   </url>
   <url>
-    <loc>http://127.0.0.1:4173/kartkoweczka/questions</loc>
+    <loc>https://kartkoweczka.internal/questions</loc>
   </url>
   <url>
-    <loc>http://127.0.0.1:4173/kartkoweczka/tests</loc>
+    <loc>https://kartkoweczka.internal/tests</loc>
   </url>
   <url>
-    <loc>http://127.0.0.1:4173/kartkoweczka/tests/new</loc>
+    <loc>https://kartkoweczka.internal/tests/new</loc>
   </url>
   <url>
-    <loc>http://127.0.0.1:4173/kartkoweczka/scanner</loc>
+    <loc>https://kartkoweczka.internal/scanner</loc>
   </url>
   <url>
-    <loc>http://127.0.0.1:4173/kartkoweczka/licenses.html</loc>
+    <loc>https://kartkoweczka.internal/licenses.html</loc>
   </url>
 </urlset>

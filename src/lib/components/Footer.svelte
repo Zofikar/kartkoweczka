@@ -20,7 +20,9 @@
 		{copyrightHolder}
 	</span>
 	<a
-		href="{import.meta.env.BASE_URL}/licenses.html"
+		href="{import.meta.env.BASE_URL}{import.meta.env.BASE_URL.endsWith('/')
+			? ''
+			: '/'}licenses.html"
 		class="footer-link"
 		target="_blank"
 		rel="noopener">Licencje</a

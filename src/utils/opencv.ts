@@ -12,6 +12,10 @@ import type { OpenCv, OpenCvDeletable } from '@/types/opencv';
 
 let cvPromise: Promise<OpenCv> | undefined;
 
+function getBaseAssetUrl(path: string): string {
+	return `${import.meta.env.BASE_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+}
+
 /** Load the bundled OpenCV.js build once and reuse it for every caller. */
 export function getOpenCv(): Promise<OpenCv> {
 	cvPromise ??= loadOpenCv();
@@ -20,7 +24,7 @@ export function getOpenCv(): Promise<OpenCv> {
 
 async function loadOpenCv(): Promise<OpenCv> {
 	const script = document.createElement('script');
-	script.src = `${import.meta.env.BASE_URL}/opencv/opencv.js`;
+	script.src = getBaseAssetUrl('opencv/opencv.js');
 	script.async = true;
 
 	const loaded = new Promise<void>((resolve, reject) => {
