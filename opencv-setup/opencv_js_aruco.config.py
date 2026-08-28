@@ -5,6 +5,7 @@ core = {
         'mean',
         'matFromArray',
         'normalize',
+        'Mat'
     ],
     'Algorithm': [],
 }
@@ -12,7 +13,12 @@ core = {
 imgproc = {
     '': [
         'cvtColor',
-        'warpPerspective'
+        'warpPerspective',
+        'erode',
+        'dilate',
+        'morphologyEx',
+        'getStructuringElement',
+        'GaussianBlur',
     ]
 }
 
