@@ -13,18 +13,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Restore FOSSA CLI cache
-        id: cache-fossa
-        uses: actions/cache@v4
-        with:
-          path: .fossa-bin/
-          key: fossa-cli-${{ runner.os }}
+      - name: Setup Project
+        uses: ./.github/actions/setup
 
       - name: Install FOSSA CLI
-        if: steps.cache-fossa.outputs.cache-hit != 'true'
         run: |
           mkdir -p .fossa-bin
-          curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash -s -- -b .fossa-bin
+          curl --fail --silent --show-error --location https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash -s -- -b .fossa-bin
 
       - name: Add FOSSA to PATH
         run: echo "$PWD/.fossa-bin" >> $GITHUB_PATH
@@ -33,20 +28,17 @@ jobs:
         env:
           FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
         run: |
-          fossa analyze || echo "Fossa analyze skipped or failed, attempting report generation..."
-
-          echo "Waiting for Fossa analysis to complete..."
-          fossa test
-
+          if [ -z "$FOSSA_API_KEY" ]; then
+            echo "::error::Configure the FOSSA_API_KEY repository secret before generating reports."
+            exit 1
+          fi
+          fossa analyze
+          # Report generation waits for analysis without enforcing policy checks.
           fossa report attribution --format markdown > LICENSES.md
           fossa report attribution --format html > public/licenses.html
 
       - name: Inject declared project license
         run: python3 .github/scripts/inject_declared_license
-
-      - name: Setup Project
-        if: success()
-        uses: ./.github/actions/setup
 
       - name: Format Licenses
         if: success()

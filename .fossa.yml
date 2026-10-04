@@ -8,6 +8,8 @@ targets:
   only:
     - type: yarn
       path: .
+    - type: cargo
+      path: src-tauri
 
 telemetry:
   scope: 'off'

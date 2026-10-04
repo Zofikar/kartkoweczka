@@ -1,6 +1,22 @@
+# Keep versions in sync with openOmr/docker/Dockerfile.
 remote-dependencies:
   - name: opencv
     version: '4.14.0'
     url: https://github.com/opencv/opencv/archive/refs/tags/4.14.0.tar.gz
     metadata:
       homepage: https://github.com/opencv/opencv
+  - name: opencv_contrib
+    version: '4.14.0'
+    url: https://github.com/opencv/opencv_contrib/archive/refs/tags/4.14.0.tar.gz
+    metadata:
+      homepage: https://github.com/opencv/opencv_contrib
+  - name: freetype
+    version: '2.13.3'
+    url: https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-2-13-3/freetype-VER-2-13-3.tar.gz
+    metadata:
+      homepage: https://freetype.org
+  - name: harfbuzz
+    version: '10.2.0'
+    url: https://github.com/harfbuzz/harfbuzz/archive/refs/tags/10.2.0.tar.gz
+    metadata:
+      homepage: https://github.com/harfbuzz/harfbuzz

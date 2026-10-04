@@ -112,3 +112,15 @@ Desktop udostępnia sprawdzanie aktualizacji i osobne potwierdzenie instalacji z
 Android aktualizuje się przez ręczną instalację APK. Podpis updatera nie zastępuje podpisu
 Windows Authenticode. Pełny pipeline wymaga sprawdzenia na runnerach GitHub oraz testu instalacji
 i aktualizacji na urządzeniach docelowych.
+
+### Raporty licencji (FOSSA)
+
+Workflow `update-license.yml` uruchamiany ręcznie wymaga sekretu `FOSSA_API_KEY`
+z uprawnieniami do analizy projektu i pobierania raportów. Analizuje zależności Yarn
+oraz Rust z `src-tauri`, a następnie tworzy PR aktualizujący `LICENSES.md` i
+`public/licenses.html`. Niepowodzenie analizy zatrzymuje generowanie raportów;
+wyniki kontroli polityk FOSSA nie blokują pobierania informacji o licencjach.
+
+Zależności kompilowane przez OMR są zadeklarowane w `fossa-deps.yml`. Przy zmianie
+wersji OpenCV, OpenCV contrib, FreeType lub HarfBuzz w `openOmr/docker/Dockerfile`
+zaktualizuj również wersje i adresy archiwów w tym pliku.
