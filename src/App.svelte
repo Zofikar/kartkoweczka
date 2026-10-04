@@ -8,6 +8,7 @@
 	import Sidebar from './lib/components/Sidebar.svelte';
 	import LockScreen from './lib/components/LockScreen.svelte';
 	import Snackbar from './lib/ui/Snackbar.svelte';
+	import { i18n } from './lib/i18n.svelte';
 
 	interface BeforeInstallPromptEvent extends Event {
 		prompt: () => Promise<void>;
@@ -20,6 +21,7 @@
 	let sidebarOpen = $state(false);
 
 	onMount(() => {
+		i18n.initialize();
 		try {
 			const stored = localStorage.getItem('theme');
 			if (stored === 'light') {
@@ -66,6 +68,8 @@
 <Nav
 	brandName="Kartkówka"
 	{isLight}
+	locale={i18n.locale}
+	onlocalechange={(locale) => i18n.setLocale(locale)}
 	ontoggletheme={toggleTheme}
 	onmenutoggle={() => (sidebarOpen = !sidebarOpen)}
 />

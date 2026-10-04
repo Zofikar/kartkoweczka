@@ -15,6 +15,7 @@
 		joinTransferRoom,
 	} from '@/utils/roomTransfer';
 	import type { MessageAction, Room } from 'trystero';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	interface Props {
 		open?: boolean;
@@ -49,9 +50,9 @@
 		try {
 			const json = await ExportTestJson(testId);
 			downloadFile(buildFileName(testName, 'json'), json, 'application/json');
-			snackSuccess('Wyeksportowano test jako JSON');
+			snackSuccess(i18n.t('transfer.export.jsonSuccess'));
 		} catch (err) {
-			snackError('Nie udało się wyeksportować testu');
+			snackError(i18n.t('transfer.export.error'));
 			console.error('Failed to export test (JSON):', err);
 		} finally {
 			exporting = false;
@@ -63,9 +64,9 @@
 		try {
 			const bytes = await ExportTestBinary(testId);
 			downloadFile(buildFileName(testName, 'kart'), bytes, 'application/octet-stream');
-			snackSuccess('Wyeksportowano test jako plik binarny');
+			snackSuccess(i18n.t('transfer.export.binarySuccess'));
 		} catch (err) {
-			snackError('Nie udało się wyeksportować testu');
+			snackError(i18n.t('transfer.export.error'));
 			console.error('Failed to export test (binary):', err);
 		} finally {
 			exporting = false;
@@ -100,7 +101,7 @@
 			await action.send(bin, { target: peerId });
 			roomStatus = 'sent';
 		} catch (err) {
-			roomError = 'Nie udało się wysłać testu.';
+			roomError = i18n.t('transfer.export.sendError');
 			roomStatus = 'error';
 			console.error('Failed to send test over room:', err);
 		}
@@ -126,47 +127,49 @@
 	}
 </script>
 
-<Modal {open} onclose={close} title="Eksportuj test">
+<Modal {open} onclose={close} title={i18n.t('transfer.export.title')}>
 	<div class="modal-content">
 		<Text variant="muted" as="span">
-			Uwaga: po zaimportowaniu tego pliku test na drugim urządzeniu zostanie nadpisany tą wersją.
+			{i18n.t('transfer.export.warning')}
 		</Text>
 
-		<Heading level={5}>Plik</Heading>
+		<Heading level={5}>{i18n.t('transfer.file')}</Heading>
 		<div class="method-list">
 			<Button variant="outline" onclick={exportJson} disabled={exporting}>
-				{exporting ? 'Eksportowanie...' : 'Pobierz jako plik JSON'}
+				{exporting ? i18n.t('transfer.export.exporting') : i18n.t('transfer.export.downloadJson')}
 			</Button>
 			<Button variant="outline" onclick={exportBinary} disabled={exporting}>
-				Pobierz jako plik binarny
+				{i18n.t('transfer.export.downloadBinary')}
 			</Button>
 		</div>
 
 		<Divider />
 
-		<Heading level={5}>Przesyłanie bezpośrednie (P2P)</Heading>
+		<Heading level={5}>{i18n.t('transfer.export.p2pTitle')}</Heading>
 		<Text variant="muted">
-			Wygeneruj krótki kod i wprowadź go na drugim urządzeniu, aby przesłać test bezpośrednio przez
-			sieć.
+			{i18n.t('transfer.export.p2pDescription')}
 		</Text>
 
 		{#if roomStatus === 'idle'}
-			<Button variant="primary" onclick={startRoom}>Wygeneruj kod</Button>
+			<Button variant="primary" onclick={startRoom}>{i18n.t('transfer.export.generateCode')}</Button
+			>
 		{:else}
 			<div class="room-code-box">
-				<Text variant="small">Kod pokoju</Text>
+				<Text variant="small">{i18n.t('transfer.roomCode')}</Text>
 				<div class="room-code">{roomCode}</div>
 			</div>
 
 			{#if roomStatus === 'waiting'}
-				<Text variant="muted">Oczekiwanie na drugie urządzenie...</Text>
+				<Text variant="muted">{i18n.t('transfer.export.waiting')}</Text>
 			{:else if roomStatus === 'sending'}
-				<Text variant="muted">Wysyłanie testu...</Text>
+				<Text variant="muted">{i18n.t('transfer.export.sending')}</Text>
 			{:else if roomStatus === 'sent'}
-				<Text>Wysłano! Możesz zamknąć to okno.</Text>
+				<Text>{i18n.t('transfer.export.sent')}</Text>
 			{:else if roomStatus === 'expired'}
-				<Text variant="error">Kod wygasł. Wygeneruj nowy kod.</Text>
-				<Button variant="outline" size="sm" onclick={startRoom}>Wygeneruj nowy kod</Button>
+				<Text variant="error">{i18n.t('transfer.export.expired')}</Text>
+				<Button variant="outline" size="sm" onclick={startRoom}
+					>{i18n.t('transfer.export.newCode')}</Button
+				>
 			{:else if roomStatus === 'error'}
 				<Text variant="error">{roomError}</Text>
 			{/if}
@@ -174,7 +177,7 @@
 	</div>
 
 	{#snippet footer()}
-		<Button variant="ghost" onclick={close}>Zamknij</Button>
+		<Button variant="ghost" onclick={close}>{i18n.t('common.close')}</Button>
 	{/snippet}
 </Modal>
 

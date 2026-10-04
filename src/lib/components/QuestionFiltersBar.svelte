@@ -3,6 +3,7 @@
 	import Select from '@/lib/ui/Select.svelte';
 	import TagSelect from './TagSelect.svelte';
 	import type { QuestionType } from '@/db/repositories';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	interface Props {
 		filterType?: QuestionType | null;
@@ -33,20 +34,20 @@
 
 <div class="filters-bar">
 	<Select
-		label="Typ pytania"
+		label={i18n.t('questions.filters.type')}
 		size="md"
 		bind:value={filterType}
 		onchange={() => onchange?.()}
 		options={[
-			{ value: null, label: 'Wszystkie' },
-			{ value: 'choice', label: 'Jednokrotny wybór' },
-			{ value: 'true_false', label: 'Prawda / Fałsz' },
+			{ value: null, label: i18n.t('questions.filters.all') },
+			{ value: 'choice', label: i18n.t('questionType.choice') },
+			{ value: 'true_false', label: i18n.t('questionType.trueFalse') },
 		]}
 	/>
 
 	<div class="filter-group--tags">
 		<TagSelect
-			label="Tagi"
+			label={i18n.t('questions.filters.tags')}
 			size="md"
 			selected={filterTags}
 			{allTags}
@@ -58,19 +59,21 @@
 	</div>
 
 	<Select
-		label="Tryb tagów"
+		label={i18n.t('questions.filters.tagMode')}
 		size="md"
 		bind:value={filterTagMode}
 		onchange={() => onchange?.()}
 		disabled={filterTags.length === 0}
 		options={[
-			{ value: 'any', label: 'Dowolny (ANY)' },
-			{ value: 'all', label: 'Wszystkie (ALL)' },
+			{ value: 'any', label: i18n.t('questions.filters.any') },
+			{ value: 'all', label: i18n.t('questions.filters.allTags') },
 		]}
 	/>
 
 	{#if hasActiveFilters}
-		<Button variant="ghost" size="md" onclick={clearFilters}>Wyczyść filtry</Button>
+		<Button variant="ghost" size="md" onclick={clearFilters}
+			>{i18n.t('questions.filters.clear')}</Button
+		>
 	{/if}
 </div>
 

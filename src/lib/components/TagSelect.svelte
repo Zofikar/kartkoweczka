@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Badge from '@/lib/ui/Badge.svelte';
 	import Field from '@/lib/ui/Field.svelte';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	interface Props {
 		selected: string[];
@@ -80,7 +81,7 @@
 						<button
 							type="button"
 							class="tag-chip-remove"
-							aria-label="Usuń tag {tag}"
+							aria-label={i18n.t('tags.remove', { tag })}
 							onclick={() => removeTag(tag)}
 						>
 							✕
@@ -92,11 +93,11 @@
 					bind:value={inputValue}
 					type="text"
 					class="tag-input"
-					placeholder={selected.length === 0 ? 'Dodaj tagi...' : ''}
+					placeholder={selected.length === 0 ? i18n.t('tags.placeholder') : ''}
 					onkeydown={handleKeydown}
 					onfocus={handleFocus}
 					onblur={handleBlur}
-					aria-label="Wyszukaj lub dodaj tag"
+					aria-label={i18n.t('tags.search')}
 				/>
 			</div>
 		</div>
@@ -110,7 +111,7 @@
 						onmousedown={(e) => e.preventDefault()}
 						onclick={() => addTag(newTagMatch)}
 					>
-						Utwórz tag "<strong>{newTagMatch}</strong>"
+						{i18n.t('tags.create', { tag: newTagMatch })}
 					</button>
 				{/if}
 				{#each filteredTags as tag (tag)}

@@ -3,6 +3,7 @@
 	import ListItem from '../ui/List/ListItem.svelte';
 	import { onMount } from 'svelte';
 	import { isActive, p, type Route, staticRoutes, staticRoutesChildren } from '@/router';
+	import { i18n, type TranslationKey } from '../i18n.svelte';
 
 	interface Props {
 		mobileOpen?: boolean;
@@ -47,6 +48,19 @@
 	function handleDrawerKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && mobileOpen) onclose?.();
 	}
+
+	const routeLabels: Record<string, TranslationKey> = {
+		home: 'nav.home',
+		questions: 'nav.questions',
+		tests: 'nav.tests',
+		scanner: 'nav.scanner',
+		'debug-grading-sheet': 'nav.debugSheet',
+	};
+
+	function pageLabel(id: string, fallback: string) {
+		const key = routeLabels[id];
+		return key ? i18n.t(key) : fallback;
+	}
 </script>
 
 <svelte:window onkeydown={handleDrawerKeydown} />
@@ -59,12 +73,12 @@
 				onclick={(e) => e.stopPropagation()}
 				{...restProps}
 			>
-				<nav aria-label="Nawigacja główna">
+				<nav aria-label={i18n.t('nav.main')}>
 					<List>
 						{#each pages as page (page.id)}
 							<ListItem active={pageIsActive(page.path)}>
 								<a href={p(page.path)} class="sidebar-link" onclick={handleNav}>
-									{page.label}
+									{pageLabel(page.id, page.label)}
 								</a>
 							</ListItem>
 						{/each}
@@ -75,12 +89,12 @@
 	{/if}
 {:else}
 	<aside class="sidebar" {...restProps}>
-		<nav aria-label="Nawigacja główna">
+		<nav aria-label={i18n.t('nav.main')}>
 			<List>
 				{#each pages as page (page.id)}
 					<ListItem active={pageIsActive(page.path)}>
 						<a href={p(page.path)} class="sidebar-link">
-							{page.label}
+							{pageLabel(page.id, page.label)}
 						</a>
 					</ListItem>
 				{/each}

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import IconButton from '@/lib/ui/IconButton.svelte';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	interface Props {
 		/** Disable the up button (e.g. first item). */
@@ -11,14 +12,14 @@
 		onmove?: (direction: -1 | 1) => void;
 	}
 
-	let { disableUp = false, disableDown = false, itemLabel = 'element', onmove }: Props = $props();
+	let { disableUp = false, disableDown = false, itemLabel, onmove }: Props = $props();
 </script>
 
 <div class="order-controls">
 	<IconButton
 		variant="outline"
 		size="sm"
-		ariaLabel="Przesuń {itemLabel} wyżej"
+		ariaLabel={i18n.t('order.up', { item: itemLabel ?? i18n.t('order.item') })}
 		disabled={disableUp}
 		onclick={() => onmove?.(-1)}
 	>
@@ -27,7 +28,7 @@
 	<IconButton
 		variant="outline"
 		size="sm"
-		ariaLabel="Przesuń {itemLabel} niżej"
+		ariaLabel={i18n.t('order.down', { item: itemLabel ?? i18n.t('order.item') })}
 		disabled={disableDown}
 		onclick={() => onmove?.(1)}
 	>

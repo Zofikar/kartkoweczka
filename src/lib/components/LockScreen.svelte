@@ -2,6 +2,7 @@
 	import Heading from '../ui/Heading.svelte';
 	import Text from '../ui/Text.svelte';
 	import Button from '../ui/Button.svelte';
+	import { i18n } from '../i18n.svelte';
 
 	interface Props {
 		deferredPrompt?: boolean;
@@ -14,15 +15,14 @@
 </script>
 
 <div class="lock-screen" {...restProps}>
-	<Heading level={1}>Wymagana instalacja aplikacji</Heading>
-	<Text variant="body">Ta aplikacja działa wyłącznie jako zainstalowane PWA.</Text>
+	<Heading level={1}>{i18n.t('lock.title')}</Heading>
+	<Text variant="body">{i18n.t('lock.description')}</Text>
 
 	{#if deferredPrompt}
-		<Button variant="primary" onclick={oninstall}>Zainstaluj aplikację</Button>
+		<Button variant="primary" onclick={oninstall}>{i18n.t('lock.install')}</Button>
 	{:else}
 		<Text variant="muted">
-			Używasz urządzenia z iOS? Otwórz menu udostępnienia w przeglądarce i wybierz
-			<strong>"Do ekranu początkowego"</strong>.
+			{i18n.t('lock.iosPrefix')} <strong>{i18n.t('lock.iosAction')}</strong>.
 		</Text>
 	{/if}
 </div>

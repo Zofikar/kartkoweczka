@@ -3,11 +3,12 @@
 	import 'quill/dist/quill.bubble.css';
 	import Quill from 'quill';
 	import Delta from 'quill-delta';
-	import type { MathfieldElement } from 'mathlive';
+	import { MathfieldElement } from 'mathlive';
 	import type { Blot } from 'parchment';
 	import Button from '@/lib/ui/Button.svelte';
 	import IconButton from '@/lib/ui/IconButton.svelte';
 	import { registerMathChipBlot, extractPlainText, parseTextToOps } from '@/utils/richText';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	interface Props {
 		value?: string;
@@ -26,6 +27,10 @@
 	}: Props = $props();
 
 	registerMathChipBlot();
+
+	$effect(() => {
+		MathfieldElement.locale = i18n.locale;
+	});
 
 	let editorContainerEl: HTMLDivElement | undefined = $state();
 	let quill: Quill | undefined;
@@ -188,19 +193,19 @@
 	<IconButton
 		variant="outline"
 		{size}
-		ariaLabel="Wstaw wzór matematyczny"
+		ariaLabel={i18n.t('mathEditor.insert')}
 		onclick={openPopoverForNew}
-		title="Wstaw wzór matematyczny"
+		title={i18n.t('mathEditor.insert')}
 	>
 		∑
 	</IconButton>
 
 	{#if showPopover}
-		<div class="math-popover" role="dialog" aria-label="Edytor wzoru matematycznego">
+		<div class="math-popover" role="dialog" aria-label={i18n.t('mathEditor.dialog')}>
 			<math-field
 				bind:this={popoverMf}
 				role="textbox"
-				aria-label="Wprowadź wzór matematyczny"
+				aria-label={i18n.t('mathEditor.input')}
 				tabindex="0"
 				oninput={handleMfInput}
 				onkeydown={onMfKeydown}
@@ -208,8 +213,10 @@
 				default-mode="inline-math"
 			></math-field>
 			<div class="math-popover-actions">
-				<Button variant="ghost" size="sm" onclick={cancelPopover}>Anuluj</Button>
-				<Button variant="primary" size="sm" onclick={confirmPopover}>Wstaw wzór</Button>
+				<Button variant="ghost" size="sm" onclick={cancelPopover}>{i18n.t('common.cancel')}</Button>
+				<Button variant="primary" size="sm" onclick={confirmPopover}
+					>{i18n.t('mathEditor.confirm')}</Button
+				>
 			</div>
 		</div>
 	{/if}

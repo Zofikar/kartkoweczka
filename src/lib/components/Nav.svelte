@@ -1,11 +1,15 @@
 <script lang="ts">
 	import IconButton from '../ui/IconButton.svelte';
+	import Select from '../ui/Select.svelte';
+	import { i18n, type Locale } from '../i18n.svelte';
 
 	interface Props {
 		brandName?: string;
 		isLight: boolean;
 		ontoggletheme?: () => void;
 		onmenutoggle?: () => void;
+		locale: Locale;
+		onlocalechange?: (locale: Locale) => void;
 		class?: never;
 		[k: string]: unknown;
 	}
@@ -15,6 +19,8 @@
 		isLight,
 		ontoggletheme,
 		onmenutoggle,
+		locale,
+		onlocalechange,
 
 		...restProps
 	}: Props = $props();
@@ -22,7 +28,12 @@
 
 <nav class="primary nav-bar" {...restProps}>
 	<span class="menu-toggle-wrapper">
-		<IconButton variant="primary" size="md" ariaLabel="Otwórz menu" onclick={onmenutoggle}>
+		<IconButton
+			variant="primary"
+			size="md"
+			ariaLabel={i18n.t('nav.openMenu')}
+			onclick={onmenutoggle}
+		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
 				width="20"
@@ -42,10 +53,21 @@
 	</span>
 	<span class="nav-brand">{brandName}</span>
 	<span class="nav-spacer"></span>
+	<Select
+		size="sm"
+		value={locale}
+		aria-label={i18n.t('language.label')}
+		options={[
+			{ value: 'pl', label: i18n.t('language.polish') },
+			{ value: 'en', label: i18n.t('language.english') },
+		]}
+		onchange={(event) =>
+			onlocalechange?.((event.currentTarget as HTMLSelectElement).value as Locale)}
+	/>
 	<IconButton
 		variant="primary"
 		size="md"
-		ariaLabel={isLight ? 'Przełącz na tryb ciemny' : 'Przełącz na tryb jasny'}
+		ariaLabel={isLight ? i18n.t('theme.toDark') : i18n.t('theme.toLight')}
 		onclick={ontoggletheme}
 	>
 		{#if isLight}

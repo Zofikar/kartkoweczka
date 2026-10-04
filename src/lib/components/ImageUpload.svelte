@@ -3,6 +3,7 @@
 	import SegmentedControl from '@/lib/ui/SegmentedControl.svelte';
 	import type { ImagePlacement } from '@/db/repositories';
 	import { computeImageMaxLines, computeImageMinLines } from '@/utils/paper';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	interface Props {
 		image?: string | null;
@@ -117,11 +118,11 @@
 
 	{#if image}
 		<div class="image-preview-layout">
-			<img class="image-preview" src={image} alt="Podgląd obrazu" />
+			<img class="image-preview" src={image} alt={i18n.t('imageUpload.preview')} />
 			<div class="image-controls">
 				<label class="control-label">
 					<span class="control-label-text">
-						Wysokość obrazu: {clampedHeight} linii
+						{i18n.t('imageUpload.height', { count: clampedHeight })}
 					</span>
 					<input
 						type="range"
@@ -133,31 +134,37 @@
 						class="height-slider"
 					/>
 					<span class="control-hint">
-						{minLines} &ndash; {maxLines} linii (domyślnie {DEFAULT_LINES})
+						{i18n.t('imageUpload.range', { min: minLines, max: maxLines, default: DEFAULT_LINES })}
 					</span>
 				</label>
 				<fieldset class="placement-fieldset">
-					<legend class="control-label-text">Położenie obrazu</legend>
+					<legend class="control-label-text">{i18n.t('imageUpload.placement')}</legend>
 					<SegmentedControl
-						aria-label="Położenie obrazu względem odpowiedzi"
+						aria-label={i18n.t('imageUpload.placementAria')}
 						size="sm"
 						value={imagePlacement ?? 'over'}
 						options={[
-							{ value: 'over', label: 'Nad' },
-							{ value: 'left', label: 'Lewo' },
-							{ value: 'right', label: 'Prawo' },
+							{ value: 'over', label: i18n.t('imageUpload.over') },
+							{ value: 'left', label: i18n.t('imageUpload.left') },
+							{ value: 'right', label: i18n.t('imageUpload.right') },
 						]}
 						onchange={onPlacementChange}
 					/>
 				</fieldset>
 				<div class="image-actions">
-					<Button variant="outline" size="sm" onclick={triggerFilePicker}>Zmień obraz</Button>
-					<Button variant="danger" size="sm" onclick={removeImage}>Usuń obraz</Button>
+					<Button variant="outline" size="sm" onclick={triggerFilePicker}
+						>{i18n.t('imageUpload.change')}</Button
+					>
+					<Button variant="danger" size="sm" onclick={removeImage}
+						>{i18n.t('imageUpload.remove')}</Button
+					>
 				</div>
 			</div>
 		</div>
 	{:else}
-		<Button variant="outline" size="sm" onclick={triggerFilePicker}>+ Dodaj obraz</Button>
+		<Button variant="outline" size="sm" onclick={triggerFilePicker}
+			>{i18n.t('imageUpload.add')}</Button
+		>
 	{/if}
 </div>
 

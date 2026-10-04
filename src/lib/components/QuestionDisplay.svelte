@@ -3,6 +3,7 @@
 	import Text from '@/lib/ui/Text.svelte';
 	import QuestionView from './QuestionView.svelte';
 	import type { QuestionWithAnswers } from '@/db/repositories';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	interface Props {
 		question: QuestionWithAnswers;
@@ -28,13 +29,15 @@
 		imageHeight={question.imageHeight}
 	>
 		{#snippet actions()}
-			<Button variant="outline" size="sm" onclick={onedit} disabled={disableEdit}>Edytuj</Button>
-			<Button variant="danger" size="sm" onclick={ondelete}>Usuń</Button>
+			<Button variant="outline" size="sm" onclick={onedit} disabled={disableEdit}
+				>{i18n.t('common.edit')}</Button
+			>
+			<Button variant="danger" size="sm" onclick={ondelete}>{i18n.t('common.delete')}</Button>
 		{/snippet}
 	</QuestionView>
 
 	{#if question.answers.length === 0}
-		<Text variant="muted">Brak odpowiedzi dla tego pytania.</Text>
+		<Text variant="muted">{i18n.t('questions.noAnswers')}</Text>
 	{/if}
 </article>
 

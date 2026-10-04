@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import Button from './Button.svelte';
 	import Modal from './Modal.svelte';
+	import { i18n } from '../i18n.svelte';
 
 	interface Props {
 		open?: boolean;
@@ -19,8 +20,8 @@
 	let {
 		open = false,
 		title,
-		confirmLabel = 'Potwierdź',
-		cancelLabel = 'Anuluj',
+		confirmLabel,
+		cancelLabel,
 		confirmVariant = 'danger',
 		onconfirm,
 		oncancel,
@@ -35,8 +36,10 @@
 		{#if actions}
 			{@render actions()}
 		{:else}
-			<Button variant="ghost" onclick={oncancel}>{cancelLabel}</Button>
-			<Button variant={confirmVariant} onclick={onconfirm}>{confirmLabel}</Button>
+			<Button variant="ghost" onclick={oncancel}>{cancelLabel ?? i18n.t('common.cancel')}</Button>
+			<Button variant={confirmVariant} onclick={onconfirm}
+				>{confirmLabel ?? i18n.t('common.confirm')}</Button
+			>
 		{/if}
 	{/snippet}
 </Modal>

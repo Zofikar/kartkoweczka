@@ -1,19 +1,25 @@
 <script lang="ts">
 	import { getSnacks, dismissSnack } from '@/lib/stores/snackbar.svelte';
 	import IconButton from './IconButton.svelte';
+	import { i18n } from '../i18n.svelte';
 
 	let snacks = $derived(getSnacks());
 </script>
 
 {#if snacks.length > 0}
-	<div class="snackbar-container" role="status" aria-live="polite" aria-label="Powiadomienia">
+	<div
+		class="snackbar-container"
+		role="status"
+		aria-live="polite"
+		aria-label={i18n.t('snackbar.notifications')}
+	>
 		{#each snacks as snack (snack.id)}
 			<div class="snack snack--{snack.flavor}">
 				<span class="snack-message">{snack.message}</span>
 				<IconButton
 					variant="ghost"
 					size="sm"
-					ariaLabel="Zamknij powiadomienie"
+					ariaLabel={i18n.t('snackbar.close')}
 					onclick={() => dismissSnack(snack.id)}
 				>
 					✕

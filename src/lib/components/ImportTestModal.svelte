@@ -15,6 +15,7 @@
 		normalizeRoomCode,
 	} from '@/utils/roomTransfer';
 	import type { Room } from 'trystero';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	interface Props {
 		open?: boolean;
@@ -78,11 +79,11 @@
 		importing = true;
 		try {
 			const id = await importFn();
-			snackSuccess('Test zaimportowany');
+			snackSuccess(i18n.t('transfer.import.success'));
 			close();
 			onImported?.(id);
 		} catch (err) {
-			snackError('Nie udało się zaimportować testu');
+			snackError(i18n.t('transfer.import.error'));
 			console.error('Failed to import test:', err);
 		} finally {
 			importing = false;
@@ -94,7 +95,7 @@
 		roomError = '';
 		const code = normalizeRoomCode(roomCodeInput);
 		if (!code) {
-			roomError = 'Podaj kod pokoju.';
+			roomError = i18n.t('transfer.import.roomRequired');
 			return;
 		}
 		roomStatus = 'connecting';
@@ -114,18 +115,18 @@
 		teardownRoom();
 		try {
 			const id = await ImportTestBinary(data);
-			snackSuccess('Test odebrany i zaimportowany');
+			snackSuccess(i18n.t('transfer.import.receivedSuccess'));
 			close();
 			onImported?.(id);
 		} catch (err) {
-			snackError('Nie udało się zaimportować odebranego testu');
+			snackError(i18n.t('transfer.import.receivedError'));
 			console.error('Failed to import received test:', err);
 			roomStatus = 'error';
 		}
 	}
 </script>
 
-<Modal {open} onclose={close} title="Importuj test">
+<Modal {open} onclose={close} title={i18n.t('transfer.import.title')}>
 	<div class="modal-content">
 		<input
 			type="file"
@@ -143,31 +144,31 @@
 		/>
 
 		<Text variant="muted" as="span">
-			Uwaga: import nadpisze ten test, jeśli już u Ciebie istnieje — wraz z pytaniami.
+			{i18n.t('transfer.import.warning')}
 		</Text>
 
-		<Heading level={5}>Plik</Heading>
+		<Heading level={5}>{i18n.t('transfer.file')}</Heading>
 		<div class="method-list">
 			<Button variant="outline" onclick={() => jsonInput?.click()} disabled={importing}>
-				{importing ? 'Importowanie...' : 'Wczytaj plik JSON'}
+				{importing ? i18n.t('transfer.import.importing') : i18n.t('transfer.import.json')}
 			</Button>
 			<Button variant="outline" onclick={() => binaryInput?.click()} disabled={importing}>
-				Wczytaj plik binarny
+				{i18n.t('transfer.import.binary')}
 			</Button>
 		</div>
 
 		<Divider />
 
-		<Heading level={5}>Odebranie bezpośrednie (P2P)</Heading>
+		<Heading level={5}>{i18n.t('transfer.import.p2pTitle')}</Heading>
 		<Text variant="muted">
-			Wprowadź kod pokoju wygenerowany na urządzeniu, z którego eksportujesz test.
+			{i18n.t('transfer.import.p2pDescription')}
 		</Text>
 
 		<div class="room-connect">
 			<div class="room-connect-input">
 				<Input
-					label="Kod pokoju"
-					placeholder="np. ABC123"
+					label={i18n.t('transfer.roomCode')}
+					placeholder={i18n.t('transfer.import.roomPlaceholder')}
 					bind:value={roomCodeInput}
 					disabled={roomStatus === 'waiting' || roomStatus === 'connecting'}
 				/>
@@ -177,23 +178,23 @@
 				onclick={connectRoom}
 				disabled={roomStatus === 'waiting' || roomStatus === 'connecting'}
 			>
-				Połącz
+				{i18n.t('transfer.import.connect')}
 			</Button>
 		</div>
 
 		{#if roomStatus === 'connecting'}
-			<Text variant="muted">Łączenie...</Text>
+			<Text variant="muted">{i18n.t('transfer.import.connecting')}</Text>
 		{:else if roomStatus === 'waiting'}
-			<Text variant="muted">Połączono. Oczekiwanie na dane testu...</Text>
+			<Text variant="muted">{i18n.t('transfer.import.waiting')}</Text>
 		{:else if roomStatus === 'timeout'}
-			<Text variant="error">Przekroczono czas oczekiwania. Spróbuj ponownie.</Text>
+			<Text variant="error">{i18n.t('transfer.import.timeout')}</Text>
 		{:else if roomStatus === 'error'}
 			<Text variant="error">{roomError}</Text>
 		{/if}
 	</div>
 
 	{#snippet footer()}
-		<Button variant="ghost" onclick={close}>Zamknij</Button>
+		<Button variant="ghost" onclick={close}>{i18n.t('common.close')}</Button>
 	{/snippet}
 </Modal>
 

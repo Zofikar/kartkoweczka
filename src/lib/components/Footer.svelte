@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { i18n } from '../i18n.svelte';
 	interface Props {
 		copyrightYear?: number;
 		copyrightHolder?: string;
@@ -25,7 +26,7 @@
 			: '/'}licenses.html"
 		class="footer-link"
 		target="_blank"
-		rel="noopener">Licencje</a
+		rel="noopener">{i18n.t('footer.licenses')}</a
 	>
 </footer>
 
