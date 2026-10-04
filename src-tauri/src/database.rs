@@ -6,8 +6,16 @@ use serde_json::{Number, Value as JsonValue};
 use tauri::{AppHandle, Manager, State};
 
 const DATABASE_FILENAME: &str = "kartkoweczka.sqlite3";
-const MIGRATION_NAME: &str = "0000_demonic_harry_osborn.sql";
-const MIGRATION_SQL: &str = include_str!("../../src/db/drizzle/0000_demonic_harry_osborn.sql");
+const MIGRATIONS: &[(&str, &str)] = &[
+    (
+        "0000_demonic_harry_osborn.sql",
+        include_str!("../../src/db/drizzle/0000_demonic_harry_osborn.sql"),
+    ),
+    (
+        "0001_condensed_true_false.sql",
+        include_str!("../../src/db/drizzle/0001_condensed_true_false.sql"),
+    ),
+];
 
 #[derive(Default)]
 pub struct DatabaseState {
@@ -107,10 +115,18 @@ fn apply_migrations(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| format!("failed to create migration table: {error}"))?;
 
+    for (name, sql) in MIGRATIONS {
+        apply_migration_if_needed(connection, name, sql)?;
+    }
+
+    Ok(())
+}
+
+fn apply_migration_if_needed(connection: &Connection, name: &str, sql: &str) -> Result<(), String> {
     let is_applied = connection
         .query_row(
             "SELECT EXISTS(SELECT 1 FROM __drizzle_migrations WHERE name = ?1)",
-            [MIGRATION_NAME],
+            [name],
             |row| row.get::<_, bool>(0),
         )
         .map_err(|error| format!("failed to inspect migrations: {error}"))?;
@@ -123,7 +139,7 @@ fn apply_migrations(connection: &Connection) -> Result<(), String> {
         .execute_batch("BEGIN IMMEDIATE")
         .map_err(|error| format!("failed to start migration: {error}"))?;
 
-    let result = apply_initial_migration(connection);
+    let result = apply_migration(connection, name, sql);
     match result {
         Ok(()) => connection
             .execute_batch("COMMIT")
@@ -135,22 +151,22 @@ fn apply_migrations(connection: &Connection) -> Result<(), String> {
     }
 }
 
-fn apply_initial_migration(connection: &Connection) -> Result<(), String> {
-    for statement in MIGRATION_SQL.split("--> statement-breakpoint") {
+fn apply_migration(connection: &Connection, name: &str, sql: &str) -> Result<(), String> {
+    for statement in sql.split("--> statement-breakpoint") {
         let statement = statement.trim();
         if !statement.is_empty() {
             connection
                 .execute_batch(statement)
-                .map_err(|error| format!("failed to apply {MIGRATION_NAME}: {error}"))?;
+                .map_err(|error| format!("failed to apply {name}: {error}"))?;
         }
     }
 
     connection
         .execute(
             "INSERT INTO __drizzle_migrations (name) VALUES (?1)",
-            [MIGRATION_NAME],
+            [name],
         )
-        .map_err(|error| format!("failed to record {MIGRATION_NAME}: {error}"))?;
+        .map_err(|error| format!("failed to record {name}: {error}"))?;
 
     Ok(())
 }
@@ -274,7 +290,7 @@ mod tests {
                 row.get(0)
             })
             .expect("migration count should be readable");
-        assert_eq!(migration_count, 1);
+        assert_eq!(migration_count, MIGRATIONS.len() as i64);
     }
 
     #[test]
