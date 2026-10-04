@@ -3,6 +3,7 @@
 	import Text from '../ui/Text.svelte';
 	import Button from '../ui/Button.svelte';
 	import { i18n } from '../i18n.svelte';
+	import NativeDownload from './NativeDownload.svelte';
 
 	interface Props {
 		deferredPrompt?: boolean;
@@ -25,6 +26,7 @@
 			{i18n.t('lock.iosPrefix')} <strong>{i18n.t('lock.iosAction')}</strong>.
 		</Text>
 	{/if}
+	<NativeDownload />
 </div>
 
 <style>

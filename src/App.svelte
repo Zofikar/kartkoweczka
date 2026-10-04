@@ -8,6 +8,7 @@
 	import Sidebar from './lib/components/Sidebar.svelte';
 	import LockScreen from './lib/components/LockScreen.svelte';
 	import Snackbar from './lib/ui/Snackbar.svelte';
+	import NativeUpdater from './lib/components/NativeUpdater.svelte';
 	import { i18n } from './lib/i18n.svelte';
 
 	interface BeforeInstallPromptEvent extends Event {
@@ -84,4 +85,7 @@
 	</main>
 </div>
 <Footer />
+{#if __DATABASE_BACKEND__ === 'tauri' && !/Android|iPhone|iPad/i.test(navigator.userAgent)}
+	<NativeUpdater />
+{/if}
 <Snackbar />

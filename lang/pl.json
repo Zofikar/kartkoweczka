@@ -40,7 +40,7 @@
 	},
 	"lock": {
 		"title": "Wymagana instalacja aplikacji",
-		"description": "Ta aplikacja działa wyłącznie jako zainstalowane PWA.",
+		"description": "Zainstaluj aplikację jako PWA lub pobierz wydanie natywne.",
 		"install": "Zainstaluj aplikację",
 		"iosPrefix": "Używasz urządzenia z iOS? Otwórz menu udostępnienia w przeglądarce i wybierz",
 		"iosAction": "„Do ekranu początkowego”"
@@ -358,5 +358,17 @@
 		"qualityDark": "za ciemny",
 		"qualityBright": "za jasny",
 		"qualityGood": "dobry"
+	},
+	"native": {
+		"alternative": "Możesz też zainstalować aplikację natywną:",
+		"platform": "Platforma do pobrania",
+		"unknown": "Nieznana / nieobsługiwana — wybierz platformę",
+		"download": "Pobierz aplikację natywną",
+		"unavailable": "Nie mamy wydania natywnego dla tej platformy. Możesz zainstalować PWA.",
+		"error": "Nie udało się pobrać informacji o wydaniu. Spróbuj ponownie z dostępem do internetu.",
+		"check": "Sprawdź aktualizacje aplikacji",
+		"update": "Zainstaluj aktualizację i uruchom ponownie",
+		"current": "Aplikacja jest aktualna.",
+		"updateError": "Nie udało się sprawdzić lub zainstalować aktualizacji. Spróbuj ponownie online."
 	}
 }

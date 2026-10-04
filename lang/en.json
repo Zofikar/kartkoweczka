@@ -40,7 +40,7 @@
 	},
 	"lock": {
 		"title": "App installation required",
-		"description": "This app is available only as an installed PWA.",
+		"description": "Install this app as a PWA or download a native release.",
 		"install": "Install app",
 		"iosPrefix": "Using an iOS device? Open the browser share menu and select",
 		"iosAction": "“Add to Home Screen”"
@@ -358,5 +358,17 @@
 		"qualityDark": "too dark",
 		"qualityBright": "too bright",
 		"qualityGood": "good"
+	},
+	"native": {
+		"alternative": "Or install the native application:",
+		"platform": "Download platform",
+		"unknown": "Unknown / unsupported ? select your platform",
+		"download": "Download native app",
+		"unavailable": "We do not have a native release for this platform. You can install the PWA instead.",
+		"error": "Release information could not be loaded. Please try again online.",
+		"check": "Check for app updates",
+		"update": "Install update and restart",
+		"current": "The app is up to date.",
+		"updateError": "Could not check or install the update. Please try again online."
 	}
 }
