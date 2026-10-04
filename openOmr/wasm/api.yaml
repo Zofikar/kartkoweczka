@@ -1,0 +1,136 @@
+namespace: OpenOmrWasm
+
+include: openOmr/api.h
+
+enums:
+  PixelLayout:
+    - Gray
+    - RGBA
+
+  ImageQuality:
+    - Good
+    - TooDark
+    - TooBright
+
+structs:
+  Point:
+    fields:
+      x: u32
+      y: u32
+
+  Size:
+    fields:
+      width: u32
+      height: u32
+
+  View:
+    fields:
+      x: u32
+      y: u32
+      width: u32
+      height: u32
+
+  Image:
+    fields:
+      data: bytes
+      width: u32
+      height: u32
+      layout: PixelLayout
+
+  ArucoDetection:
+    fields:
+      id: u32
+      tl: Point
+      tr: Point
+      bl: Point
+      br: Point
+
+  QrDetection:
+    fields:
+      data: bytes
+      tl: Point
+      tr: Point
+      bl: Point
+      br: Point
+
+  RevisionDetection:
+    fields:
+      revisionId: bytes
+      tl: Point
+      tr: Point
+      bl: Point
+      br: Point
+
+functions:
+  generateQr:
+    cpp: OpenOmr::generateQr
+    params:
+      data: bytes
+      size: Size
+    returns: Image
+
+  detectQrCode:
+    cpp: OpenOmr::detectQrCode
+    params:
+      image: Image
+      hints: View?
+    returns: QrDetection[]
+
+  checkImageQuality:
+    cpp: OpenOmr::checkImageQuality
+    params:
+      image: Image
+    returns: ImageQuality
+
+classes:
+  SheetGenerator:
+    cpp: OpenOmr::SheetGenerator
+    methods:
+      initialize:
+        params:
+          size: Size
+          revisionId: byteBuffer
+      setFont:
+        params:
+          fontData: byteBuffer
+        returns: bool
+      addQuestion:
+        params:
+          questionNumber: u32
+          subQuestionNumber: u32
+          answerLabels: bytes[]
+        returns: bool
+      generate:
+        returns: Image
+
+  SheetGrader:
+    cpp: OpenOmr::SheetGrader
+
+    methods:
+      detectAruco:
+        cpp: detectAruco
+        params:
+          image: Image
+        returns: ArucoDetection[]
+
+      normalize:
+        cpp: normalize
+        params:
+          sheetOriginalSize: Size
+        returns: bool
+
+      normalizedImage:
+        cpp: normalizedImage
+        returns: Image
+        const: true
+
+      detectRevisionId:
+        cpp: detectRevisionId
+        returns: RevisionDetection?
+
+      gradeSheet:
+        cpp: gradeSheet
+        params:
+          cellSize: Size
+          innerCellSize: Size
+        returns: bytes
