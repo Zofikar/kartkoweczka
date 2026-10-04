@@ -3,6 +3,7 @@ import MainModuleFactory, {
 	type MainModule,
 	type Vector_Bytes,
 } from '@/wasm/openOmr.js';
+import { i18n } from '@/lib/i18n.svelte';
 
 let modulePromise: Promise<MainModule> | undefined;
 
@@ -19,14 +20,14 @@ export function toWasmBytes(openOmr: MainModule, source: ArrayLike<number>): Vec
 
 export function uuidToBytes(uuid: string): Uint8Array {
 	const hex = uuid.replaceAll('-', '');
-	if (!/^[0-9a-fA-F]{32}$/.test(hex)) throw new Error('Nieprawidłowy identyfikator rewizji UUID.');
+	if (!/^[0-9a-fA-F]{32}$/.test(hex)) throw new Error(i18n.t('errors.invalidRevisionUuid'));
 	return Uint8Array.from({ length: 16 }, (_, index) =>
 		Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16)
 	);
 }
 
 export function bytesToUuid(bytes: ArrayLike<number>): string {
-	if (bytes.length !== 16) throw new Error('Kod rewizji nie zawiera 16 bajtów UUID.');
+	if (bytes.length !== 16) throw new Error(i18n.t('errors.invalidRevisionBytes'));
 	const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 	return [
 		hex.slice(0, 8),
@@ -68,7 +69,7 @@ export function imageDataToPngDataUrl(imageData: ImageData): string {
 	canvas.width = imageData.width;
 	canvas.height = imageData.height;
 	const context = canvas.getContext('2d');
-	if (!context) throw new Error('Nie można utworzyć kontekstu canvas 2D.');
+	if (!context) throw new Error(i18n.t('errors.canvasContext'));
 	context.putImageData(imageData, 0, 0);
 	return canvas.toDataURL('image/png');
 }

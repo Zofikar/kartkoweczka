@@ -27,6 +27,7 @@
 	import { snackError, snackSuccess } from '@/lib/stores/snackbar.svelte';
 	import { getTags, initTags } from '@/lib/stores/tags.svelte';
 	import { navigate, route } from '@/router';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	// Test being edited, or null when creating a new one
 	let testId = $derived(route.params.id ?? null);
@@ -120,7 +121,7 @@
 			originalName = name;
 			originalSelectedIds = [...selectedIds];
 		} catch (err) {
-			snackError('Nie udało się wczytać testu');
+			snackError(i18n.t('tests.detail.loadError'));
 			console.error('Failed to load test:', err);
 		} finally {
 			questionsLoading = false;
@@ -162,12 +163,12 @@
 
 	async function submitSave() {
 		if (!name.trim()) {
-			error = 'Nazwa testu jest wymagana.';
+			error = i18n.t('tests.detail.nameRequired');
 			return;
 		}
 
 		if (selectedIds.length === 0) {
-			error = 'Przypisz co najmniej jedno pytanie.';
+			error = i18n.t('tests.detail.questionRequired');
 			return;
 		}
 
@@ -177,17 +178,17 @@
 			const data = { name: name.trim(), questionIds: selectedIds };
 			if (isNew) {
 				const createdId = await createTest(data);
-				snackSuccess('Test utworzony');
+				snackSuccess(i18n.t('tests.detail.created'));
 				editMode = false;
 				await navigate('/tests/:id', { params: { id: createdId } });
 			} else {
 				await updateTest(testId!, data);
-				snackSuccess('Test zaktualizowany');
+				snackSuccess(i18n.t('tests.detail.updated'));
 				editMode = false;
 				await navigate('/tests/:id', { params: { id: testId! } });
 			}
 		} catch (err) {
-			snackError('Nie udało się zapisać testu.');
+			snackError(i18n.t('tests.detail.saveError'));
 			console.error('Failed to save test:', err);
 		} finally {
 			saving = false;
@@ -204,11 +205,11 @@
 		deleteConfirmOpen = false;
 		try {
 			await deleteTest(id);
-			snackSuccess('Test usunięty');
+			snackSuccess(i18n.t('tests.detail.deleted'));
 			await navigate('/tests');
 		} catch (err) {
 			console.error('Failed to delete test:', err);
-			snackError('Nie udało się usunąć testu.');
+			snackError(i18n.t('tests.detail.deleteError'));
 		}
 	}
 
@@ -229,11 +230,11 @@
 		revisionDeleteName = '';
 		try {
 			await deleteTestRevision(id);
-			snackSuccess('Wersja usunięta');
+			snackSuccess(i18n.t('tests.detail.revisionDeleted'));
 			if (testId) revisions = await listTestRevisions(testId);
 		} catch (err) {
 			console.error('Failed to delete revision:', err);
-			snackError('Nie udało się usunąć wersji.');
+			snackError(i18n.t('tests.detail.revisionDeleteError'));
 		}
 	}
 
@@ -247,11 +248,10 @@
 </script>
 
 <svelte:head>
-	<title>{isNew ? 'Nowy test' : name || 'Test'} – Kartkóweczka</title>
-	<meta
-		name="description"
-		content="Twórz i edytuj testy w Kartkóweczce. Przypisuj pytania, generuj arkusze odpowiedzi i automatycznie oceniaj wyniki."
-	/>
+	<title
+		>{isNew ? i18n.t('tests.detail.newTitle') : name || i18n.t('tests.title')} – Kartkóweczka</title
+	>
+	<meta name="description" content={i18n.t('tests.detail.description')} />
 </svelte:head>
 
 {#snippet questionCard(question: QuestionWithAnswers)}
@@ -287,26 +287,36 @@
 {/snippet}
 
 <div class="detail-page">
-	<PageHeader title={isNew ? 'Nowy test' : editMode ? 'Edytuj test' : name}>
+	<PageHeader
+		title={isNew
+			? i18n.t('tests.detail.newTitle')
+			: editMode
+				? i18n.t('tests.detail.editTitle')
+				: name}
+	>
 		{#snippet actions()}
 			{#if !isNew}
-				<Button variant="outline" size="sm" onclick={() => (exportOpen = true)}>Eksportuj</Button>
+				<Button variant="outline" size="sm" onclick={() => (exportOpen = true)}
+					>{i18n.t('tests.detail.export')}</Button
+				>
 				<SegmentedControl
 					role="tablist"
-					aria-label="Tryb widoku"
+					aria-label={i18n.t('tests.detail.viewMode')}
 					size="sm"
 					value={editMode ? 'edit' : 'view'}
 					options={[
-						{ value: 'view', label: 'Podgląd' },
-						{ value: 'edit', label: 'Edytuj' },
+						{ value: 'view', label: i18n.t('common.view') },
+						{ value: 'edit', label: i18n.t('common.edit') },
 					]}
 					onchange={(v) => (v === 'edit' ? (editMode = true) : requestSwitchToView())}
 				/>
 
 				{#if editMode}
-					<Button variant="danger" size="sm" onclick={requestDelete}>Usuń</Button>
+					<Button variant="danger" size="sm" onclick={requestDelete}
+						>{i18n.t('common.delete')}</Button
+					>
 					<Button variant="primary" size="sm" onclick={submitSave} disabled={saving}>
-						{saving ? 'Zapisywanie...' : 'Zapisz'}
+						{saving ? i18n.t('common.saving') : i18n.t('questions.editor.saveChanges')}
 					</Button>
 				{:else}
 					<Button
@@ -314,28 +324,28 @@
 						size="sm"
 						onclick={() => navigate('/tests/:id/revision/new', { params: { id: testId! } })}
 					>
-						Utwórz wersję
+						{i18n.t('revision.create')}
 					</Button>
 				{/if}
 			{/if}
 
 			{#if isNew}
 				<Button variant="primary" onclick={submitSave} disabled={saving}>
-					{saving ? 'Zapisywanie...' : 'Utwórz test'}
+					{saving ? i18n.t('common.saving') : i18n.t('tests.detail.create')}
 				</Button>
 			{/if}
 		{/snippet}
 	</PageHeader>
 
 	{#if !loaded}
-		<Text variant="muted">Ładowanie...</Text>
+		<Text variant="muted">{i18n.t('common.loading')}</Text>
 	{:else}
 		<div class="detail-body">
 			{#if editMode}
 				<Input
-					label="Nazwa testu"
+					label={i18n.t('tests.detail.name')}
 					bind:value={name}
-					placeholder="np. Kartkówka z matematyki"
+					placeholder={i18n.t('tests.detail.namePlaceholder')}
 					error={error ?? undefined}
 					oninput={() => (error = null)}
 				/>
@@ -343,13 +353,13 @@
 				<div class="selection-area">
 					<div class="selection-header">
 						<Text variant="body">
-							Wybrano <strong>{selectedIds.length}</strong> pytań
+							{i18n.t('tests.detail.selectedCount', { count: selectedIds.length })}
 						</Text>
 					</div>
 
 					{#if selectedQuestions.length > 0}
 						<section class="selection-section">
-							<Heading level={4}>Wybrane pytania</Heading>
+							<Heading level={4}>{i18n.t('tests.detail.selectedQuestions')}</Heading>
 							<div class="question-select-list">
 								{#each selectedQuestions as question (question.id)}
 									{@render questionCard(question)}
@@ -365,7 +375,7 @@
 							aria-expanded={!unselectedCollapsed}
 							onclick={() => (unselectedCollapsed = !unselectedCollapsed)}
 						>
-							<span class="section-title">Dostępne pytania</span>
+							<span class="section-title">{i18n.t('tests.detail.availableQuestions')}</span>
 							<span class="collapse-count">{unselectedQuestions.length}</span>
 							<span class="collapse-arrow" aria-hidden="true">
 								{unselectedCollapsed ? '▸' : '▾'}
@@ -376,12 +386,12 @@
 							<QuestionFiltersBar bind:filterType bind:filterTags bind:filterTagMode {allTags} />
 
 							{#if questionsLoading}
-								<Text variant="muted">Ładowanie pytań...</Text>
+								<Text variant="muted">{i18n.t('tests.detail.loadingQuestions')}</Text>
 							{:else if unselectedQuestions.length === 0}
 								<EmptyState
 									message={hasActiveFilters
-										? 'Brak pytań spełniających kryteria filtrowania.'
-										: 'Brak dostępnych pytań.'}
+										? i18n.t('questions.emptyFiltered')
+										: i18n.t('tests.detail.noAvailableQuestions')}
 								/>
 							{:else}
 								<div class="question-select-list">
@@ -395,10 +405,10 @@
 				</div>
 			{:else}
 				<section class="selection-section">
-					<Heading level={4}>Pytania</Heading>
+					<Heading level={4}>{i18n.t('questions.title')}</Heading>
 
 					{#if selectedQuestions.length === 0}
-						<EmptyState message="Ten test nie ma przypisanych pytań." />
+						<EmptyState message={i18n.t('tests.detail.noAssignedQuestions')} />
 					{:else}
 						<div class="question-select-list">
 							{#each selectedQuestions as question (question.id)}
@@ -411,10 +421,10 @@
 
 			{#if !isNew}
 				<section class="selection-section">
-					<Heading level={4}>Wersje testu</Heading>
+					<Heading level={4}>{i18n.t('tests.detail.revisions')}</Heading>
 
 					{#if revisions.length === 0}
-						<EmptyState message="Brak wersji. Utwórz pierwszą wersję testu." />
+						<EmptyState message={i18n.t('tests.detail.noRevisions')} />
 					{:else}
 						<div class="revision-list">
 							{#each revisions as revision (revision.id)}
@@ -446,7 +456,7 @@
 													requestDeleteRevision(revision.id, revision.name);
 												}}
 											>
-												Usuń
+												{i18n.t('common.delete')}
 											</Button>
 										</div>
 									</Card>
@@ -463,31 +473,31 @@
 <ConfirmModal
 	open={deleteConfirmOpen}
 	oncancel={() => (deleteConfirmOpen = false)}
-	title="Usuń test"
-	confirmLabel="Usuń"
+	title={i18n.t('tests.detail.delete')}
+	confirmLabel={i18n.t('common.delete')}
 	onconfirm={confirmDelete}
 >
-	Czy na pewno chcesz usunąć ten test? Tej operacji nie można cofnąć.
+	{i18n.t('tests.detail.deletePrompt')}
 </ConfirmModal>
 
 <ConfirmModal
 	open={revisionDeleteId !== null}
 	oncancel={cancelDeleteRevision}
-	title="Usuń wersję"
-	confirmLabel="Usuń"
+	title={i18n.t('tests.detail.deleteRevisionTitle')}
+	confirmLabel={i18n.t('common.delete')}
 	onconfirm={confirmDeleteRevision}
 >
-	Czy na pewno chcesz usunąć wersję „{revisionDeleteName}"? Tej operacji nie można cofnąć.
+	{i18n.t('tests.detail.deleteRevisionPrompt', { name: revisionDeleteName })}
 </ConfirmModal>
 
 <ConfirmModal
 	open={discardConfirmOpen}
 	oncancel={() => (discardConfirmOpen = false)}
-	title="Niezapisane zmiany"
-	confirmLabel="Odrzuć zmiany"
+	title={i18n.t('common.unsavedChanges')}
+	confirmLabel={i18n.t('common.discardChanges')}
 	onconfirm={confirmDiscard}
 >
-	Masz niezapisane zmiany. Przejście do podglądu spowoduje ich utratę.
+	{i18n.t('tests.detail.discardPrompt')}
 </ConfirmModal>
 
 <ExportTestModal

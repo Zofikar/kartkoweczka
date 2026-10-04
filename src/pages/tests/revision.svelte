@@ -26,6 +26,7 @@
 	import { initTags } from '@/lib/stores/tags.svelte';
 	import { renderDocumentToHtml } from '@/utils/math';
 	import { navigate, route } from '@/router';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	let testId = $derived(route.params.id ?? null);
 	let revisionId = $derived(route.params.revisionId ?? null);
@@ -95,7 +96,7 @@
 			originalAutoOrder = autoOrder;
 			originalAutoMangle = autoMangle;
 		} catch (err) {
-			error = 'Nie udało się wczytać danych.';
+			error = i18n.t('revision.loadError');
 			console.error('Failed to load revision:', err);
 		} finally {
 			loading = false;
@@ -193,7 +194,7 @@
 
 		return ordered.map((question) => {
 			let answers = [...question.answers];
-			if (isNew && autoMangle) answers = shuffle(answers);
+			if (isNew && autoMangle && question.type === 'choice') answers = shuffle(answers);
 
 			return {
 				type: question.type,
@@ -213,7 +214,7 @@
 		if (!testId) return;
 
 		if (questions.length === 0) {
-			error = 'Test musi zawierać co najmniej jedno pytanie.';
+			error = i18n.t('revision.minimumQuestion');
 			return;
 		}
 
@@ -238,20 +239,20 @@
 			const data = { name: finalName, questions: buildSnapshot() };
 			if (isNew || saveAsNew) {
 				const createdId = await createTestRevision(testId, data);
-				snackSuccess(saveAsNew ? 'Utworzono nową wersję' : 'Wersja utworzona');
+				snackSuccess(i18n.t(saveAsNew ? 'revision.createdNew' : 'revision.created'));
 				await navigate('/tests/:id/revision/:revisionId', {
 					params: { id: testId, revisionId: createdId },
 				});
 			} else {
 				await updateTestRevision(revisionId!, data);
-				snackSuccess('Wersja zaktualizowana');
+				snackSuccess(i18n.t('revision.updated'));
 				editMode = false;
 				await navigate('/tests/:id/revision/:revisionId', {
 					params: { id: testId, revisionId: revisionId! },
 				});
 			}
 		} catch (err) {
-			error = 'Nie udało się zapisać wersji.';
+			error = i18n.t('revision.saveError');
 			console.error('Failed to save revision:', err);
 		} finally {
 			saving = false;
@@ -268,11 +269,10 @@
 </script>
 
 <svelte:head>
-	<title>{isNew ? 'Nowa wersja' : name || 'Wersja'} – Kartkóweczka</title>
-	<meta
-		name="description"
-		content="Edytuj wersje testu w Kartkóweczce. Zmieniaj porjadok pytań, generuj arkusze odpowiedzi i drukuj testy."
-	/>
+	<title
+		>{isNew ? i18n.t('revision.new') : name || i18n.t('revision.fallback')} – Kartkóweczka</title
+	>
+	<meta name="description" content={i18n.t('revision.description')} />
 </svelte:head>
 
 {#snippet viewQuestionCard(question: EditableQuestion, index: number)}
@@ -287,20 +287,20 @@
 {/snippet}
 
 <div class="revision-page">
-	<PageHeader title={isNew ? 'Nowa wersja' : editMode ? 'Edytuj wersję' : name}>
+	<PageHeader title={isNew ? i18n.t('revision.new') : editMode ? i18n.t('revision.edit') : name}>
 		{#snippet leading()}
-			<Button variant="ghost" onclick={goBack}>← Wstecz</Button>
+			<Button variant="ghost" onclick={goBack}>{i18n.t('common.back')}</Button>
 		{/snippet}
 		{#snippet actions()}
 			{#if !isNew}
 				<SegmentedControl
 					role="tablist"
-					aria-label="Tryb widoku"
+					aria-label={i18n.t('tests.detail.viewMode')}
 					size="sm"
 					value={editMode ? 'edit' : 'view'}
 					options={[
-						{ value: 'view', label: 'Podgląd' },
-						{ value: 'edit', label: 'Edytuj' },
+						{ value: 'view', label: i18n.t('common.view') },
+						{ value: 'edit', label: i18n.t('common.edit') },
 					]}
 					onchange={(v) => (v === 'edit' ? (editMode = true) : requestSwitchToView())}
 				/>
@@ -308,21 +308,27 @@
 
 			{#if editMode}
 				<Button variant="primary" onclick={submit} disabled={saving}>
-					{saving ? 'Zapisywanie...' : isNew ? 'Utwórz wersję' : 'Zapisz zmiany'}
+					{saving
+						? i18n.t('common.saving')
+						: isNew
+							? i18n.t('revision.create')
+							: i18n.t('questions.editor.saveChanges')}
 				</Button>
 			{:else}
-				<Button variant="secondary" onclick={() => (printOpen = true)}>Drukuj</Button>
+				<Button variant="secondary" onclick={() => (printOpen = true)}
+					>{i18n.t('revision.print')}</Button
+				>
 			{/if}
 		{/snippet}
 	</PageHeader>
 
 	{#if loading}
-		<Text variant="muted">Ładowanie...</Text>
+		<Text variant="muted">{i18n.t('common.loading')}</Text>
 	{:else}
 		<Card padding="lg">
 			<div class="revision-form">
 				<div class="revision-name-display">
-					<Text variant="small">Nazwa wersji</Text>
+					<Text variant="small">{i18n.t('revision.name')}</Text>
 					<Heading level={4}>{name}</Heading>
 				</div>
 
@@ -335,19 +341,19 @@
 						<div class="revision-settings">
 							<label class="setting-row">
 								<input type="checkbox" bind:checked={autoOrder} />
-								<span class="setting-label">Losuj kolejność pytań</span>
+								<span class="setting-label">{i18n.t('revision.autoOrder')}</span>
 								<span class="setting-hint">
-									{autoOrder ? 'Pytania zostaną losowo przetasowane.' : 'Ustaw kolejność ręcznie.'}
+									{autoOrder ? i18n.t('revision.autoOrderOn') : i18n.t('revision.autoOrderOff')}
 								</span>
 							</label>
 
 							<label class="setting-row">
 								<input type="checkbox" bind:checked={autoMangle} />
-								<span class="setting-label">Losuj kolejność odpowiedzi</span>
+								<span class="setting-label">{i18n.t('revision.autoAnswers')}</span>
 								<span class="setting-hint">
 									{autoMangle
-										? 'Odpowiedzi zostaną losowo przetasowane.'
-										: 'Ustaw kolejność odpowiedzi ręcznie.'}
+										? i18n.t('revision.autoAnswersOn')
+										: i18n.t('revision.autoAnswersOff')}
 								</span>
 							</label>
 						</div>
@@ -371,7 +377,7 @@
 
 										{#if !isNew || !autoOrder}
 											<OrderControls
-												itemLabel="pytanie"
+												itemLabel={i18n.t('order.question')}
 												disableUp={index === 0}
 												disableDown={index === questions.length - 1}
 												onmove={(dir) => moveQuestion(index, dir)}
@@ -392,7 +398,7 @@
 														{@html renderDocumentToHtml(answer.content)}
 													</span>
 													<OrderControls
-														itemLabel="odpowiedź"
+														itemLabel={i18n.t('order.answer')}
 														disableUp={answerIndex === 0}
 														disableDown={answerIndex === question.answers.length - 1}
 														onmove={(dir) => moveAnswer(question.key, answerIndex, dir)}
@@ -429,24 +435,23 @@
 <ConfirmModal
 	open={discardConfirmOpen}
 	oncancel={() => (discardConfirmOpen = false)}
-	title="Niezapisane zmiany"
-	confirmLabel="Odrzuć zmiany"
+	title={i18n.t('common.unsavedChanges')}
+	confirmLabel={i18n.t('common.discardChanges')}
 	onconfirm={confirmDiscard}
 >
-	Masz niezapisane zmiany. Przejście do podglądu spowoduje ich utratę.
+	{i18n.t('revision.discardPrompt')}
 </ConfirmModal>
 
 <ConfirmModal
 	open={confirmOpen}
 	oncancel={() => (confirmOpen = false)}
-	title="Zapisz zmiany wersji"
+	title={i18n.t('revision.saveChangesTitle')}
 >
-	Ta wersja mogła już zostać wydrukowana. Nadpisanie jej zmieni dopasowanie odpowiedzi na kartach.
-	Wybierz, czy chcesz nadpisać istniejącą wersję, czy utworzyć nową na podstawie zmian.
+	{i18n.t('revision.saveChangesPrompt')}
 	{#snippet actions()}
-		<Button variant="ghost" onclick={() => (confirmOpen = false)}>Anuluj</Button>
-		<Button variant="outline" onclick={() => doSave(true)}>Zapisz jako nową wersję</Button>
-		<Button variant="danger" onclick={() => doSave(false)}>Nadpisz wersję</Button>
+		<Button variant="ghost" onclick={() => (confirmOpen = false)}>{i18n.t('common.cancel')}</Button>
+		<Button variant="outline" onclick={() => doSave(true)}>{i18n.t('revision.saveAsNew')}</Button>
+		<Button variant="danger" onclick={() => doSave(false)}>{i18n.t('revision.overwrite')}</Button>
 	{/snippet}
 </ConfirmModal>
 

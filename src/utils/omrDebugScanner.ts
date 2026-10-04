@@ -4,6 +4,7 @@ import {
 	type DetectedArucoMarker,
 	type DetectedQrCode,
 } from '@/utils/omrScanner';
+import { i18n } from '@/lib/i18n.svelte';
 
 export type { DebugPoint, DetectedArucoMarker, DetectedQrCode };
 
@@ -50,7 +51,7 @@ export async function analyzeGradingSheetImage(file: File): Promise<GradingSheet
 function readImageBitmap(image: ImageBitmap): ImageData {
 	const canvas = new OffscreenCanvas(image.width, image.height);
 	const context = canvas.getContext('2d', { willReadFrequently: true });
-	if (!context) throw new Error('Nie można utworzyć kontekstu canvas 2D.');
+	if (!context) throw new Error(i18n.t('errors.canvasContext'));
 	context.drawImage(image, 0, 0);
 	return context.getImageData(0, 0, image.width, image.height);
 }
@@ -59,6 +60,6 @@ export function drawImageDataToCanvas(canvas: HTMLCanvasElement, imageData: Imag
 	canvas.width = imageData.width;
 	canvas.height = imageData.height;
 	const context = canvas.getContext('2d');
-	if (!context) throw new Error('Nie można utworzyć kontekstu canvas 2D.');
+	if (!context) throw new Error(i18n.t('errors.canvasContext'));
 	context.putImageData(imageData, 0, 0);
 }

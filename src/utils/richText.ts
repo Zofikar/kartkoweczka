@@ -1,6 +1,7 @@
 import Quill from 'quill';
 import Embed from 'quill/blots/embed';
 import { convertLatexToMarkup } from 'mathlive';
+import { i18n } from '@/lib/i18n.svelte';
 
 class MathChipBlot extends Embed {
 	static blotName = 'math-chip';
@@ -11,7 +12,7 @@ class MathChipBlot extends Embed {
 		const node = super.create() as HTMLElement;
 		node.setAttribute('data-latex', latex);
 		node.setAttribute('contenteditable', 'false');
-		node.title = 'Kliknij, aby edytować';
+		node.title = i18n.t('mathEditor.editHint');
 		try {
 			node.innerHTML = convertLatexToMarkup(`\\(${latex}\\)`);
 		} catch {

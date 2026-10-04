@@ -11,6 +11,7 @@
 	import ImportTestModal from '@/lib/components/ImportTestModal.svelte';
 	import { snackError } from '@/lib/stores/snackbar.svelte';
 	import { navigate, p } from '@/router';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	let tests = $state<TestSummary[]>([]);
 	let loading = $state(true);
@@ -25,7 +26,7 @@
 		try {
 			tests = await listTests();
 		} catch (err) {
-			snackError('Nie udało się wczytać testów');
+			snackError(i18n.t('tests.loadError'));
 			console.error('Failed to load tests:', err);
 		} finally {
 			loading = false;
@@ -34,29 +35,30 @@
 </script>
 
 <svelte:head>
-	<title>Testy – Kartkóweczka</title>
-	<meta
-		name="description"
-		content="Przeglądaj i zarządzaj testami w Kartkóweczce. Twórz nowe testy, generuj arkusze odpowiedzi i automatycznie oceniaj wyniki."
-	/>
+	<title>{i18n.t('tests.pageTitle')}</title>
+	<meta name="description" content={i18n.t('tests.description')} />
 </svelte:head>
 
 <div class="tests-page">
-	<PageHeader title="Testy">
+	<PageHeader title={i18n.t('tests.title')}>
 		{#snippet actions()}
-			<Button variant="outline" onclick={() => (importOpen = true)}>Importuj test</Button>
-			<Button variant="primary" onclick={() => navigate('/tests/new')}>+ Nowy test</Button>
+			<Button variant="outline" onclick={() => (importOpen = true)}>{i18n.t('tests.import')}</Button
+			>
+			<Button variant="primary" onclick={() => navigate('/tests/new')}>{i18n.t('tests.new')}</Button
+			>
 		{/snippet}
 	</PageHeader>
 
 	{#if loading}
-		<Text variant="muted">Ładowanie...</Text>
+		<Text variant="muted">{i18n.t('common.loading')}</Text>
 	{:else}
 		<div class="tests-list">
 			{#if tests.length === 0}
-				<EmptyState message="Brak testów. Utwórz pierwszy!">
+				<EmptyState message={i18n.t('tests.empty')}>
 					{#snippet actions()}
-						<Button variant="primary" onclick={() => navigate('/tests/new')}>+ Nowy test</Button>
+						<Button variant="primary" onclick={() => navigate('/tests/new')}
+							>{i18n.t('tests.new')}</Button
+						>
 					{/snippet}
 				</EmptyState>
 			{:else}
@@ -68,7 +70,7 @@
 									<Heading level={4}>{test.name}</Heading>
 									<Badge variant="secondary" size="sm">
 										{test.questionCount}
-										{test.questionCount === 1 ? 'pytanie' : 'pytań'}
+										{i18n.t(test.questionCount === 1 ? 'tests.questionOne' : 'tests.questionMany')}
 									</Badge>
 								</div>
 							</div>

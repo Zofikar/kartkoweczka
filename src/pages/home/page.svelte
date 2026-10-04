@@ -2,6 +2,7 @@
 	import Heading from '../../lib/ui/Heading.svelte';
 	import Text from '../../lib/ui/Text.svelte';
 	import Card from '../../lib/ui/Card.svelte';
+	import { i18n } from '../../lib/i18n.svelte';
 
 	interface Props {
 		[k: string]: unknown;
@@ -11,17 +12,14 @@
 </script>
 
 <svelte:head>
-	<title>Kartkóweczka – generator testów i arkuszy odpowiedzi</title>
-	<meta
-		name="description"
-		content="Kartkóweczka – aplikacja do generowania i sprawdzania testów jedno lub wielokrotnego wyboru. Twórz pytania, generuj arkusze odpowiedzi i automatycznie oceniaj testy."
-	/>
+	<title>{i18n.t('home.title')}</title>
+	<meta name="description" content={i18n.t('home.description')} />
 </svelte:head>
 
 <div class="home-page" {...restProps}>
 	<Card padding="lg">
-		<Heading level={1}>Witaj w Kartkówka</Heading>
-		<Text variant="body">Generator testów i arkuszy odpowiedzi z automatycznym ocenianiem.</Text>
+		<Heading level={1}>{i18n.t('home.welcome')}</Heading>
+		<Text variant="body">{i18n.t('home.tagline')}</Text>
 	</Card>
 </div>
 

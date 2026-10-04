@@ -22,6 +22,7 @@
 	} from '@/db/repositories';
 	import { snackError, snackSuccess } from '@/lib/stores/snackbar.svelte';
 	import { getTags, initTags } from '@/lib/stores/tags.svelte';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	let questions = $state<QuestionWithAnswers[]>([]);
 	let loading = $state(true);
@@ -68,7 +69,7 @@
 			}
 			questions = await listQuestions(filters);
 		} catch (err) {
-			snackError('Nie udało się wczytać pytań');
+			snackError(i18n.t('questions.loadError'));
 			console.error('Failed to load questions:', err);
 		} finally {
 			loading = false;
@@ -86,11 +87,11 @@
 		try {
 			pinnedQuestion = await getQuestion(id);
 			if (!pinnedQuestion) {
-				snackError('Nie znaleziono pytania');
+				snackError(i18n.t('questions.notFound'));
 				editingId = null;
 			}
 		} catch (err) {
-			snackError('Nie udało się wczytać pytania');
+			snackError(i18n.t('questions.loadOneError'));
 			console.error('Failed to load question:', err);
 			editingId = null;
 		}
@@ -110,16 +111,16 @@
 		try {
 			if (editingId === 'new') {
 				await createQuestion(data);
-				snackSuccess('Pytanie utworzone');
+				snackSuccess(i18n.t('questions.created'));
 			} else if (editingId) {
 				await updateQuestion(editingId, data);
-				snackSuccess('Pytanie zaktualizowane');
+				snackSuccess(i18n.t('questions.updated'));
 			}
 			pinnedQuestion = null;
 			await refreshQuestions();
 			editingId = null;
 		} catch (err) {
-			snackError('Nie udało się zapisać pytania');
+			snackError(i18n.t('questions.saveError'));
 			console.error('Failed to save question:', err);
 		}
 	}
@@ -139,9 +140,9 @@
 				pinnedQuestion = null;
 			}
 			await refreshQuestions();
-			snackSuccess('Pytanie usunięte');
+			snackSuccess(i18n.t('questions.deleted'));
 		} catch (err) {
-			snackError('Nie udało się usunąć pytania');
+			snackError(i18n.t('questions.deleteError'));
 			console.error('Failed to delete question:', err);
 		}
 	}
@@ -152,17 +153,16 @@
 </script>
 
 <svelte:head>
-	<title>Pytania – Kartkóweczka</title>
-	<meta
-		name="description"
-		content="Zarządzaj bankiem pytań w Kartkóweczce. Twórz pytania jedno i wielokrotnego wyboru, dodawaj tagi i przygotuj je do testów."
-	/>
+	<title>{i18n.t('questions.pageTitle')}</title>
+	<meta name="description" content={i18n.t('questions.description')} />
 </svelte:head>
 
 <div class="questions-page">
-	<PageHeader title="Pytania">
+	<PageHeader title={i18n.t('questions.title')}>
 		{#snippet actions()}
-			<Button variant="primary" onclick={startNew} disabled={isEditing}>+ Nowe pytanie</Button>
+			<Button variant="primary" onclick={startNew} disabled={isEditing}
+				>{i18n.t('questions.new')}</Button
+			>
 		{/snippet}
 	</PageHeader>
 
@@ -175,7 +175,7 @@
 	/>
 
 	{#if loading}
-		<Text variant="muted">Ładowanie...</Text>
+		<Text variant="muted">{i18n.t('common.loading')}</Text>
 	{:else}
 		<div class="questions-list">
 			{#if editingId === 'new'}
@@ -186,11 +186,11 @@
 
 			{#if displayQuestions.length === 0 && editingId !== 'new'}
 				{#if hasActiveFilters}
-					<EmptyState message="Brak pytań spełniających kryteria filtrowania." />
+					<EmptyState message={i18n.t('questions.emptyFiltered')} />
 				{:else}
-					<EmptyState message="Brak pytań. Utwórz pierwsze!">
+					<EmptyState message={i18n.t('questions.empty')}>
 						{#snippet actions()}
-							<Button variant="primary" onclick={startNew}>+ Nowe pytanie</Button>
+							<Button variant="primary" onclick={startNew}>{i18n.t('questions.new')}</Button>
 						{/snippet}
 					</EmptyState>
 				{/if}
@@ -218,11 +218,11 @@
 <ConfirmModal
 	open={deleteConfirmId !== null}
 	oncancel={cancelDelete}
-	title="Usuń pytanie"
-	confirmLabel="Usuń"
+	title={i18n.t('questions.deleteTitle')}
+	confirmLabel={i18n.t('common.delete')}
 	onconfirm={confirmDelete}
 >
-	Czy na pewno chcesz usunąć to pytanie? Tej operacji nie można cofnąć.
+	{i18n.t('questions.deletePrompt')}
 </ConfirmModal>
 
 <style>
