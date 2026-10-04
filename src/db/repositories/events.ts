@@ -11,6 +11,18 @@ export type DataTopic = 'questions' | 'tests' | 'revisions' | 'tags';
 type Listener = () => void;
 
 const listeners = new Map<DataTopic, Set<Listener>>();
+const sourceId = crypto.randomUUID();
+const channel =
+	typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel('database-changes');
+
+channel?.addEventListener('message', ({ data }: MessageEvent<ChangeNotification>) => {
+	if (data.sourceId !== sourceId) notifyListeners(data.topics);
+});
+
+interface ChangeNotification {
+	sourceId: string;
+	topics: DataTopic[];
+}
 
 /** Subscribes to a data topic. Returns an unsubscribe function. */
 export function onDataChanged(topic: DataTopic, listener: Listener): () => void {
@@ -31,6 +43,11 @@ export function onDataChanged(topic: DataTopic, listener: Listener): () => void 
  * nor make a committed mutation look failed to the caller.
  */
 export function emitDataChanged(...topics: DataTopic[]): void {
+	notifyListeners(topics);
+	channel?.postMessage({ sourceId, topics } satisfies ChangeNotification);
+}
+
+function notifyListeners(topics: DataTopic[]): void {
 	for (const topic of topics) {
 		for (const listener of (listeners.get(topic) ?? []).values()) {
 			try {

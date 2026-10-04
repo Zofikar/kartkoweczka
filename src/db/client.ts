@@ -1,4 +1,4 @@
-import type { Database } from './db';
+import type { Database } from './database';
 import { getDb } from '@/db/index';
 
 /** Eagerly starts initialization so the first query doesn't pay the startup cost. */

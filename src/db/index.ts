@@ -1,4 +1,4 @@
-import type { Database } from './db';
+import { createDatabase, type Database } from './database';
 
 let promise: Promise<Database> | undefined;
 
@@ -9,12 +9,24 @@ let promise: Promise<Database> | undefined;
  * Internal to the db layer — pages/helpers must use `db/repositories` instead.
  */
 export function getDb(): Promise<Database> {
-	promise ??= import('./db')
-		.then(({ initDb }) => initDb())
+	promise ??= createDatabaseBridge()
+		.then(createDatabase)
 		.catch((error) => {
 			promise = undefined;
 			throw error;
 		});
 
 	return promise;
+}
+
+async function createDatabaseBridge() {
+	if (__DATABASE_BACKEND__ === 'tauri') {
+		const { createTauriDatabaseBridge } = await import('./tauri.bridge');
+		const bridge = await createTauriDatabaseBridge();
+		await bridge.ready();
+		return bridge;
+	}
+
+	const { createBrowserDatabaseBridge } = await import('./browser.bridge');
+	return createBrowserDatabaseBridge();
 }
