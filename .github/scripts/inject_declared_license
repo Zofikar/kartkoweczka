@@ -12,19 +12,25 @@ PACKAGE_JSON_PATH = REPO_ROOT / "package.json"
 LICENSES_HTML_PATH = REPO_ROOT / "public" / "licenses.html"
 LICENSES_MD_PATH = REPO_ROOT / "LICENSES.md"
 
-licenses_html = LICENSES_HTML_PATH.read_text()
-interesting_part_start = licenses_html.find(r'"report-section">')
-interesting_part_end = licenses_html[interesting_part_start:].find(r'</section>')
-interesting_part = licenses_html[interesting_part_start:interesting_part_start+interesting_part_end]
+licenses_html = LICENSES_HTML_PATH.read_text(encoding="utf-8")
+declared_section = re.search(
+    r'<section\b[^>]*>\s*<h2\b[^>]*>\s*Declared Licenses\s*</h2>.*?</section>',
+    licenses_html,
+    re.DOTALL,
+)
+if declared_section is None:
+    raise ValueError("Could not find the Declared Licenses section in the HTML report")
+interesting_part_start, interesting_part_end = declared_section.span()
+interesting_part = declared_section.group()
 
-license_text = DECLARED_LICENSE_MD_PATH.read_text()
+license_text = DECLARED_LICENSE_MD_PATH.read_text(encoding="utf-8")
 license_copyright_year, license_copyright_holder = re.findall(r'Copyright[^\n]+?(\d{4}(?:-\d{4})?)[^\n]+?(\w+\s\w+)', license_text)[0]
-package_json = json.loads(PACKAGE_JSON_PATH.read_text())
+package_json = json.loads(PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
 package_declared_license = package_json.get("license", "")
 package_name = package_json.get("name", "")
 package_version = package_json.get("version", "")
 
-declared_license_html = f"""<div class="license-signature">MIT</div>
+declared_license_html = f"""<div class="license-signature">{package_declared_license}</div>
 
                     <div class="info-row">
                         <span class="info-label">License Text</span>
@@ -67,13 +73,19 @@ declared_license_html = f"""<div class="license-signature">MIT</div>
                         </div>
                     </div>"""
 
-interesting_part = interesting_part.replace(r'''<div class="license-signature">No declared licenses found.</div>''', declared_license_html)
+interesting_part = re.sub(
+    r'<div\s+class="license-signature"\s*>\s*No declared licenses found\.\s*</div>',
+    lambda match: declared_license_html,
+    interesting_part,
+)
+if f'id="declared-{package_name}${package_version}-{package_declared_license}-0-0"' not in interesting_part:
+    raise ValueError("Declared license injection did not produce the expected HTML license entry")
 
-with open(LICENSES_HTML_PATH, "w") as f:
-    f.write(licenses_html[:interesting_part_start] + interesting_part + licenses_html[interesting_part_start+interesting_part_end:])
+with open(LICENSES_HTML_PATH, "w", encoding="utf-8", newline="\n") as f:
+    f.write(licenses_html[:interesting_part_start] + interesting_part + licenses_html[interesting_part_end:])
 
 
-md_text = LICENSES_MD_PATH.read_text()
+md_text = LICENSES_MD_PATH.read_text(encoding="utf-8")
 
 declared_license_md = f"""{package_declared_license}
 
@@ -87,6 +99,10 @@ declared_license_md = f"""{package_declared_license}
 {license_text}
 ```"""
 
-md_text = md_text.replace(r'''No declared license found for Pawel/Kartkoweczka''', declared_license_md)
-with open(LICENSES_MD_PATH, "w") as f:
+md_text = re.sub(
+    r'No declared license found for [^\r\n]+',
+    lambda match: declared_license_md,
+    md_text,
+)
+with open(LICENSES_MD_PATH, "w", encoding="utf-8", newline="\n") as f:
     f.write(md_text)

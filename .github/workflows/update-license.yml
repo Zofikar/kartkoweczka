@@ -41,7 +41,8 @@ jobs:
           fossa report attribution --format markdown > LICENSES.md
           fossa report attribution --format html > public/licenses.html
 
-          ./.github/scripts/inject_declared_license
+      - name: Inject declared project license
+        run: python3 .github/scripts/inject_declared_license
 
       - name: Setup Project
         if: success()
@@ -49,13 +50,13 @@ jobs:
 
       - name: Format Licenses
         if: success()
-        run: yarn run format
+        run: yarn exec prettier --write LICENSES.md public/licenses.html
 
       - name: Check changes
         if: success()
         id: check-changes
         run: |
-          if [ -z "$(git diff --unified=0 LICENSES.md | grep -Ev '^(diff|index|\+{3}|\-{3}|@@|[+-][0-9]{2}/[0-9]{2}/[0-9]{2} \| [0-9a-f]{40})')" ]; then
+          if git diff --quiet -- LICENSES.md public/licenses.html; then
             echo "No license changes detected. Skipping PR creation."
             echo "changes_detected=false" >> $GITHUB_OUTPUT
           else
