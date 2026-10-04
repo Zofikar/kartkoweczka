@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Project
-        uses: ./.gitea/actions/setup
+        uses: ./.github/actions/setup
 
       - name: Run lint and format check
         run: yarn run lint

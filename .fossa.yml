@@ -1,8 +1,8 @@
 version: 3
 project:
-  id: gitea.internal/Pawel/Kartkoweczka
-  name: Pawel/Kartkoweczka
-  url: https://gitea.internal/Pawel/Kartkoweczka
+  id: github.com/Zofikar/kartkoweczka
+  name: Zofikar/Kartkoweczka
+  url: https://github.com/Zofikar/kartkoweczka
 
 targets:
   only:

@@ -1,6 +1,6 @@
 ---
 
-# 3rd-Party Software for [Pawel/Kartkoweczka](https://gitea.internal/Pawel/Kartkoweczka)
+# 3rd-Party Software for [Zofikar/Kartkoweczka](https://github.com/Zofikar/kartkoweczka)
 
 The following 3rd-party software packages may be used by or distributed with **Pawel/Kartkoweczka**.  Any information relevant to third-party vendors listed below are collected using common, reasonable means.
 

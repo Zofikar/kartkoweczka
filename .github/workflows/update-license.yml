@@ -38,11 +38,11 @@ jobs:
           fossa report attribution --format markdown > LICENSES.md
           fossa report attribution --format html > public/licenses.html
 
-          ./.gitea/scripts/inject_declared_license
+          ./.github/scripts/inject_declared_license
 
       - name: Setup Project
         if: success()
-        uses: ./.gitea/actions/setup
+        uses: ./.github/actions/setup
 
       - name: Format Licenses
         if: success()
@@ -59,13 +59,13 @@ jobs:
             echo "changes_detected=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create Pull Request via Git & Gitea API
+      - name: Create Pull Request via Git & Github API
         if: success() && steps.check-changes.outputs.changes_detected == 'true'
         env:
           API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config --global user.name "Gitea Actions Bot"
-          git config --global user.email "GiteaAction@gitea.internal"
+          git config --global user.name "Github Actions Bot"
+          git config --global user.email "GithubAction@github.com"
 
           BRANCH_NAME="chore/update-licenses-${{ github.run_number }}"
           git checkout -b "$BRANCH_NAME"
