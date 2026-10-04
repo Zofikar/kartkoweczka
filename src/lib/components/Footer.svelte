@@ -1,5 +1,16 @@
 <script lang="ts">
 	import { i18n } from '../i18n.svelte';
+
+	async function openLicenses(event: MouseEvent) {
+		if (__DATABASE_BACKEND__ !== 'tauri') return;
+		event.preventDefault();
+		try {
+			const { invoke } = await import('@tauri-apps/api/core');
+			await invoke('open_licenses');
+		} catch (error) {
+			console.error('Failed to open licenses window:', error);
+		}
+	}
 	interface Props {
 		copyrightYear?: number;
 		copyrightHolder?: string;
@@ -25,6 +36,7 @@
 			? ''
 			: '/'}licenses.html"
 		class="footer-link"
+		onclick={openLicenses}
 		target="_blank"
 		rel="noopener">{i18n.t('footer.licenses')}</a
 	>

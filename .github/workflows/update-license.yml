@@ -6,6 +6,9 @@ on:
 jobs:
   generate-licenses:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -75,8 +78,8 @@ jobs:
           git commit -m "docs: update third-party license reports [skip ci]"
           git push origin "$BRANCH_NAME"
 
-          curl -X POST \
+          curl --fail-with-body -X POST \
             -H "Authorization: token $API_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"head\":\"$BRANCH_NAME\",\"base\":\"main\",\"title\":\"Update Third-Party License Notices\",\"body\":\"Automated update triggered via workflow_dispatch.\"}" \
-            "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/pulls"
+            "${{ github.api_url }}/repos/${{ github.repository }}/pulls"

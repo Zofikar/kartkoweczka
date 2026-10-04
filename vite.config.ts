@@ -23,6 +23,8 @@ export default defineConfig(({ mode }) => {
 		plugins: [
 			svelte(),
 			VitePWA({
+				// Tauri bundles its assets locally and must not install a PWA worker.
+				disable: databaseBackend === 'tauri',
 				registerType: 'autoUpdate',
 				injectRegister: 'auto',
 				includeAssets: ['favicon.ico', 'robots.txt', 'icon-192x192.png', 'icon-512x512.png'],
