@@ -1,18 +1,19 @@
 import { defineConfig, loadEnv } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
-import { githubPagesSpa } from '@sctg/vite-plugin-github-pages-spa';
 import zodCompiler from 'zod-compiler/vite';
 import path from 'path';
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
-	const base = env.VITE_BASE_PATH || '/';
-	const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+	const databaseBackend = env.DATABASE_BACKEND === 'tauri' ? 'tauri' : 'browser';
 
 	return {
-		base,
+		base: './',
+		define: {
+			__DATABASE_BACKEND__: JSON.stringify(databaseBackend),
+		},
 		resolve: {
 			alias: {
 				'@': path.resolve(import.meta.dirname, './src/'),
@@ -33,12 +34,12 @@ export default defineConfig(({ mode }) => {
 					lang: 'pl',
 					icons: [
 						{
-							src: `${normalizedBase}icon-192x192.png`,
+							src: 'icon-192x192.png',
 							sizes: '192x192',
 							type: 'image/png',
 						},
 						{
-							src: `${normalizedBase}icon-512x512.png`,
+							src: 'icon-512x512.png',
 							sizes: '512x512',
 							type: 'image/png',
 						},
@@ -48,14 +49,10 @@ export default defineConfig(({ mode }) => {
 					display: 'standalone',
 				},
 				workbox: {
-					navigateFallback: `${normalizedBase}index.html`,
+					navigateFallback: 'index.html',
 					globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,wasm,data,woff2}'],
 					maximumFileSizeToCacheInBytes: 11 * 1024 * 1024,
 				},
-			}),
-			githubPagesSpa({
-				verbose: true,
-				injectScript: true,
 			}),
 			zodCompiler(),
 		],
@@ -73,6 +70,11 @@ export default defineConfig(({ mode }) => {
 		},
 		preview: {
 			allowedHosts: ['kartkoweczka.internal'],
+		},
+		server: {
+			watch: {
+				ignored: ['**/src-tauri/**'],
+			},
 		},
 	};
 });

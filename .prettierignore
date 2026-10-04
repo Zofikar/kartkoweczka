@@ -1,8 +1,7 @@
-src-tauri/target
-src-tauri/gen
-src-tauri/Cargo.toml
-src-tauri/Cargo.lock
+src-tauri/**
 
-public/opencv/
+src/wasm/openOmr.js
+src/wasm/openOmr.d.ts
+src/wasm/WASM_API.md
 .venv
 opencv-setup/

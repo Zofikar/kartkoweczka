@@ -62,3 +62,19 @@ yarn run dev
 # 5. Zbuduj wersję produkcyjną
 yarn run build
 ```
+
+### Aplikacja desktopowa (Tauri)
+
+Wymagane są Rust oraz zależności systemowe Tauri dla wybranego systemu operacyjnego.
+
+```bash
+# Uruchom aplikację desktopową w trybie deweloperskim
+yarn tauri:dev
+
+# Zbuduj natywną aplikację i instalator
+yarn tauri:build
+```
+
+Build Tauri automatycznie ustawia natywny backend bazy danych. SQLite działa po stronie Rust i
+zapisuje plik `kartkoweczka.sqlite3` w katalogu danych aplikacji. Browserowy OPFS i SQLite WASM nie
+są dołączane do bundla desktopowego.

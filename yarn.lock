@@ -2270,15 +2270,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sctg/vite-plugin-github-pages-spa@npm:^0.2.0":
-  version: 0.2.0
-  resolution: "@sctg/vite-plugin-github-pages-spa@npm:0.2.0"
-  peerDependencies:
-    vite: ">=6.3.0"
-  checksum: 10c0/5132cdf67a07fe1d6e4c29b673373105470b5b19eca283a7c91d829a336e338768b6c613e2c22800ec985b9375603024f89117659f8332192226ba5fcbad56d7
-  languageName: node
-  linkType: hard
-
 "@sqlite.org/sqlite-wasm@npm:^3.53.0-build1":
   version: 3.53.0-build1
   resolution: "@sqlite.org/sqlite-wasm@npm:3.53.0-build1"
@@ -2314,6 +2305,134 @@ __metadata:
     svelte: ^5.46.4
     vite: ^8.0.0-beta.7 || ^8.0.0
   checksum: 10c0/064affb1b09af408b8f9948cb657a8983ac629bc899dbf20bde9bf8d10d4333acbf4df43376adfc32ea69e2a041a7b57ff3a11f23e76c201b2af972b0ef5ea28
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/api@npm:^2.8.0":
+  version: 2.12.0
+  resolution: "@tauri-apps/api@npm:2.12.0"
+  checksum: 10c0/3bcf726e74a96b1dfc7f04bac9dc4c30808ff8fc68bc501e9b2a92ee15674b89276637b69bc42d5f61f1aaa2c98aa9b6134d7bdabbf9b320d3a6504e1216b2ef
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-darwin-arm64@npm:2.12.0":
+  version: 2.12.0
+  resolution: "@tauri-apps/cli-darwin-arm64@npm:2.12.0"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-darwin-x64@npm:2.12.0":
+  version: 2.12.0
+  resolution: "@tauri-apps/cli-darwin-x64@npm:2.12.0"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-linux-arm-gnueabihf@npm:2.12.0":
+  version: 2.12.0
+  resolution: "@tauri-apps/cli-linux-arm-gnueabihf@npm:2.12.0"
+  conditions: os=linux & cpu=arm
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-linux-arm64-gnu@npm:2.12.0":
+  version: 2.12.0
+  resolution: "@tauri-apps/cli-linux-arm64-gnu@npm:2.12.0"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-linux-arm64-musl@npm:2.12.0":
+  version: 2.12.0
+  resolution: "@tauri-apps/cli-linux-arm64-musl@npm:2.12.0"
+  conditions: os=linux & cpu=arm64 & libc=musl
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-linux-riscv64-gnu@npm:2.12.0":
+  version: 2.12.0
+  resolution: "@tauri-apps/cli-linux-riscv64-gnu@npm:2.12.0"
+  conditions: os=linux & cpu=riscv64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-linux-x64-gnu@npm:2.12.0":
+  version: 2.12.0
+  resolution: "@tauri-apps/cli-linux-x64-gnu@npm:2.12.0"
+  conditions: os=linux & cpu=x64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-linux-x64-musl@npm:2.12.0":
+  version: 2.12.0
+  resolution: "@tauri-apps/cli-linux-x64-musl@npm:2.12.0"
+  conditions: os=linux & cpu=x64 & libc=musl
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-win32-arm64-msvc@npm:2.12.0":
+  version: 2.12.0
+  resolution: "@tauri-apps/cli-win32-arm64-msvc@npm:2.12.0"
+  conditions: os=win32 & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-win32-ia32-msvc@npm:2.12.0":
+  version: 2.12.0
+  resolution: "@tauri-apps/cli-win32-ia32-msvc@npm:2.12.0"
+  conditions: os=win32 & cpu=ia32
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-win32-x64-msvc@npm:2.12.0":
+  version: 2.12.0
+  resolution: "@tauri-apps/cli-win32-x64-msvc@npm:2.12.0"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli@npm:^2.8.0":
+  version: 2.12.0
+  resolution: "@tauri-apps/cli@npm:2.12.0"
+  dependencies:
+    "@tauri-apps/cli-darwin-arm64": "npm:2.12.0"
+    "@tauri-apps/cli-darwin-x64": "npm:2.12.0"
+    "@tauri-apps/cli-linux-arm-gnueabihf": "npm:2.12.0"
+    "@tauri-apps/cli-linux-arm64-gnu": "npm:2.12.0"
+    "@tauri-apps/cli-linux-arm64-musl": "npm:2.12.0"
+    "@tauri-apps/cli-linux-riscv64-gnu": "npm:2.12.0"
+    "@tauri-apps/cli-linux-x64-gnu": "npm:2.12.0"
+    "@tauri-apps/cli-linux-x64-musl": "npm:2.12.0"
+    "@tauri-apps/cli-win32-arm64-msvc": "npm:2.12.0"
+    "@tauri-apps/cli-win32-ia32-msvc": "npm:2.12.0"
+    "@tauri-apps/cli-win32-x64-msvc": "npm:2.12.0"
+  dependenciesMeta:
+    "@tauri-apps/cli-darwin-arm64":
+      optional: true
+    "@tauri-apps/cli-darwin-x64":
+      optional: true
+    "@tauri-apps/cli-linux-arm-gnueabihf":
+      optional: true
+    "@tauri-apps/cli-linux-arm64-gnu":
+      optional: true
+    "@tauri-apps/cli-linux-arm64-musl":
+      optional: true
+    "@tauri-apps/cli-linux-riscv64-gnu":
+      optional: true
+    "@tauri-apps/cli-linux-x64-gnu":
+      optional: true
+    "@tauri-apps/cli-linux-x64-musl":
+      optional: true
+    "@tauri-apps/cli-win32-arm64-msvc":
+      optional: true
+    "@tauri-apps/cli-win32-ia32-msvc":
+      optional: true
+    "@tauri-apps/cli-win32-x64-msvc":
+      optional: true
+  bin:
+    tauri: tauri.js
+  checksum: 10c0/5573e1a42952e99e4d50d1847269453eab27f413a20df49c2f12c0d89ba1c59914f87e62a2309b7aaa7af5045fc97c055d65e8587fe37e70a3c6ede65f24ab7a
   languageName: node
   linkType: hard
 
@@ -4560,9 +4679,10 @@ __metadata:
   dependencies:
     "@eslint/js": "npm:^10.0.1"
     "@msgpack/msgpack": "npm:^3.1.3"
-    "@sctg/vite-plugin-github-pages-spa": "npm:^0.2.0"
     "@sqlite.org/sqlite-wasm": "npm:^3.53.0-build1"
     "@sveltejs/vite-plugin-svelte": "npm:^7.3.0"
+    "@tauri-apps/api": "npm:^2.8.0"
+    "@tauri-apps/cli": "npm:^2.8.0"
     "@tsconfig/svelte": "npm:^5.0.8"
     "@types/node": "npm:^26.2.0"
     comlink: "npm:^4.4.2"

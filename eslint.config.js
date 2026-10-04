@@ -11,6 +11,9 @@ const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
 const prettierIgnorePath = path.resolve(import.meta.dirname, '.prettierignore');
 
 export default defineConfig(
+	{
+		ignores: ['src-tauri/**'],
+	},
 	includeIgnoreFile(gitignorePath),
 	includeIgnoreFile(prettierIgnorePath),
 	js.configs.recommended,

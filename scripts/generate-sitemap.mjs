@@ -4,21 +4,10 @@ import { loadEnv } from 'vite';
 const mode = process.env.NODE_ENV || 'production';
 const env = loadEnv(mode, process.cwd(), '');
 const origin = env.VITE_ORIGIN;
-const basePath = env.VITE_BASE_PATH
-	? env.VITE_BASE_PATH.endsWith('/')
-		? env.VITE_BASE_PATH.substring(0, -1)
-		: env.VITE_BASE_PATH
-	: '';
 const schema = env.VITE_SCHEMA || 'http';
-const siteUrl = schema + '://' + origin + basePath;
+const siteUrl = schema + '://' + origin;
 
-import { isDynamic, routes } from '../src/routes.js';
-
-const urls = routes
-	.filter((route) => !isDynamic(route) && !route.debug)
-	.map((route) => `${siteUrl}${route.path}`);
-
-urls.push(`${siteUrl}/licenses.html`);
+const urls = [`${siteUrl}/`, `${siteUrl}/licenses.html`];
 
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
