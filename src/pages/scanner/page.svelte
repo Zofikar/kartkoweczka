@@ -1,20 +1,15 @@
 <script lang="ts">
 	import {
 		scanGradingSheetImage,
-		detectMarkersInFrame,
-		detectQrCode,
-		imageDataToGrayscaleMat,
-		matToImageData,
-		normalizeMat,
-		resolveOmrConfig,
+		scanGradingSheetImageData,
+		checkImageQuality,
 		computeScore,
-		type DetectedQrCode,
 		type OmrScanResult,
 	} from '@/utils/omrScanner';
-	import { deleteOpenCvObject, getOpenCv } from '@/utils/opencv';
-	import type { OmrConfig } from '@/utils/omr';
+	import { getOpenOmr } from '@/utils/openOmr';
 	import { getTest, getTestRevision } from '@/db/repositories';
 	import Button from '$lib/ui/Button.svelte';
+	import { p } from '@/router';
 
 	type Mode = 'image' | 'camera';
 	type CameraState = 'idle' | 'searching' | 'processing' | 'result' | 'error';
@@ -30,6 +25,7 @@
 	let videoElement = $state<HTMLVideoElement>();
 	let stream = $state<MediaStream | null>(null);
 	let searchAnimationId = $state<number>(0);
+	let torch = $state(false);
 
 	function resetResults() {
 		result = null;
@@ -88,23 +84,14 @@
 		const testName = test?.name ?? 'Nieznany test';
 
 		statusLabel = 'Skanuję odpowiedzi…';
-		const counts = revision.content.map((q) => q.answers.length);
-		const gridBounds = scan.omrConfig.grid.calculateGridBounds(scan.omrConfig);
-		const columns = scan.omrConfig.grid.calculateGridColumns(scan.omrConfig, gridBounds, counts);
-		const scannedAnswers = scan.omrConfig.grid.scanGrid(
-			scan.omrConfig,
-			scan.normalizedImage,
-			columns
-		);
-
-		const score = computeScore(scannedAnswers, revision.content);
+		const score = computeScore(scan.scannedAnswers, revision.content);
 		return {
 			scanStatus: 'success',
 			revisionId,
 			testId: revision.testId,
 			testName,
 			revisionName: revision.name,
-			scannedAnswers,
+			scannedAnswers: scan.scannedAnswers,
 			correctAnswers: score.correctAnswers,
 			correctAnswerIndices: score.correctAnswerIndices,
 			score: score.score,
@@ -114,6 +101,30 @@
 	}
 
 	// ─── Camera mode ──────────────────────────────────────────────────────────
+
+	type NumericCapability = {
+		min: number;
+		max: number;
+		step: number;
+	};
+
+	type ExtendedMediaTrackCapabilities = MediaTrackCapabilities & {
+		contrast?: NumericCapability;
+		sharpness?: NumericCapability;
+		saturation?: NumericCapability;
+		focusMode?: string[];
+		exposureMode?: string[];
+		exposureCompensation?: NumericCapability;
+	};
+
+	type ExtendedMediaTrackConstraintSet = MediaTrackConstraintSet & {
+		contrast?: number;
+		sharpness?: number;
+		saturation?: number;
+		focusMode?: string;
+		exposureMode?: string;
+		exposureCompensation?: number;
+	};
 
 	async function startCamera() {
 		resetResults();
@@ -131,6 +142,43 @@
 			stopCamera();
 			return;
 		}
+
+		const track = stream.getVideoTracks()[0];
+		const caps = track.getCapabilities() as ExtendedMediaTrackCapabilities;
+
+		const advanced: ExtendedMediaTrackConstraintSet = {};
+
+		if (caps.contrast) {
+			advanced.contrast = caps.contrast.min + (caps.contrast.max - caps.contrast.min) * 0.6;
+		}
+
+		if (caps.sharpness) {
+			advanced.sharpness = caps.sharpness.min + (caps.sharpness.max - caps.sharpness.min) * 0.4;
+		}
+
+		if (caps.saturation) {
+			advanced.saturation = caps.saturation.min;
+		}
+
+		if (caps.focusMode?.includes('continuous')) {
+			advanced.focusMode = 'continuous';
+		}
+
+		if (caps.exposureMode?.includes('continuous')) {
+			advanced.exposureMode = 'continuous';
+		}
+
+		try {
+			if (Object.keys(advanced).length > 0) {
+				await track.applyConstraints({
+					advanced: [advanced],
+				});
+			}
+		} catch (error) {
+			// Camera still works; only enhancement failed.
+			console.warn('Camera enhancement constraints rejected:', error);
+		}
+
 		videoElement.srcObject = stream;
 		await videoElement.play();
 		requestAnimationFrame(searchFrame);
@@ -140,9 +188,8 @@
 		const portraitConstraints: MediaStreamConstraints = {
 			video: {
 				facingMode: { ideal: 'environment' },
-				width: { ideal: 9999 },
-				height: { ideal: 9999 },
-				aspectRatio: { ideal: 1 / Math.SQRT2 },
+				width: { ideal: 3000, min: 720 },
+				aspectRatio: { ideal: 3 / 4 },
 				/* @ts-expect-error resize mode exists */
 				resizeMode: 'none',
 			},
@@ -164,6 +211,22 @@
 		if (videoElement) videoElement.srcObject = null;
 	}
 
+	async function setTorch(enabled: boolean): Promise<boolean> {
+		if (enabled === torch) return true;
+		if (!stream) return false;
+
+		const track = stream.getVideoTracks()[0];
+		try {
+			await track.applyConstraints({
+				advanced: [{ torch: true }],
+			} as ExtendedMediaTrackConstraintSet);
+		} catch {
+			return false;
+		}
+		torch = enabled;
+		return true;
+	}
+
 	async function searchFrame() {
 		if (cameraState !== 'searching' || !videoElement || videoElement.readyState < 2) {
 			searchAnimationId = requestAnimationFrame(searchFrame);
@@ -177,42 +240,18 @@
 			ctx.drawImage(videoElement, 0, 0);
 			const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-			const cv = await getOpenCv();
-			const grayMat = imageDataToGrayscaleMat(cv, imageData);
+			statusLabel = 'Rozpoczęto skanowanie karty odpowiedzi.';
+			const openOmr = await getOpenOmr();
+			const quality = await checkImageQuality(imageData);
+			if (quality.value === openOmr.ImageQuality.TooDark.value) await setTorch(true);
+			if (quality.value === openOmr.ImageQuality.TooBright.value) await setTorch(false);
 
-			try {
-				const markers = detectMarkersInFrame(cv, grayMat);
-
-				if (markers.length < 4) {
-					scheduleNextFrame();
-					return;
-				}
-
-				const omrConfig = resolveOmrConfig(markers);
-				const normalizedMat = normalizeMat(cv, omrConfig, grayMat, markers);
-				if (!normalizedMat) {
-					scheduleNextFrame();
-					return;
-				}
-
-				const qrCode = await detectQrCode(cv, omrConfig, normalizedMat);
-				if (!qrCode?.metadata?.revisionId) {
-					deleteOpenCvObject(normalizedMat);
-					scheduleNextFrame();
-					return;
-				}
-
-				const normalized = matToImageData(cv, normalizedMat);
-				deleteOpenCvObject(normalizedMat);
-
-				cameraState = 'processing';
-				stopCamera();
-				statusLabel = 'Przetwarzanie…';
-				result = await processFrozenFrame(omrConfig, normalized, qrCode);
-				cameraState = 'result';
-			} finally {
-				deleteOpenCvObject(grayMat);
-			}
+			const scan = await scanGradingSheetImageData(imageData);
+			cameraState = 'processing';
+			stopCamera();
+			statusLabel = 'Przetwarzanie…';
+			result = await processFrozenFrame(scan);
+			cameraState = 'result';
 		} catch {
 			scheduleNextFrame();
 		}
@@ -226,22 +265,16 @@
 	}
 
 	async function processFrozenFrame(
-		omrConfig: OmrConfig,
-		normalized: ImageData,
-		qrCode: DetectedQrCode
+		scan: Awaited<ReturnType<typeof scanGradingSheetImageData>>
 	): Promise<OmrScanResult> {
-		const revisionId = qrCode.metadata!.revisionId;
+		const revisionId = scan.qrCode.metadata!.revisionId;
 		const revision = await getTestRevision(revisionId);
 		if (!revision) throw new Error('Nieznana rewizja testu.');
 
 		const test = await getTest(revision.testId);
 		const testName = test?.name ?? 'Nieznany test';
 
-		const counts = revision.content.map((q) => q.answers.length);
-		const gridBounds = omrConfig.grid.calculateGridBounds(omrConfig);
-		const columns = omrConfig.grid.calculateGridColumns(omrConfig, gridBounds, counts);
-		const scannedAnswers = omrConfig.grid.scanGrid(omrConfig, normalized, columns);
-		const score = computeScore(scannedAnswers, revision.content);
+		const score = computeScore(scan.scannedAnswers, revision.content);
 
 		return {
 			scanStatus: 'success',
@@ -249,12 +282,12 @@
 			testId: revision.testId,
 			testName,
 			revisionName: revision.name,
-			scannedAnswers,
+			scannedAnswers: scan.scannedAnswers,
 			correctAnswers: score.correctAnswers,
 			correctAnswerIndices: score.correctAnswerIndices,
 			score: score.score,
 			totalQuestions: score.totalQuestions,
-			normalizedImage: normalized,
+			normalizedImage: scan.normalizedImage,
 		};
 	}
 
@@ -341,12 +374,17 @@
 			<div class="result-meta">
 				<p>
 					Test:
-					<a href="/tests/{result.testId}" class="meta-link">{result.testName}</a>
+					<a href={p('/tests/:id', { params: { id: result.testId } })} class="meta-link">
+						{result.testName}
+					</a>
 				</p>
 				<p>
 					Wersja:
-					<a href="/tests/{result.testId}/revision/{result.revisionId}" class="meta-link"
-						>{result.revisionName}</a
+					<a
+						href={p('/tests/:id/revision/:revisionId', {
+							params: { id: result.testId, revisionId: result.revisionId },
+						})}
+						class="meta-link">{result.revisionName}</a
 					>
 				</p>
 			</div>
@@ -478,7 +516,6 @@
 	.video-preview {
 		display: block;
 		width: fit-content;
-		aspect-ratio: 9/16;
 		max-height: 60vh;
 		object-fit: cover;
 	}

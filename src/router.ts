@@ -72,8 +72,6 @@ export const staticRoutesChildren = (() => {
 
 const filteredRoutes = filterRoutes();
 
-const noTrailingShashBase = import.meta.env.BASE_URL.replace(/\/$/, '');
-
 export const { p, navigate, isActive, route } = createRouter(filteredRoutes, {
-	base: noTrailingShashBase,
+	base: '#',
 });

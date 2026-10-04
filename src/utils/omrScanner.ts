@@ -1,25 +1,15 @@
-import {
-	arucoMarkerPlacements,
-	LATEST_OMR_CONFIG,
-	metadataQrPlacement,
-	OMR_CONFIG_VERSIONS,
-	omrConfigForVersion,
-	omrVersionFromMarkerId,
-	type ArucoMarkerPlacement,
-	type OmrConfig,
-	type OmrCorner,
-	type OmrRect,
-	type SheetMetadata,
-} from '@/utils/omr';
-
-import type { OpenCv, Mat, MatVector, aruco_DetectorParameters } from '@/types/opencv';
-import { deleteOpenCvObject, getOpenCv } from '@/utils/opencv';
 import type { SnapshotQuestion } from '@/db/repositories';
+import type { ArucoDetection, ImageQuality, Point, RevisionDetection } from '@/wasm/openOmr.js';
+import {
+	bytesToUuid,
+	getOpenOmr,
+	imageDataToOpenOmrImage,
+	openOmrImageToImageData,
+} from '@/utils/openOmr';
 
-/** Extra design units around the known metadata QR position to search in. */
-const QR_SEARCH_SAFETY_MARGIN = 80;
-
-// ─── Public types ──────────────────────────────────────────────────────────────
+export const SHEET_SIZE = { width: 1800, height: 2050 } as const;
+export const ANSWER_CELL_SIZE = { width: 84, height: 84 } as const;
+export const ANSWER_INNER_CELL_SIZE = { width: 42, height: 42 } as const;
 
 export interface DebugPoint {
 	x: number;
@@ -28,16 +18,41 @@ export interface DebugPoint {
 
 export interface DetectedArucoMarker {
 	id: number;
-	corner?: OmrCorner;
 	center: DebugPoint;
 	corners: DebugPoint[];
 }
 
 export interface DetectedQrCode {
 	data: string;
-	/** Decoded sheet metadata, or `undefined` for a non-metadata QR payload. */
-	metadata: SheetMetadata | undefined;
+	metadata: { revisionId: string } | undefined;
 	corners: DebugPoint[];
+}
+
+export interface GradingSheetScan {
+	imageData: ImageData;
+	normalizedImage: ImageData;
+	markers: DetectedArucoMarker[];
+	qrCode: DetectedQrCode;
+	scannedAnswers: number[];
+}
+
+export type OmrDiagnosticStage =
+	| 'module-loaded'
+	| 'image-copied'
+	| 'aruco-detected'
+	| 'normalized'
+	| 'revision-detected'
+	| 'graded';
+
+export interface GradingSheetDiagnostics {
+	imageData: ImageData;
+	markers: DetectedArucoMarker[];
+	normalizedImage?: ImageData;
+	qrCode: DetectedQrCode | null;
+	scannedAnswers: number[] | null;
+	quality: 'good' | 'too-dark' | 'too-bright';
+	stages: OmrDiagnosticStage[];
+	warnings: string[];
 }
 
 export interface OmrScanResult {
@@ -55,829 +70,211 @@ export interface OmrScanResult {
 	error?: string;
 }
 
-// ─── Internal types ────────────────────────────────────────────────────────────
-
-interface PointPair {
-	source: DebugPoint;
-	destination: DebugPoint;
+export async function scanGradingSheetImage(file: File): Promise<GradingSheetScan> {
+	const bitmap = await createImageBitmap(file);
+	try {
+		return await scanGradingSheetImageData(readImageBitmap(bitmap));
+	} finally {
+		bitmap.close();
+	}
 }
 
-type Homography = [number, number, number, number, number, number, number, number, number];
-
-interface OriginalArucoMarker {
-	id: number;
-	corners: DebugPoint[];
+export async function scanGradingSheetImageData(imageData: ImageData): Promise<GradingSheetScan> {
+	const diagnostics = await diagnoseGradingSheetImageData(imageData);
+	if (!diagnostics.normalizedImage) throw new Error(diagnostics.warnings.at(-1));
+	if (!diagnostics.qrCode) throw new Error(diagnostics.warnings.at(-1));
+	if (!diagnostics.scannedAnswers) throw new Error(diagnostics.warnings.at(-1));
+	return {
+		imageData,
+		normalizedImage: diagnostics.normalizedImage,
+		markers: diagnostics.markers,
+		qrCode: diagnostics.qrCode,
+		scannedAnswers: diagnostics.scannedAnswers,
+	};
 }
 
-interface AnalysisImage {
-	imageData: ImageData;
-	pointToSource: (point: DebugPoint) => DebugPoint;
-}
-
-// ─── Valid marker IDs set ──────────────────────────────────────────────────────
-
-/**
- * Marker ids a sheet may legitimately contain: anchors and version markers of
- * every known format version, so detection stays backwards compatible.
- */
-export const VALID_ANSWER_SHEET_MARKER_IDS = new Set<number>(
-	OMR_CONFIG_VERSIONS.flatMap((config) => [
-		config.aruco.anchorIds.topLeft,
-		config.aruco.anchorIds.topRight,
-		config.aruco.anchorIds.bottomRight,
-		...config.aruco.formatVersionIds,
-	])
-);
-
-// ─── Core pipeline: image → markers → config → normalize → QR ──────────────────
-
-/**
- * Analyse a single uploaded image file through the full detection pipeline:
- * ArUco markers → OMR config → normalization → QR decode.
- *
- * Does NOT hit the database — callers must look up the revision via
- * {@link DetectedQrCode.metadata.revisionId} and then run grid scan + scoring.
- */
-export async function scanGradingSheetImage(file: File): Promise<{
-	imageData: ImageData;
-	normalizedImage: ImageData;
-	omrConfig: OmrConfig;
-	markers: DetectedArucoMarker[];
-	qrCode: DetectedQrCode;
-}> {
-	const image = await createImageBitmap(file);
-	const { imageData } = readAnalysisImage(image);
-
-	const cv = await getOpenCv();
-
-	const grayscale = imageDataToGrayscaleMat(cv, imageData);
+export async function diagnoseGradingSheetImageData(
+	imageData: ImageData
+): Promise<GradingSheetDiagnostics> {
+	const openOmr = await getOpenOmr();
+	const stages: OmrDiagnosticStage[] = ['module-loaded'];
+	const image = imageDataToOpenOmrImage(openOmr, imageData);
+	stages.push('image-copied');
+	const grader = new openOmr.SheetGrader();
 
 	try {
-		const markers = detectArucoMarkersInMat(cv, grayscale);
-		if (markers.length < 4) {
-			throw new Error(
-				'Nie wykryto czterech markerów ArUco na karcie. Spróbuj z lepszym oświetleniem.'
+		const qualityValue = openOmr.checkImageQuality(image);
+		const quality = imageQualityName(openOmr, qualityValue);
+		const detections = grader.detectAruco(image);
+		let markers: DetectedArucoMarker[];
+		try {
+			markers = Array.from(detections, mapArucoDetection);
+		} finally {
+			detections.delete();
+		}
+		stages.push('aruco-detected');
+		logDiagnostics('Wykryte markery ArUco', markers);
+
+		if (markers.length < 3) {
+			return diagnosticsFailure(
+				imageData,
+				markers,
+				quality,
+				stages,
+				`Wykryto ${markers.length} marker(y). Normalizacja wymaga co najmniej trzech prawidłowych markerów narożnych.`
 			);
 		}
-		const omrConfig = resolveOmrConfig(markers);
-		const normalizedMat = normalizeMat(cv, omrConfig, grayscale, markers);
-		if (!normalizedMat) {
-			throw new Error('Nie udało się znormalizować obrazu karty. Markery są zdegenerowane.');
+		if (!grader.normalize(SHEET_SIZE)) {
+			return diagnosticsFailure(
+				imageData,
+				markers,
+				quality,
+				stages,
+				'Nie udało się znormalizować obrazu. Wykryte markery nie tworzą obsługiwanego układu narożników; sprawdź, czy karta została wygenerowana przez bieżący openOmr.'
+			);
 		}
-		const qrCode = await detectQrCode(cv, omrConfig, normalizedMat);
-		if (!qrCode) {
-			deleteOpenCvObject(normalizedMat);
-			throw new Error('Nie znaleziono kodu QR w obszarze karty odpowiedzi.');
-		}
-		if (!qrCode.metadata?.revisionId) {
-			deleteOpenCvObject(normalizedMat);
-			throw new Error('Kod QR nie zawiera poprawnego identyfikatora rewizji.');
-		}
-		const normalizedImage = matToImageData(cv, normalizedMat);
-		deleteOpenCvObject(normalizedMat);
-		return { imageData, normalizedImage, omrConfig, markers, qrCode };
-	} finally {
-		deleteOpenCvObject(grayscale);
-	}
-}
+		stages.push('normalized');
 
-/**
- * Lightweight ArUco marker detection on a single frame — used by camera mode
- * during the continuous-search loop. Returns markers with valid sheet IDs only.
- *
- * Prefer this signature when the caller already holds a cv instance and
- * grayscale Mat (e.g. inside a frame loop) — avoids redundant ImageData→Mat
- * conversion.
- */
-export function detectMarkersInFrame(cv: OpenCv, grayscale: Mat): DetectedArucoMarker[] {
-	return detectArucoMarkersInMat(cv, grayscale);
-}
-
-/**
- * Compute score by comparing scanned answer indices against the revision's
- * correct answers. Returns per-question correctness, total score, and question count.
- */
-export function computeScore(
-	scannedAnswers: number[],
-	revisionContent: SnapshotQuestion[]
-): {
-	correctAnswers: boolean[];
-	correctAnswerIndices: number[];
-	score: number;
-	totalQuestions: number;
-} {
-	const totalQuestions = revisionContent.length;
-	const correctAnswers: boolean[] = [];
-	const correctAnswerIndices: number[] = [];
-	let score = 0;
-
-	for (let i = 0; i < totalQuestions; i++) {
-		const question = revisionContent[i];
-		const correctAnswerIndex = question.answers.findIndex((a) => a.is_correct);
-		correctAnswerIndices.push(correctAnswerIndex);
-		const scanned = scannedAnswers[i] ?? -1;
-		const isCorrect = scanned === correctAnswerIndex;
-		correctAnswers.push(isCorrect);
-		if (isCorrect) score++;
-	}
-
-	return { correctAnswers, correctAnswerIndices, score, totalQuestions };
-}
-// ─── Image preparation ─────────────────────────────────────────────────────────
-
-export function readAnalysisImage(image: ImageBitmap): AnalysisImage {
-	const isLandscape = image.width > image.height;
-	const portraitWidth = isLandscape ? image.height : image.width;
-	const portraitHeight = isLandscape ? image.width : image.height;
-	const width = portraitWidth;
-	const height = portraitHeight;
-	const canvas = new OffscreenCanvas(width, height);
-	const context = getOffscreenCanvasContext(canvas);
-	context.imageSmoothingEnabled = true;
-	context.imageSmoothingQuality = 'high';
-	drawPortraitImage(context, image, width, height, isLandscape);
-	return {
-		imageData: context.getImageData(0, 0, width, height),
-		pointToSource: isLandscape
-			? (point) => mapRotatedPointToSource(point, image, width, height)
-			: (point) => mapPortraitPointToSource(point, image, width, height),
-	};
-}
-
-// ─── Grayscale Mat preparation ─────────────────────────────────────────────────
-
-/**
- * Convert a web-native ImageData (RGBA) to a single-channel grayscale OpenCV Mat.
- * The caller owns the returned Mat and must delete it.
- *
- * Applying grayscale once at the pipeline entry point allows every downstream
- * step — ArUco detection, homography normalization, QR decode, grid scan — to
- * work from the same consistent luminance data, improving reliability for both
- * black and blue-ink answer sheets.
- */
-export function imageDataToGrayscaleMat(cv: OpenCv, imageData: ImageData): Mat {
-	const source = cv.matFromImageData(imageData);
-	const grayscale = new cv.Mat();
-	try {
-		cv.cvtColor(source, grayscale, cv.COLOR_RGBA2GRAY);
-		cv.normalize(grayscale, grayscale, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
-		return grayscale;
-	} finally {
-		deleteOpenCvObject(source);
-	}
-}
-
-// ─── ArUco detection ───────────────────────────────────────────────────────────
-
-/**
- * Detect ArUco markers in a pre-allocated grayscale Mat.
- *
- * This is the preferred entry point when the caller already holds a cv instance
- * and has converted the source image to grayscale — the ArUco detector expects
- * single-channel input internally, so passing RGBA forces OpenCV to convert
- * again inside the detector.
- */
-export function detectArucoMarkersInMat(cv: OpenCv, grayscale: Mat): DetectedArucoMarker[] {
-	return detectMarkersInMat(cv, grayscale).map(toDetectedArucoMarker);
-}
-
-/**
- * Legacy entry point that accepts a web-native image and handles the
- * ImageData → Mat → grayscale conversion internally.
- *
- * Prefer {@link detectArucoMarkersInMat} when a cv instance and grayscale Mat
- * are already available (e.g. inside a frame loop).
- */
-export async function detectArucoMarkers(
-	image: ImageData | HTMLCanvasElement | OffscreenCanvas
-): Promise<DetectedArucoMarker[]> {
-	const cv = await getOpenCv();
-	const imageData = image instanceof ImageData ? image : readCanvasImageData(image);
-	const grayscale = imageDataToGrayscaleMat(cv, imageData);
-	try {
-		return detectArucoMarkersInMat(cv, grayscale);
-	} finally {
-		deleteOpenCvObject(grayscale);
-	}
-}
-
-function readCanvasImageData(canvas: HTMLCanvasElement | OffscreenCanvas): ImageData {
-	const context = canvas.getContext('2d', { willReadFrequently: true }) as
-		CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
-	if (!context) throw new Error('Nie można utworzyć kontekstu canvas 2D.');
-	return context.getImageData(0, 0, canvas.width, canvas.height);
-}
-
-function detectMarkersInMat(cv: OpenCv, image: Mat): OriginalArucoMarker[] {
-	const corners = new cv.MatVector();
-	const rejected = new cv.MatVector();
-	const ids = new cv.Mat();
-	const parameters = buildArucoDetectorParameters(cv);
-	const refineParameters = new cv.aruco_RefineParameters(10, 3, true);
-	const detector = new cv.aruco_ArucoDetector(
-		cv.getPredefinedDictionary(cv.DICT_ARUCO_ORIGINAL),
-		parameters,
-		refineParameters
-	);
-
-	try {
-		detector.detectMarkers(image, corners, ids, rejected);
-		return readDetectedArucoMarkers(corners as unknown as MatVector, ids);
-	} finally {
-		deleteOpenCvObject(detector);
-		deleteOpenCvObject(refineParameters);
-		deleteOpenCvObject(parameters);
-		deleteOpenCvObject(ids);
-		deleteOpenCvObject(corners);
-	}
-}
-
-function buildArucoDetectorParameters(cv: OpenCv): aruco_DetectorParameters {
-	const parameters = new cv.aruco_DetectorParameters();
-	parameters.minMarkerPerimeterRate = 0.01;
-	parameters.cornerRefinementMethod = cv.CORNER_REFINE_SUBPIX;
-	parameters.cornerRefinementMaxIterations = 50;
-	parameters.errorCorrectionRate = 0.8;
-	parameters.minOtsuStdDev = 2;
-	parameters.perspectiveRemovePixelPerCell = 8;
-	parameters.useAruco3Detection = false;
-	parameters.adaptiveThreshWinSizeMin = 3;
-	parameters.adaptiveThreshWinSizeMax = 71;
-	parameters.adaptiveThreshWinSizeStep = 5;
-	return parameters;
-}
-
-function readDetectedArucoMarkers(corners: MatVector, ids: Mat): OriginalArucoMarker[] {
-	const markerCount = Math.min(ids.data32S.length, corners.size());
-
-	return Array.from({ length: markerCount }).flatMap((_, index) => {
-		const id = ids.data32S[index];
-
-		if (!VALID_ANSWER_SHEET_MARKER_IDS.has(id)) {
-			return [];
+		const normalized = grader.normalizedImage();
+		let normalizedImage: ImageData;
+		try {
+			normalizedImage = openOmrImageToImageData(openOmr, normalized);
+		} finally {
+			normalized.data.delete();
 		}
 
-		const markerCorners = readMarkerCorners(corners.get(index));
-
-		return markerCorners.length === 4 ? [{ id, corners: markerCorners }] : [];
-	});
-}
-
-function readMarkerCorners(corners: Mat | undefined): DebugPoint[] {
-	if (!corners?.data32F || corners.data32F.length < 8) return [];
-	try {
-		return Array.from({ length: 4 }, (_, index) => ({
-			x: corners.data32F[index * 2],
-			y: corners.data32F[index * 2 + 1],
-		}));
-	} finally {
-		deleteOpenCvObject(corners);
-	}
-}
-
-function toDetectedArucoMarker(marker: OriginalArucoMarker): DetectedArucoMarker {
-	return {
-		...marker,
-		center: polygonCenter(marker.corners),
-	};
-}
-
-// ─── OMR config resolution ─────────────────────────────────────────────────────
-
-export function resolveOmrConfig(markers: Pick<DetectedArucoMarker, 'id'>[]): OmrConfig {
-	const versionMarker = markers.find((marker) =>
-		LATEST_OMR_CONFIG.aruco.formatVersionIds.some((id) => id === marker.id)
-	);
-	const version = versionMarker ? omrVersionFromMarkerId(versionMarker.id) : undefined;
-	return version === undefined ? LATEST_OMR_CONFIG : omrConfigForVersion(version);
-}
-
-// ─── QR code detection ─────────────────────────────────────────────────────────
-
-export async function detectQrCode(
-	cv: OpenCv,
-	config: OmrConfig,
-	grayscale: Mat
-): Promise<DetectedQrCode | null> {
-	const searchRect = expandRect(metadataQrPlacement(config), QR_SEARCH_SAFETY_MARGIN, {
-		width: config.geometry.designWidth,
-		height: config.geometry.designHeight,
-	});
-
-	const cropped = cropGrayscaleMat(cv, grayscale, searchRect);
-	const detector = new cv.QRCodeDetectorAruco();
-
-	try {
-		for (const candidate of qrDecodeCandidates(cv, cropped)) {
-			const result = decodeQrCandidate(cv, detector, config, candidate, searchRect);
-			if (result) return result;
+		const revision = grader.detectRevisionId();
+		if (!revision) {
+			return diagnosticsFailure(
+				imageData,
+				markers,
+				quality,
+				stages,
+				'Normalizacja powiodła się, ale nie znaleziono identyfikatora rewizji.',
+				normalizedImage
+			);
 		}
-		return null;
+		const qrCode = revisionToQrCode(revision);
+		stages.push('revision-detected');
+
+		const grades = grader.gradeSheet(ANSWER_CELL_SIZE, ANSWER_INNER_CELL_SIZE);
+		try {
+			stages.push('graded');
+			const scannedAnswers = Array.from(grades, answerMaskToIndex);
+			logDiagnostics('Wynik diagnostyki openOmr', { quality, stages, qrCode, scannedAnswers });
+			return {
+				imageData,
+				normalizedImage,
+				markers,
+				qrCode,
+				scannedAnswers,
+				quality,
+				stages,
+				warnings: [],
+			};
+		} finally {
+			grades.delete();
+		}
 	} finally {
-		deleteOpenCvObject(detector);
-		deleteOpenCvObject(cropped);
+		grader.delete();
+		image.data.delete();
 	}
 }
 
-function cropGrayscaleMat(cv: OpenCv, src: Mat, rect: OmrRect): Mat {
-	const imageData = matToImageData(cv, src);
-	const cropped = cropImageData(imageData, rect);
-	const result = cv.matFromImageData(cropped);
-	const gray = new cv.Mat();
-	cv.cvtColor(result, gray, cv.COLOR_RGBA2GRAY);
-	deleteOpenCvObject(result);
-	return gray;
-}
-
-function qrDecodeCandidates(cv: OpenCv, grayscale: Mat): Mat[] {
-	const normalized = new cv.Mat();
-	cv.normalize(grayscale, normalized, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
-	const deepCopy = new cv.Mat();
-	grayscale.copyTo(deepCopy);
-	return [normalized, deepCopy];
-}
-
-function decodeQrCandidate(
-	cv: OpenCv,
-	detector: { detectAndDecode(img: Mat, points?: Mat): string },
-	config: OmrConfig,
-	grayscale: Mat,
-	searchRect: OmrRect
-): DetectedQrCode | null {
-	const points = new cv.Mat();
-	try {
-		const data = detector.detectAndDecode(grayscale, points);
-		return data ? decodedQrCodeFromPoints(config, data, points, searchRect) : null;
-	} finally {
-		deleteOpenCvObject(points);
-	}
-}
-
-function decodedQrCodeFromPoints(
-	config: OmrConfig,
-	data: string,
-	points: Mat,
-	searchRect: OmrRect
-): DetectedQrCode | null {
-	const corners = readQrCorners(points);
-	if (!corners) return null;
-	return {
-		data,
-		metadata: config.qrCode.decodePayload(data),
-		corners: corners.map((corner) => ({ x: corner.x + searchRect.x, y: corner.y + searchRect.y })),
-	};
-}
-
-// ─── Mat → ImageData bridge (for grid scanner compatibility) ────────────────────
-
-export function matToImageData(cv: OpenCv, grayscale: Mat): ImageData {
-	const rgba = new cv.Mat();
-	try {
-		cv.cvtColor(grayscale, rgba, cv.COLOR_GRAY2RGBA);
-		const imageData = new ImageData(grayscale.cols, grayscale.rows);
-		imageData.data.set(new Uint8ClampedArray(rgba.data));
-		return imageData;
-	} finally {
-		deleteOpenCvObject(rgba);
-	}
-}
-
-// ─── Normalization / homography ─────────────────────────────────────────────────
-
-/**
- * Normalize a grayscale Mat to the canonical design-plane using OpenCV's
- * perspective warp, followed by contrast stretching.
- *
- * Uses bilinear interpolation and white-padding for out-of-bounds pixels.
- * Returns a **grayscale CV_8UC1 Mat** the caller owns and must delete.
- * The input grayscale Mat is NOT modified.
- */
-export function normalizeMat(
-	cv: OpenCv,
-	config: OmrConfig,
-	grayscale: Mat,
-	markers: DetectedArucoMarker[]
-): Mat | undefined {
-	const pointPairs = findNormalizationPointPairs(config, markers);
-	if (pointPairs.length !== 4) return undefined;
-
-	const homography = calculateHomography(pointPairs);
-	const targetWidth = config.geometry.designWidth;
-	const targetHeight = config.geometry.designHeight;
-
-	const homographyMat = cv.matFromArray(3, 3, cv.CV_64FC1, homography);
-	const warped = new cv.Mat();
-
-	try {
-		cv.warpPerspective(
-			grayscale,
-			warped,
-			homographyMat,
-			new cv.Size(targetWidth, targetHeight),
-			cv.INTER_LINEAR | cv.WARP_INVERSE_MAP,
-			cv.BORDER_CONSTANT,
-			new cv.Scalar(255)
-		);
-		cv.normalize(warped, warped, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
-		return warped;
-	} finally {
-		deleteOpenCvObject(homographyMat);
-	}
-}
-
-/**
- * Legacy entry point that normalizes from web-native ImageData using a
- * JS pixel-loop warp. Prefer {@link normalizeMat} when a cv instance and
- * grayscale Mat are already available.
- */
-export function normalizeImageIfPossible(
-	config: OmrConfig,
+function diagnosticsFailure(
 	imageData: ImageData,
-	markers: DetectedArucoMarker[]
-): ImageData | undefined {
-	const pointPairs = findNormalizationPointPairs(config, markers);
-	if (pointPairs.length !== 4) return undefined;
-
-	const homography = calculateHomography(pointPairs);
-	return warpImage(
+	markers: DetectedArucoMarker[],
+	quality: GradingSheetDiagnostics['quality'],
+	stages: OmrDiagnosticStage[],
+	warning: string,
+	normalizedImage?: ImageData
+): GradingSheetDiagnostics {
+	console.warn('[openOmr]', warning, { quality, stages, markers });
+	return {
 		imageData,
-		homography,
-		config.geometry.designWidth,
-		config.geometry.designHeight
+		markers,
+		normalizedImage,
+		qrCode: null,
+		scannedAnswers: null,
+		quality,
+		stages,
+		warnings: [warning],
+	};
+}
+
+function imageQualityName(
+	openOmr: Awaited<ReturnType<typeof getOpenOmr>>,
+	quality: ImageQuality
+): GradingSheetDiagnostics['quality'] {
+	if (quality.value === openOmr.ImageQuality.TooDark.value) return 'too-dark';
+	if (quality.value === openOmr.ImageQuality.TooBright.value) return 'too-bright';
+	return 'good';
+}
+
+function logDiagnostics(label: string, value: unknown): void {
+	console.info(`[openOmr] ${label}`, value);
+}
+
+export async function checkImageQuality(imageData: ImageData): Promise<ImageQuality> {
+	const openOmr = await getOpenOmr();
+	const image = imageDataToOpenOmrImage(openOmr, imageData);
+	try {
+		return openOmr.checkImageQuality(image);
+	} finally {
+		image.data.delete();
+	}
+}
+
+export function computeScore(scannedAnswers: number[], revisionContent: SnapshotQuestion[]) {
+	const correctAnswerIndices = revisionContent.map((question) =>
+		question.answers.findIndex((answer) => answer.is_correct)
 	);
-}
-
-export function findNormalizationPointPairs(
-	config: OmrConfig,
-	markers: DetectedArucoMarker[]
-): PointPair[] {
-	const geometryPairs = pointPairsFromDetectedCorners(config, markers);
-	if (geometryPairs.length === 4) return geometryPairs;
-	const knownIdPairs = findPointPairsByKnownMarkerIds(config, markers);
-	if (knownIdPairs.length === 4) return knownIdPairs;
-	return findPointPairsByGeometry(config, markers);
-}
-
-// ─── Marker → corner assignment ────────────────────────────────────────────────
-
-function pointPairsFromDetectedCorners(
-	config: OmrConfig,
-	markers: DetectedArucoMarker[]
-): PointPair[] {
-	const markersByCorner = new Map<OmrCorner, DetectedArucoMarker>();
-	for (const marker of markers) {
-		if (marker.corner) markersByCorner.set(marker.corner, marker);
-	}
-	return pointPairsFromCornerMap(config, markersByCorner);
-}
-
-function findPointPairsByKnownMarkerIds(
-	config: OmrConfig,
-	markers: DetectedArucoMarker[]
-): PointPair[] {
-	const markersByCorner = new Map<OmrCorner, DetectedArucoMarker>();
-	for (const marker of markers) assignKnownMarkerCorner(markersByCorner, marker);
-	assignUnknownBottomLeftMarker(markersByCorner, markers);
-	return pointPairsFromCornerMap(config, markersByCorner);
-}
-
-function assignKnownMarkerCorner(
-	markersByCorner: Map<OmrCorner, DetectedArucoMarker>,
-	marker: DetectedArucoMarker
-): void {
-	const corner = findKnownCorner(marker.id);
-	if (corner) markersByCorner.set(corner, marker);
-}
-
-function assignUnknownBottomLeftMarker(
-	markersByCorner: Map<OmrCorner, DetectedArucoMarker>,
-	markers: DetectedArucoMarker[]
-): void {
-	if (markersByCorner.size !== 3 || markersByCorner.has('bl')) return;
-	const unknownMarker = markers.find((marker) => !findKnownCorner(marker.id));
-	if (unknownMarker) markersByCorner.set('bl', unknownMarker);
-}
-
-function pointPairsFromCornerMap(
-	config: OmrConfig,
-	markersByCorner: Map<OmrCorner, DetectedArucoMarker>
-): PointPair[] {
-	return (['tl', 'tr', 'br', 'bl'] as const).flatMap((corner) => {
-		const marker = markersByCorner.get(corner);
-		const placement = findCanonicalPlacement(config, corner);
-		return marker ? [{ source: marker.center, destination: markerCenter(placement) }] : [];
-	});
-}
-
-function findCanonicalPlacement(config: OmrConfig, corner: OmrCorner): ArucoMarkerPlacement {
-	const placement = arucoMarkerPlacements(config).find((m) => m.corner === corner);
-	if (!placement) throw new Error(`Brak kanonicznego położenia markera ${corner}.`);
-	return placement;
-}
-
-export function findKnownCorner(id: number): OmrCorner | undefined {
-	for (const config of OMR_CONFIG_VERSIONS) {
-		if (id === config.aruco.anchorIds.topLeft) return 'tl';
-		if (id === config.aruco.anchorIds.topRight) return 'tr';
-		if (id === config.aruco.anchorIds.bottomRight) return 'br';
-	}
-	if (omrVersionFromMarkerId(id) !== undefined) return 'bl';
-	return undefined;
-}
-
-// ─── Geometry-based marker ordering ────────────────────────────────────────────
-
-function findPointPairsByGeometry(config: OmrConfig, markers: DetectedArucoMarker[]): PointPair[] {
-	if (markers.length < 4) return [];
-	const orderedMarkers = orderMarkersByPosition(markers);
-	const destinations = canonicalMarkerCenters(config);
-	return orderedMarkers.map((m, i) => ({ source: m.center, destination: destinations[i] }));
-}
-
-function orderMarkersByPosition(markers: DetectedArucoMarker[]): DetectedArucoMarker[] {
-	const candidates = largestMarkers(markers);
-	const [topLeft, bottomRight] = minMaxBy(candidates, (m) => m.center.x + m.center.y);
-	const [topRight, bottomLeft] = minMaxBy(candidates, (m) => m.center.x - m.center.y);
-	return [topLeft, topRight, bottomRight, bottomLeft];
-}
-
-function largestMarkers(markers: DetectedArucoMarker[]): DetectedArucoMarker[] {
-	return [...markers].sort((a, b) => markerArea(b) - markerArea(a)).slice(0, 4);
-}
-
-function markerArea(marker: DetectedArucoMarker): number {
-	const signedArea = marker.corners.reduce((sum, p, i) => {
-		const next = marker.corners[(i + 1) % marker.corners.length];
-		return sum + p.x * next.y - next.x * p.y;
-	}, 0);
-	return Math.abs(signedArea / 2);
-}
-
-function minMaxBy<T>(items: T[], selector: (item: T) => number): [T, T] {
-	return [
-		items.reduce((best, item) => (selector(item) < selector(best) ? item : best)),
-		items.reduce((best, item) => (selector(item) > selector(best) ? item : best)),
-	];
-}
-
-function markerCenter(rect: OmrRect): DebugPoint {
-	return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-}
-
-function canonicalMarkerCenters(config: OmrConfig): DebugPoint[] {
-	return arucoMarkerPlacements(config).map(markerCenter);
-}
-
-// ─── Homography computation ────────────────────────────────────────────────────
-
-function calculateHomography(pointPairs: PointPair[]): Homography {
-	const matrix = buildLinearSystem(pointPairs);
-	const solution = solveLinearSystem(matrix);
-	return [
-		solution[0],
-		solution[1],
-		solution[2],
-		solution[3],
-		solution[4],
-		solution[5],
-		solution[6],
-		solution[7],
-		1,
-	];
-}
-
-function buildLinearSystem(pointPairs: PointPair[]): number[][] {
-	return pointPairs.flatMap(({ source, destination }) => [
-		[
-			destination.x,
-			destination.y,
-			1,
-			0,
-			0,
-			0,
-			-source.x * destination.x,
-			-source.x * destination.y,
-			source.x,
-		],
-		[
-			0,
-			0,
-			0,
-			destination.x,
-			destination.y,
-			1,
-			-source.y * destination.x,
-			-source.y * destination.y,
-			source.y,
-		],
-	]);
-}
-
-function solveLinearSystem(matrix: number[][]): number[] {
-	const rowCount = matrix.length;
-	for (let column = 0; column < rowCount; column++) {
-		pivotRows(matrix, column);
-		normalizePivotRow(matrix, column);
-		eliminateColumn(matrix, column);
-	}
-	return matrix.map((row) => row[rowCount]);
-}
-
-function pivotRows(matrix: number[][], column: number): void {
-	let pivot = column;
-	for (let row = column + 1; row < matrix.length; row++) {
-		if (Math.abs(matrix[row][column]) > Math.abs(matrix[pivot][column])) pivot = row;
-	}
-	if (Math.abs(matrix[pivot][column]) < Number.EPSILON)
-		throw new Error('Markery są zdegenerowane.');
-	[matrix[column], matrix[pivot]] = [matrix[pivot], matrix[column]];
-}
-
-function normalizePivotRow(matrix: number[][], column: number): void {
-	const divisor = matrix[column][column];
-	for (let cell = column; cell < matrix[column].length; cell++) matrix[column][cell] /= divisor;
-}
-
-function eliminateColumn(matrix: number[][], column: number): void {
-	for (let row = 0; row < matrix.length; row++) {
-		if (row !== column) eliminateRow(matrix, row, column);
-	}
-}
-
-function eliminateRow(matrix: number[][], row: number, column: number): void {
-	const factor = matrix[row][column];
-	for (let cell = column; cell < matrix[row].length; cell++)
-		matrix[row][cell] -= factor * matrix[column][cell];
-}
-
-// ─── Image warping ─────────────────────────────────────────────────────────────
-
-function warpImage(
-	source: ImageData,
-	homography: Homography,
-	width: number,
-	height: number
-): ImageData {
-	const nw = Math.round(width);
-	const nh = Math.round(height);
-	const destination = new ImageData(nw, nh);
-
-	for (let y = 0; y < nh; y++) {
-		for (let x = 0; x < nw; x++) {
-			warpImagePixel(source, destination, homography, x, y);
-		}
-	}
-
-	return destination;
-}
-
-function warpImagePixel(
-	source: ImageData,
-	destination: ImageData,
-	homography: Homography,
-	x: number,
-	y: number
-): void {
-	const sourcePoint = applyHomography(homography, x, y);
-	const sourceIndex = nearestPixelIndex(source, sourcePoint);
-	const destinationIndex = (y * destination.width + x) * 4;
-	if (sourceIndex === undefined) {
-		writeTransparentPixel(destination, destinationIndex);
-		return;
-	}
-	copyPixel(source.data, sourceIndex, destination.data, destinationIndex);
-}
-
-function applyHomography(homography: Homography, x: number, y: number): DebugPoint {
-	const scale = homography[6] * x + homography[7] * y + homography[8];
+	const correctAnswers = correctAnswerIndices.map(
+		(correctAnswer, index) => scannedAnswers[index] === correctAnswer
+	);
 	return {
-		x: (homography[0] * x + homography[1] * y + homography[2]) / scale,
-		y: (homography[3] * x + homography[4] * y + homography[5]) / scale,
+		correctAnswers,
+		correctAnswerIndices,
+		score: correctAnswers.filter(Boolean).length,
+		totalQuestions: revisionContent.length,
 	};
 }
 
-function nearestPixelIndex(image: ImageData, point: DebugPoint): number | undefined {
-	const px = Math.round(point.x);
-	const py = Math.round(point.y);
-	if (px < 0 || py < 0 || px >= image.width || py >= image.height) return undefined;
-	return (py * image.width + px) * 4;
+function readImageBitmap(bitmap: ImageBitmap): ImageData {
+	const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+	const context = canvas.getContext('2d', { willReadFrequently: true });
+	if (!context) throw new Error('Nie można utworzyć kontekstu canvas 2D.');
+	context.drawImage(bitmap, 0, 0);
+	return context.getImageData(0, 0, bitmap.width, bitmap.height);
 }
 
-function writeTransparentPixel(image: ImageData, index: number): void {
-	image.data[index + 3] = 0;
+function mapArucoDetection(detection: ArucoDetection): DetectedArucoMarker {
+	const corners = [detection.tl, detection.tr, detection.br, detection.bl];
+	return { id: detection.id, corners, center: polygonCenter(corners) };
 }
 
-function copyPixel(
-	source: Uint8ClampedArray,
-	sourceIndex: number,
-	destination: Uint8ClampedArray,
-	destinationIndex: number
-): void {
-	destination[destinationIndex] = source[sourceIndex];
-	destination[destinationIndex + 1] = source[sourceIndex + 1];
-	destination[destinationIndex + 2] = source[sourceIndex + 2];
-	destination[destinationIndex + 3] = 255;
-}
-
-// ─── Geometry utilities ────────────────────────────────────────────────────────
-
-function expandRect(
-	rect: OmrRect,
-	margin: number,
-	bounds: { width: number; height: number }
-): OmrRect {
-	const left = Math.max(0, rect.x - margin);
-	const top = Math.max(0, rect.y - margin);
-	return {
-		x: left,
-		y: top,
-		width: Math.min(bounds.width, rect.x + rect.width + margin) - left,
-		height: Math.min(bounds.height, rect.y + rect.height + margin) - top,
-	};
-}
-
-function cropImageData(image: ImageData, rect: OmrRect): ImageData {
-	const width = Math.round(rect.width);
-	const height = Math.round(rect.height);
-	const cropped = new ImageData(width, height);
-	const originX = Math.round(rect.x);
-	const originY = Math.round(rect.y);
-	for (let y = 0; y < height; y++) {
-		for (let x = 0; x < width; x++) {
-			const srcX = originX + x;
-			const srcY = originY + y;
-			if (srcX < 0 || srcY < 0 || srcX >= image.width || srcY >= image.height) continue;
-			const srcIndex = (srcY * image.width + srcX) * 4;
-			const dstIndex = (y * width + x) * 4;
-			cropped.data[dstIndex] = image.data[srcIndex];
-			cropped.data[dstIndex + 1] = image.data[srcIndex + 1];
-			cropped.data[dstIndex + 2] = image.data[srcIndex + 2];
-			cropped.data[dstIndex + 3] = 255;
-		}
+function revisionToQrCode(revision: RevisionDetection): DetectedQrCode {
+	try {
+		const revisionId = bytesToUuid(Uint8Array.from(revision.revisionId));
+		return {
+			data: revisionId,
+			metadata: { revisionId },
+			corners: [revision.tl, revision.tr, revision.br, revision.bl],
+		};
+	} finally {
+		revision.revisionId.delete();
 	}
-	return cropped;
 }
 
-function readQrCorners(points: Mat | undefined): DebugPoint[] | undefined {
-	if (!points?.data32F || points.data32F.length < 8) return undefined;
-	return Array.from({ length: 4 }, (_, index) => ({
-		x: points.data32F[index * 2],
-		y: points.data32F[index * 2 + 1],
-	}));
+function answerMaskToIndex(mask: number): number {
+	if (mask === 0 || (mask & (mask - 1)) !== 0) return -1;
+	return Math.log2(mask);
 }
 
-function polygonCenter(points: DebugPoint[]): DebugPoint {
+function polygonCenter(points: Point[]): DebugPoint {
 	const sum = points.reduce((total, point) => ({ x: total.x + point.x, y: total.y + point.y }), {
 		x: 0,
 		y: 0,
 	});
 	return { x: sum.x / points.length, y: sum.y / points.length };
-}
-
-// ─── Image drawing helpers ─────────────────────────────────────────────────────
-
-function drawPortraitImage(
-	context: OffscreenCanvasRenderingContext2D,
-	image: ImageBitmap,
-	width: number,
-	height: number,
-	isLandscape: boolean
-): void {
-	if (!isLandscape) {
-		context.drawImage(image, 0, 0, width, height);
-		return;
-	}
-	context.translate(width, 0);
-	context.rotate(Math.PI / 2);
-	context.drawImage(image, 0, 0, height, width);
-}
-
-function mapPortraitPointToSource(
-	point: DebugPoint,
-	image: ImageBitmap,
-	analysisWidth: number,
-	analysisHeight: number
-): DebugPoint {
-	return {
-		x: (point.x * image.width) / analysisWidth,
-		y: (point.y * image.height) / analysisHeight,
-	};
-}
-
-function mapRotatedPointToSource(
-	point: DebugPoint,
-	image: ImageBitmap,
-	analysisWidth: number,
-	analysisHeight: number
-): DebugPoint {
-	return {
-		x: (point.y * image.width) / analysisHeight,
-		y: image.height - (point.x * image.height) / analysisWidth,
-	};
-}
-
-function getOffscreenCanvasContext(canvas: OffscreenCanvas): OffscreenCanvasRenderingContext2D {
-	const context = canvas.getContext('2d', { willReadFrequently: true });
-	if (!context) throw new Error('Nie można utworzyć kontekstu canvas 2D.');
-	return context;
 }

@@ -7,7 +7,7 @@
 		type GradingSheetDebugResult,
 		type NormalizedOverlayRect,
 	} from '@/utils/omrDebugScanner';
-	import { LATEST_OMR_CONFIG } from '@/utils/omr';
+	import { SHEET_SIZE } from '@/utils/omrScanner';
 	import { getTestRevision } from '@/db/repositories';
 
 	let result = $state<GradingSheetDebugResult | null>(null);
@@ -22,6 +22,7 @@
 
 	let sourceSizeLabel = $derived(result ? `${result.image.width} × ${result.image.height}px` : '—');
 	let markedAreaQrMetadataJson = $derived(formatMetadata(result?.qrCodeInMarkedArea));
+	let diagnosticStagesLabel = $derived(result?.stages.join(' → ') ?? '—');
 
 	/** Comma-separated answer counts → number array (e.g. "4,4,5,4"). */
 	let answersPerQuestion = $derived(parseAnswerCounts(answerCountsInput));
@@ -82,24 +83,8 @@
 		}
 	}
 
-	/**
-	 * Run the grid scanner when we have both a normalized image and valid
-	 * answer counts (from DB lookup or manual input).
-	 */
 	async function runGridScan() {
-		if (!result || !result.normalizedImage) return;
-		const counts = answersPerQuestion;
-		if (counts.length === 0) return;
-
-		const omrConfig = LATEST_OMR_CONFIG;
-		const gridBounds = omrConfig.grid.calculateGridBounds(omrConfig);
-		const columns = omrConfig.grid.calculateGridColumns(omrConfig, gridBounds, counts);
-
-		// Clone the result object so the table re-renders reactively.
-		result = {
-			...result,
-			scannedAnswers: omrConfig.grid.scanGrid(omrConfig, result.normalizedImage, columns),
-		};
+		if (result) result = { ...result };
 	}
 
 	function startAnalysis(file: File) {
@@ -126,13 +111,18 @@
 	}
 
 	function overlayStyle(rect: NormalizedOverlayRect): string {
-		const { designWidth, designHeight } = LATEST_OMR_CONFIG.geometry;
 		return [
-			`left: ${(rect.x / designWidth) * 100}%`,
-			`top: ${(rect.y / designHeight) * 100}%`,
-			`width: ${(rect.width / designWidth) * 100}%`,
-			`height: ${(rect.height / designHeight) * 100}%`,
+			`left: ${(rect.x / SHEET_SIZE.width) * 100}%`,
+			`top: ${(rect.y / SHEET_SIZE.height) * 100}%`,
+			`width: ${(rect.width / SHEET_SIZE.width) * 100}%`,
+			`height: ${(rect.height / SHEET_SIZE.height) * 100}%`,
 		].join('; ');
+	}
+
+	function qualityLabel(quality: GradingSheetDebugResult['quality']): string {
+		if (quality === 'too-dark') return 'za ciemny';
+		if (quality === 'too-bright') return 'za jasny';
+		return 'dobry';
 	}
 </script>
 
@@ -207,7 +197,15 @@
 			<div class="summary-card">
 				<strong>Normalizacja</strong><span>{result.normalizedImage ? 'OK' : 'niedostępna'}</span>
 			</div>
+			<div class="summary-card">
+				<strong>Jakość obrazu</strong><span>{qualityLabel(result.quality)}</span>
+			</div>
 		</div>
+
+		<section class="panel diagnostics-panel">
+			<h2>Etapy openOmr</h2>
+			<code>{diagnosticStagesLabel}</code>
+		</section>
 
 		{#if result.warnings.length}
 			<ul class="warnings">
@@ -223,9 +221,7 @@
 					<svg viewBox="0 0 {result.image.width} {result.image.height}" aria-hidden="true">
 						{#each result.arucoMarkers as marker (`${marker.id}-${marker.center.x}-${marker.center.y}`)}
 							<polygon class="aruco-polygon" points={markerPoints(marker)} />
-							<text x={marker.center.x} y={marker.center.y}
-								>{marker.corner ?? '?'} #{marker.id}</text
-							>
+							<text x={marker.center.x} y={marker.center.y}>#{marker.id}</text>
 						{/each}
 					</svg>
 				</div>
@@ -233,16 +229,14 @@
 
 			<section class="panel">
 				<h2>Znormalizowana geometria</h2>
-				<div
-					class="normalized-stage"
-					style:aspect-ratio="{LATEST_OMR_CONFIG.geometry.designWidth} / {LATEST_OMR_CONFIG.geometry
-						.designHeight}"
-				>
+				<div class="normalized-stage" style:aspect-ratio="{SHEET_SIZE.width} / {SHEET_SIZE.height}">
 					{#if result.normalizedImage}
 						<canvas bind:this={normalizedCanvas} aria-label="Znormalizowany obraz karty odpowiedzi"
 						></canvas>
 					{:else}
-						<div class="empty-normalized">Potrzebne są cztery wykryte markery narożne.</div>
+						<div class="empty-normalized">
+							Normalizacja nie powiodła się — szczegóły są powyżej.
+						</div>
 					{/if}
 					<div class="normalized-overlay" aria-hidden="true">
 						{#each result.overlayRects as rect (rect.key)}
@@ -265,7 +259,7 @@
 					<tbody>
 						{#each result.arucoMarkers as marker (`table-${marker.id}-${marker.center.x}-${marker.center.y}`)}
 							<tr
-								><td>{marker.id}</td><td>{marker.corner ?? 'nieznany'}</td><td
+								><td>{marker.id}</td><td>wykryty</td><td
 									>{marker.center.x.toFixed(1)}, {marker.center.y.toFixed(1)}</td
 								></tr
 							>
