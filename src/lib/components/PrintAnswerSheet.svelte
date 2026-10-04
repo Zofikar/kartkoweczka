@@ -6,21 +6,23 @@
 		uuidToBytes,
 	} from '@/utils/openOmr';
 	import { SHEET_SIZE } from '@/utils/omrScanner';
+	import { i18n } from '@/lib/i18n.svelte';
+	import type { QuestionResponseRow } from '@/utils/questionResponses';
 
 	interface Props {
 		testName?: string;
 		revisionName?: string;
 		revisionId: string;
-		answersPerQuestion?: number[];
+		responseRows?: QuestionResponseRow[];
 	}
 
-	let { testName = '', revisionName = '', revisionId, answersPerQuestion = [] }: Props = $props();
+	let { testName = '', revisionName = '', revisionId, responseRows = [] }: Props = $props();
 	let sheetDataUrl = $state('');
 	let generationError = $state('');
 
 	$effect(() => {
 		let cancelled = false;
-		generateAnswerSheet(revisionId, answersPerQuestion)
+		generateAnswerSheet(revisionId, responseRows)
 			.then((dataUrl) => {
 				if (!cancelled) sheetDataUrl = dataUrl;
 			})
@@ -32,24 +34,22 @@
 		};
 	});
 
-	async function generateAnswerSheet(id: string, answerCounts: number[]): Promise<string> {
+	async function generateAnswerSheet(id: string, rows: QuestionResponseRow[]): Promise<string> {
 		const openOmr = await getOpenOmr();
 		const generator = new openOmr.SheetGenerator();
 		try {
 			generator.initialize(SHEET_SIZE, uuidToBytes(id));
-			for (let index = 0; index < answerCounts.length; index++) {
-				const labels = Array.from({ length: answerCounts[index] }, (_, answerIndex) =>
-					new TextEncoder().encode(String.fromCharCode(65 + answerIndex))
-				);
-				if (!generator.addQuestion(index + 1, 0, labels)) {
-					throw new Error(`Nie udało się dodać pytania ${index + 1} do karty odpowiedzi.`);
+			for (const row of rows) {
+				const labels = row.answerLabels.map((label) => new TextEncoder().encode(label));
+				if (!generator.addQuestion(row.questionNumber, row.subQuestionNumber, labels)) {
+					throw new Error(i18n.t('print.addQuestionError', { number: row.displayNumber }));
 				}
 			}
 
 			const sheet = generator.generate();
 			try {
 				if (sheet.width === 0 || sheet.height === 0) {
-					throw new Error('Nie udało się wygenerować karty odpowiedzi.');
+					throw new Error(i18n.t('print.generationError'));
 				}
 				return imageDataToPngDataUrl(openOmrImageToImageData(openOmr, sheet));
 			} finally {
@@ -67,26 +67,26 @@
 		<div class="sheet-header-revision">{revisionName}</div>
 	</header>
 
-	<section class="student-details" aria-label="Dane ucznia">
+	<section class="student-details" aria-label={i18n.t('print.studentDetails')}>
 		<div class="student-field">
-			<span class="student-field-label">Imię i nazwisko:</span>
+			<span class="student-field-label">{i18n.t('print.studentName')}</span>
 			<span class="student-field-line"></span>
 		</div>
 		<div class="student-field student-field--class">
-			<span class="student-field-label">Klasa:</span>
+			<span class="student-field-label">{i18n.t('print.class')}</span>
 			<span class="student-field-line"></span>
 		</div>
 	</section>
 
-	<section class="sheet-instructions" aria-label="Instrukcja wypełniania karty odpowiedzi">
+	<section class="sheet-instructions" aria-label={i18n.t('print.instructions')}>
 		<div class="marking-instruction">
 			<div class="instruction-copy">
-				<strong>Jak zaznaczać:</strong>
-				<span>Zamaluj mały kwadrat przy jednej wybranej odpowiedzi.</span>
+				<strong>{i18n.t('print.howToMark')}</strong>
+				<span>{i18n.t('print.markDescription')}</span>
 			</div>
 			<div class="mark-examples">
-				<div class="mark-example" aria-label="Przykład zaznaczonej odpowiedzi B">
-					<strong>Zaznaczenie:</strong>
+				<div class="mark-example" aria-label={i18n.t('print.markExample')}>
+					<strong>{i18n.t('print.mark')}</strong>
 					<div class="answer-options" aria-hidden="true">
 						<div class="answer-option">
 							<span>A</span><span class="answer-cell"><span class="answer-cell-inner"></span></span>
@@ -104,8 +104,8 @@
 						</div>
 					</div>
 				</div>
-				<div class="mark-example" aria-label="Przykład poprawienia odpowiedzi B na C">
-					<strong>Poprawa:</strong>
+				<div class="mark-example" aria-label={i18n.t('print.correctionExample')}>
+					<strong>{i18n.t('print.correction')}</strong>
 					<div class="answer-options" aria-hidden="true">
 						<div class="answer-option">
 							<span>A</span><span class="answer-cell"><span class="answer-cell-inner"></span></span>
@@ -128,17 +128,16 @@
 			</div>
 		</div>
 		<p>
-			Używaj czarnego lub niebieskiego długopisu. Nie umieszczaj żadnych znaków poza polami
-			odpowiedzi oraz miejscami na imię, nazwisko i klasę.
+			{i18n.t('print.penInstruction')}
 		</p>
 	</section>
 
 	{#if generationError}
 		<p class="generation-error">{generationError}</p>
 	{:else if sheetDataUrl}
-		<img class="generated-sheet" src={sheetDataUrl} alt="Karta odpowiedzi" />
+		<img class="generated-sheet" src={sheetDataUrl} alt={i18n.t('print.generatedAlt')} />
 	{:else}
-		<p class="generation-status">Generowanie karty odpowiedzi…</p>
+		<p class="generation-status">{i18n.t('print.generating')}</p>
 	{/if}
 </div>
 

@@ -9,6 +9,8 @@
 	} from '@/utils/omrDebugScanner';
 	import { SHEET_SIZE } from '@/utils/omrScanner';
 	import { getTestRevision } from '@/db/repositories';
+	import { i18n } from '@/lib/i18n.svelte';
+	import { buildQuestionResponseRows } from '@/utils/questionResponses';
 
 	let result = $state<GradingSheetDebugResult | null>(null);
 	let isAnalyzing = $state(false);
@@ -74,7 +76,9 @@
 		try {
 			const revision = await getTestRevision(revisionId);
 			if (revision) {
-				const counts = revision.content.map((q) => q.answers.length);
+				const counts = buildQuestionResponseRows(revision.content).map(
+					(row) => row.answerLabels.length
+				);
 				answerCountsInput = formatAnswerCounts(counts);
 				answerCountsFromDb = true;
 			}
@@ -100,10 +104,10 @@
 	}
 
 	function formatMetadata(qrCode: DetectedQrCode | null | undefined): string {
-		if (!qrCode) return 'Nie wykryto metadanych QR';
+		if (!qrCode) return i18n.t('debug.noMetadata');
 		return qrCode.metadata
 			? JSON.stringify(qrCode.metadata, null, 2)
-			: `Nierozpoznana treść QR: ${qrCode.data}`;
+			: i18n.t('debug.unknownQr', { data: qrCode.data });
 	}
 
 	function markerPoints(marker: DetectedArucoMarker): string {
@@ -120,43 +124,37 @@
 	}
 
 	function qualityLabel(quality: GradingSheetDebugResult['quality']): string {
-		if (quality === 'too-dark') return 'za ciemny';
-		if (quality === 'too-bright') return 'za jasny';
-		return 'dobry';
+		if (quality === 'too-dark') return i18n.t('debug.qualityDark');
+		if (quality === 'too-bright') return i18n.t('debug.qualityBright');
+		return i18n.t('debug.qualityGood');
 	}
 </script>
 
 <svelte:head>
-	<title>Debug OMR karty odpowiedzi – Kartkóweczka</title>
-	<meta
-		name="description"
-		content="Diagnostyczna stronka do analizy karty odpowiedzi z markerami ArUco i QR kodami w Kartkóweczce."
-	/>
+	<title>{i18n.t('debug.title')}</title>
+	<meta name="description" content={i18n.t('debug.description')} />
 </svelte:head>
 
 <section class="debug-page">
 	<header class="page-header">
 		<p class="eyebrow">DEBUG</p>
-		<h1>Diagnostyka karty odpowiedzi</h1>
-		<p>
-			Wgraj zdjęcie lub skan karty odpowiedzi, aby wykryć orientację z markerów ArUco, znormalizować
-			obszar OMR i odczytać QR z obszaru oznaczonego markerami.
-		</p>
+		<h1>{i18n.t('debug.heading')}</h1>
+		<p>{i18n.t('debug.intro')}</p>
 	</header>
 
 	<label class="upload-card">
-		<span>Obraz karty odpowiedzi</span>
+		<span>{i18n.t('debug.image')}</span>
 		<input type="file" accept="image/*" onchange={handleFileChange} disabled={isAnalyzing} />
-		<small>{isAnalyzing ? 'Analizuję obraz…' : 'PNG, JPG, WebP lub zdjęcie z telefonu'}</small>
+		<small>{isAnalyzing ? i18n.t('debug.analyzing') : i18n.t('debug.imageHint')}</small>
 	</label>
 
 	<label class="upload-card">
-		<span>Liczba odpowiedzi na pytanie</span>
+		<span>{i18n.t('debug.answerCounts')}</span>
 		<div class="counts-row">
 			<input
 				type="text"
 				bind:value={answerCountsInput}
-				placeholder="np. 4,4,4,5,4"
+				placeholder={i18n.t('debug.countsPlaceholder')}
 				disabled={isAnalyzing}
 			/>
 			{#if result?.normalizedImage && answersPerQuestion.length > 0}
@@ -166,16 +164,15 @@
 					disabled={isAnalyzing}
 					onclick={() => runGridScan()}
 				>
-					Skanuj siatkę
+					{i18n.t('debug.scanGrid')}
 				</button>
 			{/if}
 		</div>
 		<small>
 			{#if answerCountsFromDb}
-				<span class="db-badge">z bazy (QR)</span>
+				<span class="db-badge">{i18n.t('debug.fromDatabase')}</span>
 			{/if}
-			Liczby oddzielone przecinkami, np. <code>4,4,4,5,4</code>. Przy poprawnym kodzie QR pole
-			wypełnia się automatycznie z bazy danych.
+			{i18n.t('debug.countsHint')}
 		</small>
 	</label>
 
@@ -185,7 +182,9 @@
 
 	{#if result}
 		<div class="summary-grid">
-			<div class="summary-card"><strong>Obraz</strong><span>{sourceSizeLabel}</span></div>
+			<div class="summary-card">
+				<strong>{i18n.t('debug.imageSummary')}</strong><span>{sourceSizeLabel}</span>
+			</div>
 			<div class="summary-card">
 				<strong>ArUco</strong><span>{result.arucoMarkers.length} marker(y)</span>
 			</div>
@@ -195,15 +194,17 @@
 				>
 			</div>
 			<div class="summary-card">
-				<strong>Normalizacja</strong><span>{result.normalizedImage ? 'OK' : 'niedostępna'}</span>
+				<strong>{i18n.t('debug.normalization')}</strong><span
+					>{result.normalizedImage ? 'OK' : i18n.t('debug.unavailable')}</span
+				>
 			</div>
 			<div class="summary-card">
-				<strong>Jakość obrazu</strong><span>{qualityLabel(result.quality)}</span>
+				<strong>{i18n.t('debug.imageQuality')}</strong><span>{qualityLabel(result.quality)}</span>
 			</div>
 		</div>
 
 		<section class="panel diagnostics-panel">
-			<h2>Etapy openOmr</h2>
+			<h2>{i18n.t('debug.stages')}</h2>
 			<code>{diagnosticStagesLabel}</code>
 		</section>
 
@@ -215,9 +216,9 @@
 
 		<div class="debug-grid">
 			<section class="panel">
-				<h2>Źródło z wykryciami</h2>
+				<h2>{i18n.t('debug.source')}</h2>
 				<div class="image-stage">
-					<img src={sourceObjectUrl} alt="Wgrana karta odpowiedzi" />
+					<img src={sourceObjectUrl} alt={i18n.t('debug.sourceAlt')} />
 					<svg viewBox="0 0 {result.image.width} {result.image.height}" aria-hidden="true">
 						{#each result.arucoMarkers as marker (`${marker.id}-${marker.center.x}-${marker.center.y}`)}
 							<polygon class="aruco-polygon" points={markerPoints(marker)} />
@@ -228,14 +229,14 @@
 			</section>
 
 			<section class="panel">
-				<h2>Znormalizowana geometria</h2>
+				<h2>{i18n.t('debug.normalized')}</h2>
 				<div class="normalized-stage" style:aspect-ratio="{SHEET_SIZE.width} / {SHEET_SIZE.height}">
 					{#if result.normalizedImage}
-						<canvas bind:this={normalizedCanvas} aria-label="Znormalizowany obraz karty odpowiedzi"
+						<canvas bind:this={normalizedCanvas} aria-label={i18n.t('debug.normalizedAria')}
 						></canvas>
 					{:else}
 						<div class="empty-normalized">
-							Normalizacja nie powiodła się — szczegóły są powyżej.
+							{i18n.t('debug.normalizationFailed')}
 						</div>
 					{/if}
 					<div class="normalized-overlay" aria-hidden="true">
@@ -249,17 +250,20 @@
 
 		<div class="metadata-grid">
 			<section class="panel">
-				<h2>QR metadanych w obszarze ArUco</h2>
+				<h2>{i18n.t('debug.metadata')}</h2>
 				<pre>{markedAreaQrMetadataJson}</pre>
 			</section>
 			<section class="panel">
-				<h2>Markery ArUco</h2>
+				<h2>{i18n.t('debug.markers')}</h2>
 				<table>
-					<thead><tr><th>ID</th><th>Narożnik</th><th>Środek</th></tr></thead>
+					<thead
+						><tr><th>ID</th><th>{i18n.t('debug.corner')}</th><th>{i18n.t('debug.center')}</th></tr
+						></thead
+					>
 					<tbody>
 						{#each result.arucoMarkers as marker (`table-${marker.id}-${marker.center.x}-${marker.center.y}`)}
 							<tr
-								><td>{marker.id}</td><td>wykryty</td><td
+								><td>{marker.id}</td><td>{i18n.t('debug.detected')}</td><td
 									>{marker.center.x.toFixed(1)}, {marker.center.y.toFixed(1)}</td
 								></tr
 							>
@@ -270,12 +274,12 @@
 
 			{#if result.scannedAnswers}
 				<section class="panel">
-					<h2>Odczytane odpowiedzi (scanGrid)</h2>
+					<h2>{i18n.t('debug.answers')}</h2>
 					<table class="answers-table">
 						<thead>
 							<tr>
-								<th>Pytanie</th>
-								<th>Wybrana odp.</th>
+								<th>{i18n.t('debug.question')}</th>
+								<th>{i18n.t('debug.selectedAnswer')}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -292,10 +296,9 @@
 				</section>
 			{:else if result.normalizedImage}
 				<section class="panel">
-					<h2>Odczytane odpowiedzi (scanGrid)</h2>
+					<h2>{i18n.t('debug.answers')}</h2>
 					<p class="scan-hint">
-						Podaj liczbę opcji odpowiedzi dla każdego pytania i kliknij „Skanuj siatkę”. Jeśli na
-						karcie jest poprawny kod QR, pole wypełni się automatycznie.
+						{i18n.t('debug.scanHint')}
 					</p>
 				</section>
 			{/if}

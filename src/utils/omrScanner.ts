@@ -6,6 +6,8 @@ import {
 	imageDataToOpenOmrImage,
 	openOmrImageToImageData,
 } from '@/utils/openOmr';
+import { i18n } from '@/lib/i18n.svelte';
+import { buildQuestionResponseRows } from '@/utils/questionResponses';
 
 export const SHEET_SIZE = { width: 1800, height: 2050 } as const;
 export const ANSWER_CELL_SIZE = { width: 84, height: 84 } as const;
@@ -64,6 +66,7 @@ export interface OmrScanResult {
 	scannedAnswers: number[];
 	correctAnswers: boolean[];
 	correctAnswerIndices: number[];
+	responseLabels: string[];
 	score: number;
 	totalQuestions: number;
 	normalizedImage?: ImageData;
@@ -116,13 +119,7 @@ export async function diagnoseGradingSheetImageData(
 		logDiagnostics('Wykryte markery ArUco', markers);
 
 		if (markers.length < 3) {
-			return diagnosticsFailure(
-				imageData,
-				markers,
-				quality,
-				stages,
-				`Wykryto ${markers.length} marker(y). Normalizacja wymaga co najmniej trzech prawidłowych markerów narożnych.`
-			);
+			return diagnosticsFailure(imageData, markers, quality, stages, i18n.t('errors.markers'));
 		}
 		if (!grader.normalize(SHEET_SIZE)) {
 			return diagnosticsFailure(
@@ -130,7 +127,7 @@ export async function diagnoseGradingSheetImageData(
 				markers,
 				quality,
 				stages,
-				'Nie udało się znormalizować obrazu. Wykryte markery nie tworzą obsługiwanego układu narożników; sprawdź, czy karta została wygenerowana przez bieżący openOmr.'
+				i18n.t('errors.normalization')
 			);
 		}
 		stages.push('normalized');
@@ -150,7 +147,7 @@ export async function diagnoseGradingSheetImageData(
 				markers,
 				quality,
 				stages,
-				'Normalizacja powiodła się, ale nie znaleziono identyfikatora rewizji.',
+				i18n.t('errors.qr'),
 				normalizedImage
 			);
 		}
@@ -226,24 +223,24 @@ export async function checkImageQuality(imageData: ImageData): Promise<ImageQual
 }
 
 export function computeScore(scannedAnswers: number[], revisionContent: SnapshotQuestion[]) {
-	const correctAnswerIndices = revisionContent.map((question) =>
-		question.answers.findIndex((answer) => answer.is_correct)
-	);
+	const responseRows = buildQuestionResponseRows(revisionContent);
+	const correctAnswerIndices = responseRows.map((row) => row.correctAnswerIndex);
 	const correctAnswers = correctAnswerIndices.map(
 		(correctAnswer, index) => scannedAnswers[index] === correctAnswer
 	);
 	return {
 		correctAnswers,
 		correctAnswerIndices,
+		responseLabels: responseRows.map((row) => row.displayNumber),
 		score: correctAnswers.filter(Boolean).length,
-		totalQuestions: revisionContent.length,
+		totalQuestions: responseRows.length,
 	};
 }
 
 function readImageBitmap(bitmap: ImageBitmap): ImageData {
 	const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
 	const context = canvas.getContext('2d', { willReadFrequently: true });
-	if (!context) throw new Error('Nie można utworzyć kontekstu canvas 2D.');
+	if (!context) throw new Error(i18n.t('errors.canvasContext'));
 	context.drawImage(bitmap, 0, 0);
 	return context.getImageData(0, 0, bitmap.width, bitmap.height);
 }

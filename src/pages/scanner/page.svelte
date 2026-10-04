@@ -10,6 +10,7 @@
 	import { getTest, getTestRevision } from '@/db/repositories';
 	import Button from '$lib/ui/Button.svelte';
 	import { p } from '@/router';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	type Mode = 'image' | 'camera';
 	type CameraState = 'idle' | 'searching' | 'processing' | 'result' | 'error';
@@ -60,7 +61,7 @@
 		if (!file) return;
 		resetResults();
 		imageState = 'analyzing';
-		statusLabel = 'Analizuję obraz…';
+		statusLabel = i18n.t('scanner.analyzing');
 
 		try {
 			result = await scanAndScoreImage(file);
@@ -75,15 +76,14 @@
 		const scan = await scanGradingSheetImage(file);
 		const revisionId = scan.qrCode.metadata!.revisionId;
 
-		statusLabel = 'Wczytuję wersję testu…';
+		statusLabel = i18n.t('scanner.loadingRevision');
 		const revision = await getTestRevision(revisionId);
-		if (!revision)
-			throw new Error('Nieznana rewizja testu. Kod QR wskazuje na rewizję, której nie ma w bazie.');
+		if (!revision) throw new Error(i18n.t('scanner.unknownRevision'));
 
 		const test = await getTest(revision.testId);
-		const testName = test?.name ?? 'Nieznany test';
+		const testName = test?.name ?? i18n.t('scanner.unknownTest');
 
-		statusLabel = 'Skanuję odpowiedzi…';
+		statusLabel = i18n.t('scanner.scanningAnswers');
 		const score = computeScore(scan.scannedAnswers, revision.content);
 		return {
 			scanStatus: 'success',
@@ -94,6 +94,7 @@
 			scannedAnswers: scan.scannedAnswers,
 			correctAnswers: score.correctAnswers,
 			correctAnswerIndices: score.correctAnswerIndices,
+			responseLabels: score.responseLabels,
 			score: score.score,
 			totalQuestions: score.totalQuestions,
 			normalizedImage: scan.normalizedImage,
@@ -129,12 +130,12 @@
 	async function startCamera() {
 		resetResults();
 		cameraState = 'searching';
-		statusLabel = 'Szukam karty odpowiedzi…';
+		statusLabel = i18n.t('scanner.searching');
 
 		try {
 			stream = await openPortraitCameraStream();
 		} catch {
-			errorMessage = 'Kamera jest niedostępna. Sprawdź uprawnienia lub użyj trybu zdjęcia.';
+			errorMessage = i18n.t('scanner.cameraUnavailable');
 			cameraState = 'error';
 			return;
 		}
@@ -240,7 +241,7 @@
 			ctx.drawImage(videoElement, 0, 0);
 			const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-			statusLabel = 'Rozpoczęto skanowanie karty odpowiedzi.';
+			statusLabel = i18n.t('scanner.scanningAnswers');
 			const openOmr = await getOpenOmr();
 			const quality = await checkImageQuality(imageData);
 			if (quality.value === openOmr.ImageQuality.TooDark.value) await setTorch(true);
@@ -249,7 +250,7 @@
 			const scan = await scanGradingSheetImageData(imageData);
 			cameraState = 'processing';
 			stopCamera();
-			statusLabel = 'Przetwarzanie…';
+			statusLabel = i18n.t('scanner.processing');
 			result = await processFrozenFrame(scan);
 			cameraState = 'result';
 		} catch {
@@ -269,10 +270,10 @@
 	): Promise<OmrScanResult> {
 		const revisionId = scan.qrCode.metadata!.revisionId;
 		const revision = await getTestRevision(revisionId);
-		if (!revision) throw new Error('Nieznana rewizja testu.');
+		if (!revision) throw new Error(i18n.t('scanner.unknownRevision'));
 
 		const test = await getTest(revision.testId);
-		const testName = test?.name ?? 'Nieznany test';
+		const testName = test?.name ?? i18n.t('scanner.unknownTest');
 
 		const score = computeScore(scan.scannedAnswers, revision.content);
 
@@ -285,6 +286,7 @@
 			scannedAnswers: scan.scannedAnswers,
 			correctAnswers: score.correctAnswers,
 			correctAnswerIndices: score.correctAnswerIndices,
+			responseLabels: score.responseLabels,
 			score: score.score,
 			totalQuestions: score.totalQuestions,
 			normalizedImage: scan.normalizedImage,
@@ -303,15 +305,15 @@
 </script>
 
 <div class="page">
-	<h1 class="page-title">Skaner kart odpowiedzi</h1>
+	<h1 class="page-title">{i18n.t('scanner.title')}</h1>
 
 	<!-- Mode tabs -->
 	<div class="mode-tabs">
 		<button class="mode-tab" class:active={mode === 'image'} onclick={() => switchMode('image')}>
-			🖼️ Zdjęcie
+			🖼️ {i18n.t('scanner.imageMode')}
 		</button>
 		<button class="mode-tab" class:active={mode === 'camera'} onclick={() => switchMode('camera')}>
-			📷 Kamera
+			📷 {i18n.t('scanner.cameraMode')}
 		</button>
 	</div>
 
@@ -320,7 +322,7 @@
 		<div class="section">
 			{#if imageState === 'idle' || imageState === 'error'}
 				<label class="upload-label">
-					Wybierz zdjęcie karty odpowiedzi
+					{i18n.t('scanner.upload')}
 					<input type="file" accept="image/*" class="file-input" onchange={handleImageFile} />
 				</label>
 			{/if}
@@ -338,7 +340,9 @@
 	{#if mode === 'camera'}
 		<div class="section">
 			{#if cameraState === 'idle'}
-				<button class="camera-start-btn" onclick={startCamera}>Rozpocznij skanowanie</button>
+				<button class="camera-start-btn" onclick={startCamera}
+					>{i18n.t('scanner.startCamera')}</button
+				>
 			{/if}
 
 			{#if cameraState === 'searching'}
@@ -349,7 +353,7 @@
 						<p>{statusLabel}</p>
 					</div>
 				</div>
-				<button class="cancel-btn" onclick={cancelCamera}>Anuluj</button>
+				<button class="cancel-btn" onclick={cancelCamera}>{i18n.t('scanner.cancel')}</button>
 			{/if}
 			{#if cameraState === 'processing'}
 				<div class="status-box">
@@ -364,7 +368,7 @@
 	{#if errorMessage && (imageState === 'error' || cameraState === 'error')}
 		<div class="error-box">
 			<p class="error-text">{errorMessage}</p>
-			<button class="retry-btn" onclick={retry}>Spróbuj ponownie</button>
+			<button class="retry-btn" onclick={retry}>{i18n.t('common.tryAgain')}</button>
 		</div>
 	{/if}
 
@@ -373,13 +377,13 @@
 		<div class="result-card">
 			<div class="result-meta">
 				<p>
-					Test:
+					{i18n.t('scanner.test')}
 					<a href={p('/tests/:id', { params: { id: result.testId } })} class="meta-link">
 						{result.testName}
 					</a>
 				</p>
 				<p>
-					Wersja:
+					{i18n.t('scanner.revision')}
 					<a
 						href={p('/tests/:id/revision/:revisionId', {
 							params: { id: result.testId, revisionId: result.revisionId },
@@ -389,20 +393,20 @@
 				</p>
 			</div>
 			<div class="score-row">
-				<h2>Wynik: {result.score}/{result.totalQuestions}</h2>
+				<h2>{i18n.t('scanner.score', { score: result.score, total: result.totalQuestions })}</h2>
 				<p class="percentage">
 					{Math.round((result.score / Math.max(1, result.totalQuestions)) * 100)}%
 				</p>
-				<Button size="sm" variant="outline" onclick={retry}>Skanuj ponownie</Button>
+				<Button size="sm" variant="outline" onclick={retry}>{i18n.t('scanner.scanAgain')}</Button>
 			</div>
 
 			<table class="answers-table">
 				<thead>
 					<tr>
 						<th>#</th>
-						<th>Odpowiedź</th>
-						<th>Poprawna odpowiedź</th>
-						<th>Poprawna</th>
+						<th>{i18n.t('scanner.answer')}</th>
+						<th>{i18n.t('scanner.correctAnswer')}</th>
+						<th>{i18n.t('scanner.correct')}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -410,7 +414,7 @@
 						{@const isCorrect = result.correctAnswers[i]}
 						{@const correctIdx = result.correctAnswerIndices[i]}
 						<tr class:correct={isCorrect} class:incorrect={!isCorrect}>
-							<td>{i + 1}</td>
+							<td>{result.responseLabels[i]}</td>
 							<td class:empty={scanned < 0}>
 								{scanned >= 0 ? answerLabel(scanned) : '—'}
 							</td>

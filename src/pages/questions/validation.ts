@@ -1,4 +1,5 @@
 import type { QuestionType } from '@/db/repositories';
+import { i18n } from '@/lib/i18n.svelte';
 
 export interface ValidationResult {
 	valid: boolean;
@@ -11,7 +12,7 @@ export function validateQuestionData(
 	answers: { content: string; isCorrect: boolean }[]
 ): ValidationResult {
 	if (!content.trim()) {
-		return { valid: false, error: 'Treść pytania jest wymagana.' };
+		return { valid: false, error: i18n.t('questions.validation.contentRequired') };
 	}
 
 	const nonEmptyAnswers = answers.filter((a) => a.content.trim());
@@ -19,16 +20,16 @@ export function validateQuestionData(
 	if (type === 'choice' && nonEmptyAnswers.length < 3) {
 		return {
 			valid: false,
-			error: 'Dodaj co najmniej 3 odpowiedzi dla pytania jednokrotnego wyboru.',
+			error: i18n.t('questions.validation.minimumAnswers'),
 		};
 	}
 
 	if (type === 'choice' && !nonEmptyAnswers.some((a) => a.isCorrect)) {
-		return { valid: false, error: 'Wskaż poprawną odpowiedź.' };
+		return { valid: false, error: i18n.t('questions.validation.correctRequired') };
 	}
 
-	if (type === 'true_false' && !nonEmptyAnswers.some((a) => a.isCorrect)) {
-		return { valid: false, error: 'Wskaż, która odpowiedź jest poprawna.' };
+	if (type === 'true_false' && nonEmptyAnswers.length === 0) {
+		return { valid: false, error: i18n.t('questions.validation.statementRequired') };
 	}
 
 	return { valid: true };

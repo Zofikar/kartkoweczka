@@ -4,6 +4,7 @@
 	import PrintAnswerSheet from '@/lib/components/PrintAnswerSheet.svelte';
 	import type { SnapshotQuestion } from '@/db/repositories';
 	import { renderDocumentToHtml } from '@/utils/math';
+	import { buildQuestionResponseRows } from '@/utils/questionResponses';
 	import {
 		A4_WIDTH_MM,
 		BASE_GAP_MM,
@@ -16,6 +17,7 @@
 		type ImageDisplaySize,
 		type ImagePlacementValue,
 	} from '@/utils/paper';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	const PX_PER_MM = 96 / 25.4;
 
@@ -42,6 +44,12 @@
 	}: Props = $props();
 
 	let includeAnswerSheet = $state(true);
+	let responseRows = $derived(
+		buildQuestionResponseRows(questions, {
+			trueLabel: i18n.t('questions.editor.trueShort'),
+			falseLabel: i18n.t('questions.editor.falseShort'),
+		})
+	);
 
 	interface PreparedAnswer {
 		key: string;
@@ -52,6 +60,7 @@
 	interface PreparedQuestion {
 		key: string;
 		number: number;
+		type: SnapshotQuestion['type'];
 		contentHtml: string;
 		image: string | null;
 		imageReady: boolean;
@@ -119,6 +128,7 @@
 			return {
 				key: `q-${index}`,
 				number: index + 1,
+				type: q.type,
 				contentHtml: renderDocumentToHtml(q.content),
 				image: q.image ?? null,
 				imageReady,
@@ -223,7 +233,43 @@
 		</div>
 
 		<div class="print-body">
-			{#if q.image && q.imageReady}
+			{#if q.type === 'true_false'}
+				{#if q.image && q.imageReady}
+					<img
+						class="print-image"
+						style={q.imageStyle}
+						src={q.image}
+						alt={i18n.t('print.questionImage')}
+					/>
+				{/if}
+				<table class="true-false-table">
+					<thead>
+						<tr>
+							<th class="true-false-number">{i18n.t('print.statementNumber')}</th>
+							<th>{i18n.t('print.statement')}</th>
+							<th class="true-false-choice">{i18n.t('questions.editor.true')}</th>
+							<th class="true-false-choice">{i18n.t('questions.editor.false')}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each q.answers as statement, statementIndex (statement.key)}
+							<tr>
+								<td class="true-false-number">{q.number}.{statementIndex + 1}</td>
+								<td class="true-false-statement">
+									<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+									{@html statement.html}
+								</td>
+								<td class="true-false-choice">
+									{i18n.t('questions.editor.trueShort')}
+								</td>
+								<td class="true-false-choice">
+									{i18n.t('questions.editor.falseShort')}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			{:else if q.image && q.imageReady}
 				{#if q.placement === 'over' && !q.smallImageBeside}
 					<img class="print-image" style={q.imageStyle} src={q.image} alt="Ilustracja do pytania" />
 					<ul class="print-answers">
@@ -241,7 +287,7 @@
 							class="print-image print-image--side"
 							style={q.imageStyle}
 							src={q.image}
-							alt="Ilustracja do pytania"
+							alt={i18n.t('print.questionImage')}
 						/>
 						<ul class="print-answers print-answers--inline">
 							{#each q.answers as a (a.key)}
@@ -303,12 +349,7 @@
 	{/each}
 	{#if includeAnswerSheet && revisionId}
 		<div class="print-page print-page--{variant}">
-			<PrintAnswerSheet
-				{testName}
-				{revisionName}
-				{revisionId}
-				answersPerQuestion={prepared.map((q) => q.answers.length)}
-			/>
+			<PrintAnswerSheet {testName} {revisionName} {revisionId} {responseRows} />
 		</div>
 	{/if}
 {/snippet}
@@ -328,26 +369,26 @@
 		class="print-overlay"
 		role="dialog"
 		aria-modal="true"
-		aria-label="Podgląd wydruku"
+		aria-label={i18n.t('print.preview')}
 		tabindex="-1"
 		onclick={handleBackdrop}
 	>
 		<div class="print-toolbar">
 			<div class="print-toolbar-title">
-				<h2 class="print-title">{testName || 'Kartkówka'}</h2>
-				<span class="print-subtitle">A4 &middot; podgląd wydruku</span>
+				<h2 class="print-title">{testName || i18n.t('print.defaultTitle')}</h2>
+				<span class="print-subtitle">{i18n.t('print.subtitle')}</span>
 			</div>
 			<div class="print-toolbar-actions">
 				{#if revisionId}
 					<label class="print-toggle">
 						<input type="checkbox" bind:checked={includeAnswerSheet} />
-						<span>Karta odpowiedzi</span>
+						<span>{i18n.t('print.answerSheet')}</span>
 					</label>
 				{/if}
 				<Button variant="primary" size="md" onclick={() => window.print()}>
-					Drukuj / Zapisz PDF
+					{i18n.t('print.printPdf')}
 				</Button>
-				<Button variant="ghost" size="md" onclick={onclose}>Zamknij</Button>
+				<Button variant="ghost" size="md" onclick={onclose}>{i18n.t('common.close')}</Button>
 			</div>
 		</div>
 
@@ -585,6 +626,41 @@
 
 	.print-answer-text {
 		min-width: 0;
+		overflow-wrap: break-word;
+	}
+
+	.true-false-table {
+		width: 100%;
+		border-collapse: collapse;
+		table-layout: fixed;
+		font-size: var(--print-font);
+	}
+
+	.true-false-table th,
+	.true-false-table td {
+		border: 0.5pt solid #000000;
+		padding: 1.5mm 2mm;
+		vertical-align: middle;
+	}
+
+	.true-false-table th {
+		font-weight: 700;
+		text-align: center;
+	}
+
+	.true-false-number {
+		width: 16mm;
+		text-align: center;
+		font-weight: 700;
+	}
+
+	.true-false-choice {
+		width: 16mm;
+		text-align: center;
+		font-weight: 700;
+	}
+
+	.true-false-statement {
 		overflow-wrap: break-word;
 	}
 

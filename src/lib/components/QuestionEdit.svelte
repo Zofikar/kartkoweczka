@@ -21,6 +21,7 @@
 	import { snackError } from '@/lib/stores/snackbar.svelte';
 	import { onMount } from 'svelte';
 	import { v4 as randomUUID } from 'uuid';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	interface Props {
 		question?: QuestionWithAnswers | null;
@@ -127,10 +128,7 @@
 	function requestTypeChange(newType: QuestionType) {
 		if (newType === type) return;
 
-		const hasMeaningfulData =
-			type === 'choice'
-				? answerList.some((a) => a.content.trim() !== '')
-				: answerList.some((a) => a.isCorrect);
+		const hasMeaningfulData = answerList.some((a) => a.content.trim() !== '');
 
 		if (hasMeaningfulData) {
 			pendingTypeChange = newType;
@@ -152,15 +150,7 @@
 
 	function applyTypeDefaults(newType: QuestionType) {
 		type = newType;
-		if (newType === 'true_false') {
-			answerList = [
-				{ key: randomUUID(), content: 'Prawda', isCorrect: false },
-				{ key: randomUUID(), content: 'Fałsz', isCorrect: false },
-			];
-		} else {
-			// Clear answers when switching to choice — user must provide at least 3
-			answerList = [];
-		}
+		answerList = [];
 	}
 
 	function requestCancel() {
@@ -193,11 +183,10 @@
 		answerList = answerList.map((a) => ({ ...a, isCorrect: a.key === key }));
 	}
 
-	function setTrueFalseAnswer(correct: boolean) {
-		answerList = answerList.map((a) => ({
-			...a,
-			isCorrect: correct ? a.content === 'Prawda' : a.content === 'Fałsz',
-		}));
+	function setStatementTruth(key: string, isTrue: boolean) {
+		answerList = answerList.map((answer) =>
+			answer.key === key ? { ...answer, isCorrect: isTrue } : answer
+		);
 	}
 
 	function onImageChange(data: {
@@ -249,17 +238,17 @@
 
 <article class="question-edit">
 	<div class="edit-field">
-		<label class="field-label" for="q-content">Treść pytania</label>
+		<label class="field-label" for="q-content">{i18n.t('questions.editor.content')}</label>
 		<RichMathEditor
 			bind:this={contentEditorRef}
 			bind:value={content}
 			id="q-content"
-			aria-label="Treść pytania"
+			aria-label={i18n.t('questions.editor.content')}
 		/>
 	</div>
 
 	<div class="edit-field">
-		<span class="field-label">Obraz</span>
+		<span class="field-label">{i18n.t('questions.editor.image')}</span>
 		<ImageUpload
 			bind:image
 			bind:imageHeight
@@ -270,14 +259,14 @@
 	</div>
 
 	<div class="edit-field">
-		<span class="field-label" id="mode-label">Typ pytania</span>
+		<span class="field-label" id="mode-label">{i18n.t('questions.editor.type')}</span>
 		<SegmentedControl
 			aria-labelledby="mode-label"
 			size="sm"
 			value={type}
 			options={[
-				{ value: 'choice', label: 'Jednokrotny wybór' },
-				{ value: 'true_false', label: 'Prawda / Fałsz' },
+				{ value: 'choice', label: i18n.t('questionType.choice') },
+				{ value: 'true_false', label: i18n.t('questionType.trueFalse') },
 			]}
 			onchange={requestTypeChange}
 		/>
@@ -286,33 +275,25 @@
 	<Divider />
 
 	<div class="answers-section">
-		<Text as="span" variant="body">Odpowiedzi</Text>
+		<Text as="span" variant="body">
+			{i18n.t(type === 'true_false' ? 'questions.editor.statements' : 'questions.editor.answers')}
+		</Text>
 
-		{#if type === 'true_false'}
-			<div class="tf-toggle-group" role="radiogroup" aria-label="Poprawna odpowiedź">
-				<label class="tf-option">
-					<input
-						type="radio"
-						name="tf-answer"
-						checked={answerList.some((a) => a.content === 'Prawda' && a.isCorrect)}
-						onchange={() => setTrueFalseAnswer(true)}
-					/>
-					<span>Prawda</span>
-				</label>
-				<label class="tf-option">
-					<input
-						type="radio"
-						name="tf-answer"
-						checked={answerList.some((a) => a.content === 'Fałsz' && a.isCorrect)}
-						onchange={() => setTrueFalseAnswer(false)}
-					/>
-					<span>Fałsz</span>
-				</label>
-			</div>
-		{:else}
-			<ul class="answers-edit-list">
-				{#each answerList as answer (answer.key)}
-					<li class="answer-edit-row">
+		<ul class="answers-edit-list">
+			{#each answerList as answer (answer.key)}
+				<li class="answer-edit-row">
+					{#if type === 'true_false'}
+						<SegmentedControl
+							aria-label={i18n.t('questions.editor.statementTruth')}
+							size="sm"
+							value={answer.isCorrect ? 'true' : 'false'}
+							options={[
+								{ value: 'true', label: i18n.t('questions.editor.trueShort') },
+								{ value: 'false', label: i18n.t('questions.editor.falseShort') },
+							]}
+							onchange={(value) => setStatementTruth(answer.key, value === 'true')}
+						/>
+					{:else}
 						<label class="correct-check">
 							<input
 								type="radio"
@@ -320,35 +301,43 @@
 								checked={answer.isCorrect}
 								onchange={() => setCorrect(answer.key)}
 							/>
-							<span class="check-label">Poprawna</span>
+							<span class="check-label">{i18n.t('questions.editor.correct')}</span>
 						</label>
-						<div class="answer-input-wrapper">
-							<RichMathEditor
-								bind:this={answerEditorRefs[answer.key]}
-								bind:value={answer.content}
-								size="sm"
-								aria-label="Treść odpowiedzi"
-							/>
-						</div>
-						<IconButton
-							ariaLabel="Usuń odpowiedź"
-							variant="ghost"
+					{/if}
+					<div class="answer-input-wrapper">
+						<RichMathEditor
+							bind:this={answerEditorRefs[answer.key]}
+							bind:value={answer.content}
 							size="sm"
-							onclick={() => removeAnswer(answer.key)}
-						>
-							✕
-						</IconButton>
-					</li>
-				{/each}
-			</ul>
+							aria-label={i18n.t(
+								type === 'true_false'
+									? 'questions.editor.statementContent'
+									: 'questions.editor.answerContent'
+							)}
+						/>
+					</div>
+					<IconButton
+						ariaLabel={i18n.t('questions.editor.removeAnswer')}
+						variant="ghost"
+						size="sm"
+						onclick={() => removeAnswer(answer.key)}
+					>
+						✕
+					</IconButton>
+				</li>
+			{/each}
+		</ul>
 
-			<Button variant="outline" size="sm" onclick={addAnswer}>+ Dodaj odpowiedź</Button>
-		{/if}
+		<Button variant="outline" size="sm" onclick={addAnswer}>
+			{i18n.t(
+				type === 'true_false' ? 'questions.editor.addStatement' : 'questions.editor.addAnswer'
+			)}
+		</Button>
 	</div>
 
 	<div class="edit-field">
 		<TagSelect
-			label="Tagi"
+			label={i18n.t('questions.editor.tags')}
 			selected={selectedTags}
 			{allTags}
 			onselect={(tags) => (selectedTags = tags)}
@@ -356,9 +345,13 @@
 	</div>
 
 	<div class="edit-actions">
-		<Button variant="ghost" onclick={requestCancel}>Anuluj</Button>
+		<Button variant="ghost" onclick={requestCancel}>{i18n.t('common.cancel')}</Button>
 		<Button variant="primary" onclick={handleSave} disabled={saving}>
-			{saving ? 'Zapisywanie...' : question ? 'Zapisz zmiany' : 'Utwórz pytanie'}
+			{saving
+				? i18n.t('common.saving')
+				: question
+					? i18n.t('questions.editor.saveChanges')
+					: i18n.t('questions.editor.create')}
 		</Button>
 	</div>
 </article>
@@ -366,22 +359,22 @@
 <ConfirmModal
 	open={pendingTypeChange !== null}
 	oncancel={cancelTypeChange}
-	title="Zmiana typu pytania"
-	confirmLabel="Zmień typ"
+	title={i18n.t('questions.editor.changeTypeTitle')}
+	confirmLabel={i18n.t('questions.editor.changeType')}
 	onconfirm={confirmTypeChange}
 >
-	Zmiana typu pytania spowoduje utratę wprowadzonych odpowiedzi. Czy na pewno chcesz kontynuować?
+	{i18n.t('questions.editor.changeTypePrompt')}
 </ConfirmModal>
 
 <ConfirmModal
 	open={showCancelConfirm}
 	oncancel={dismissCancel}
-	title="Niezapisane zmiany"
-	cancelLabel="Wróć do edycji"
-	confirmLabel="Anuluj edycję"
+	title={i18n.t('common.unsavedChanges')}
+	cancelLabel={i18n.t('questions.editor.returnToEdit')}
+	confirmLabel={i18n.t('questions.editor.cancelEdit')}
 	onconfirm={confirmCancel}
 >
-	Masz niezapisane zmiany. Czy na pewno chcesz anulować edycję?
+	{i18n.t('questions.editor.cancelPrompt')}
 </ConfirmModal>
 
 <style>
@@ -452,39 +445,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
-	}
-
-	.tf-toggle-group {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-	}
-
-	.tf-option {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		padding: var(--space-2) var(--space-3);
-		border-radius: var(--radius-sm);
-		background-color: var(--background);
-		border: 1px solid var(--background-muted);
-		cursor: pointer;
-		font-family: var(--font-sans);
-		font-size: var(--font-base);
-		color: var(--text);
-		transition: border-color 150ms ease;
-	}
-
-	.tf-option:has(input:checked) {
-		border-color: var(--primary);
-		background-color: color-mix(in srgb, var(--primary) 10%, var(--background));
-	}
-
-	.tf-option input[type='radio'] {
-		width: 16px;
-		height: 16px;
-		accent-color: var(--primary);
-		cursor: pointer;
 	}
 
 	.edit-actions {

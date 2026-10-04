@@ -4,6 +4,7 @@
 	import type { QuestionType } from '@/db/repositories';
 	import { questionTypeLabel } from '@/lib/labels';
 	import { renderDocumentToHtml } from '@/utils/math';
+	import { i18n } from '@/lib/i18n.svelte';
 
 	interface ViewAnswer {
 		key: string;
@@ -37,7 +38,10 @@
 
 	let renderedContent = $derived(renderDocumentToHtml(content));
 	let renderedAnswers = $derived(
-		answers.map((a) => ({ ...a, renderedContent: renderDocumentToHtml(a.content) }))
+		answers.map((a) => ({
+			...a,
+			renderedContent: renderDocumentToHtml(a.content),
+		}))
 	);
 
 	let imageStyle = $derived.by(() => {
@@ -77,14 +81,27 @@
 
 	{#if image}
 		<div class="question-image-wrapper">
-			<img class="question-image" src={image} alt="Obraz do pytania" style={imageStyle} />
+			<img
+				class="question-image"
+				src={image}
+				alt={i18n.t('questions.imageAlt')}
+				style={imageStyle}
+			/>
 		</div>
 	{/if}
 
 	<ul class="answers-list">
 		{#each renderedAnswers as answer (answer.key)}
 			<li class="answer-item" class:answer-item--correct={answer.isCorrect}>
-				<span class="answer-indicator">{answer.isCorrect ? '✓' : '✗'}</span>
+				<span class="answer-indicator">
+					{type === 'true_false'
+						? answer.isCorrect
+							? i18n.t('questions.editor.trueShort')
+							: i18n.t('questions.editor.falseShort')
+						: answer.isCorrect
+							? '✓'
+							: '✗'}
+				</span>
 				<span class="answer-content">
 					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 					{@html answer.renderedContent}
