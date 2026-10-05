@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { i18n } from '../i18n.svelte';
+	import Select from '../ui/Select.svelte';
 	import {
 		detectNativePlatform,
 		loadNativeRelease,
@@ -35,15 +36,19 @@
 
 <section aria-live="polite">
 	<p>{i18n.t('native.alternative')}</p>
-	<label>
-		{i18n.t('native.platform')}
-		<select bind:value={platform}>
-			<option value="">{i18n.t('native.unknown')}</option>
-			{#each nativePlatforms as option (option)}
-				<option value={option}>{option} {option.endsWith('_arm') ? '(ARM64)' : ''}</option>
-			{/each}
-		</select>
-	</label>
+	<Select
+		label={i18n.t('native.platform')}
+		value={platform}
+		onchange={(event) =>
+			(platform = (event.target as HTMLSelectElement).value as NativePlatform | '')}
+		options={[
+			{ value: '', label: i18n.t('native.unknown') },
+			...nativePlatforms.map((option) => ({
+				value: option,
+				label: `${option}${option.endsWith('_arm') ? ' (ARM64)' : ''}`,
+			})),
+		]}
+	/>
 	{#if loading}
 		<p>{i18n.t('common.loading')}</p>
 	{:else if failed}
@@ -65,3 +70,13 @@
 		<p>{i18n.t('native.unavailable')}</p>
 	{/if}
 </section>
+
+<style>
+	section {
+		color: var(--text);
+	}
+
+	a {
+		color: var(--secondary);
+	}
+</style>

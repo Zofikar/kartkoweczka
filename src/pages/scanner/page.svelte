@@ -9,6 +9,7 @@
 	import { getOpenOmr } from '@/utils/openOmr';
 	import { getTest, getTestRevision } from '@/db/repositories';
 	import Button from '$lib/ui/Button.svelte';
+	import { tick } from 'svelte';
 	import { p } from '@/router';
 	import { i18n } from '@/lib/i18n.svelte';
 
@@ -27,6 +28,20 @@
 	let stream = $state<MediaStream | null>(null);
 	let searchAnimationId = $state<number>(0);
 	let torch = $state(false);
+	let fileInput: HTMLInputElement;
+	const busy = $derived(
+		imageState === 'analyzing' || cameraState === 'searching' || cameraState === 'processing'
+	);
+
+	function choosePhoto() {
+		fileInput.value = '';
+		fileInput.click();
+	}
+
+	async function openCamera() {
+		switchMode('camera');
+		await startCamera();
+	}
 
 	function resetResults() {
 		result = null;
@@ -59,6 +74,7 @@
 	async function handleImageFile(event: Event) {
 		const file = (event.currentTarget as HTMLInputElement).files?.[0];
 		if (!file) return;
+		switchMode('image');
 		resetResults();
 		imageState = 'analyzing';
 		statusLabel = i18n.t('scanner.analyzing');
@@ -131,6 +147,7 @@
 		resetResults();
 		cameraState = 'searching';
 		statusLabel = i18n.t('scanner.searching');
+		await tick();
 
 		try {
 			stream = await openPortraitCameraStream();
@@ -307,26 +324,15 @@
 <div class="page">
 	<h1 class="page-title">{i18n.t('scanner.title')}</h1>
 
-	<!-- Mode tabs -->
-	<div class="mode-tabs">
-		<button class="mode-tab" class:active={mode === 'image'} onclick={() => switchMode('image')}>
-			🖼️ {i18n.t('scanner.imageMode')}
-		</button>
-		<button class="mode-tab" class:active={mode === 'camera'} onclick={() => switchMode('camera')}>
-			📷 {i18n.t('scanner.cameraMode')}
-		</button>
+	<div class="scan-actions">
+		<Button size="lg" disabled={busy} onclick={choosePhoto}>{i18n.t('scanner.upload')}</Button>
+		<Button size="lg" disabled={busy} onclick={openCamera}>{i18n.t('scanner.startCamera')}</Button>
 	</div>
+	<input bind:this={fileInput} type="file" accept="image/*" hidden onchange={handleImageFile} />
 
 	<!-- Image mode -->
 	{#if mode === 'image'}
 		<div class="section">
-			{#if imageState === 'idle' || imageState === 'error'}
-				<label class="upload-label">
-					{i18n.t('scanner.upload')}
-					<input type="file" accept="image/*" class="file-input" onchange={handleImageFile} />
-				</label>
-			{/if}
-
 			{#if imageState === 'analyzing'}
 				<div class="status-box">
 					<div class="spinner"></div>
@@ -339,12 +345,6 @@
 	<!-- Camera mode -->
 	{#if mode === 'camera'}
 		<div class="section">
-			{#if cameraState === 'idle'}
-				<button class="camera-start-btn" onclick={startCamera}
-					>{i18n.t('scanner.startCamera')}</button
-				>
-			{/if}
-
 			{#if cameraState === 'searching'}
 				<div class="video-wrapper">
 					<video bind:this={videoElement} autoplay playsinline muted class="video-preview"></video>
@@ -353,7 +353,7 @@
 						<p>{statusLabel}</p>
 					</div>
 				</div>
-				<button class="cancel-btn" onclick={cancelCamera}>{i18n.t('scanner.cancel')}</button>
+				<Button variant="outline" onclick={cancelCamera}>{i18n.t('scanner.cancel')}</Button>
 			{/if}
 			{#if cameraState === 'processing'}
 				<div class="status-box">
@@ -368,7 +368,7 @@
 	{#if errorMessage && (imageState === 'error' || cameraState === 'error')}
 		<div class="error-box">
 			<p class="error-text">{errorMessage}</p>
-			<button class="retry-btn" onclick={retry}>{i18n.t('common.tryAgain')}</button>
+			<Button variant="outline" onclick={retry}>{i18n.t('common.tryAgain')}</Button>
 		</div>
 	{/if}
 
@@ -447,67 +447,15 @@
 		margin: 0 0 var(--space-4);
 	}
 
-	/* Mode tabs */
-	.mode-tabs {
+	.scan-actions {
 		display: flex;
-		gap: var(--space-2);
+		flex-wrap: wrap;
+		gap: var(--space-3);
 		margin-bottom: var(--space-4);
 	}
 
-	.mode-tab {
-		flex: 1;
-		padding: var(--space-3);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface);
-		font-size: 1rem;
-		cursor: pointer;
-		text-align: center;
-	}
-
-	.mode-tab.active {
-		background: var(--primary);
-		color: #fff;
-		border-color: var(--primary);
-	}
-
-	/* Section */
 	.section {
 		margin-bottom: var(--space-4);
-	}
-
-	/* Upload */
-	.upload-label {
-		display: block;
-		padding: var(--space-6);
-		border: 2px dashed var(--border);
-		border-radius: var(--radius-lg);
-		text-align: center;
-		cursor: pointer;
-		color: var(--text-secondary, #6b7280);
-		font-size: 1rem;
-	}
-
-	.upload-label:hover {
-		border-color: var(--primary);
-		color: var(--primary);
-	}
-
-	.file-input {
-		display: none;
-	}
-
-	/* Camera */
-	.camera-start-btn {
-		width: 100%;
-		padding: var(--space-4);
-		border: none;
-		border-radius: var(--radius-md);
-		background: var(--primary);
-		color: #fff;
-		font-size: 1.125rem;
-		font-weight: 600;
-		cursor: pointer;
 	}
 
 	.video-wrapper {
@@ -536,35 +484,20 @@
 		gap: var(--space-3);
 	}
 
-	.cancel-btn {
-		margin-top: var(--space-3);
-		width: 100%;
-		padding: var(--space-3);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface);
-		color: var(--text);
-		font-size: 0.875rem;
-		cursor: pointer;
-	}
-
-	.cancel-btn:hover {
-		background: var(--primary-muted);
-	}
 	.status-box {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		gap: var(--space-3);
 		padding: var(--space-6);
-		color: var(--text-secondary, #6b7280);
+		color: var(--text-muted);
 	}
 
 	.spinner {
 		width: 32px;
 		height: 32px;
-		border: 3px solid var(--border);
-		border-top-color: var(--primary);
+		border: 3px solid var(--background-muted);
+		border-top-color: var(--secondary);
 		border-radius: 50%;
 		animation: spin 0.8s linear infinite;
 	}
@@ -586,21 +519,8 @@
 	}
 
 	.error-text {
-		color: var(--danger, #ef4444);
+		color: var(--error);
 		margin: 0 0 var(--space-3);
-	}
-
-	.retry-btn {
-		padding: var(--space-2) var(--space-4);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface);
-		cursor: pointer;
-		font-size: 0.875rem;
-	}
-
-	.retry-btn:hover {
-		background: var(--primary-light, #dbeafe);
 	}
 
 	/* Result */
@@ -611,11 +531,11 @@
 	.result-meta p {
 		margin: 0 0 var(--space-1);
 		font-size: 0.875rem;
-		color: var(--text-secondary, #6b7280);
+		color: var(--text-muted);
 	}
 
 	.meta-link {
-		color: var(--primary);
+		color: var(--secondary);
 		text-decoration: none;
 		font-weight: 600;
 	}
@@ -625,9 +545,9 @@
 	}
 
 	.result-card {
-		border: 1px solid var(--border);
+		border: 1px solid var(--background-muted);
 		border-radius: var(--radius-lg);
-		background: var(--surface);
+		background: var(--background-muted);
 		padding: var(--space-4);
 	}
 
@@ -658,7 +578,7 @@
 
 	.answers-table th,
 	.answers-table td {
-		border-bottom: 1px solid var(--border);
+		border-bottom: 1px solid var(--background-muted);
 		padding: var(--space-2);
 		text-align: center;
 	}
@@ -678,7 +598,7 @@
 	}
 
 	td.empty {
-		color: #9ca3af;
+		color: var(--text-muted);
 	}
 
 	.check,

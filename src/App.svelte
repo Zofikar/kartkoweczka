@@ -77,6 +77,9 @@
 <div id="main-container">
 	<Sidebar mobileOpen={sidebarOpen} onclose={() => (sidebarOpen = false)} />
 	<main>
+		{#if __DATABASE_BACKEND__ === 'tauri' && !/Android|iPhone|iPad/i.test(navigator.userAgent)}
+			<NativeUpdater />
+		{/if}
 		{#if isPWA}
 			<Router />
 		{:else}
@@ -85,7 +88,4 @@
 	</main>
 </div>
 <Footer />
-{#if __DATABASE_BACKEND__ === 'tauri' && !/Android|iPhone|iPad/i.test(navigator.userAgent)}
-	<NativeUpdater />
-{/if}
 <Snackbar />
