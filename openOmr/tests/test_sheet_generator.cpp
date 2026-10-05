@@ -49,19 +49,19 @@ namespace
         auto const innerGuideEdge = config->guideInset;
 
         assert(OpenOmr::markerCenter(*config, OpenOmr::MarkerPosition::TL).x
-            - halfMarker - innerGuideEdge == config->quietZone);
+            - halfMarker - innerGuideEdge >= config->quietZone);
         assert(OpenOmr::markerCenter(*config, OpenOmr::MarkerPosition::TL).y
-            - halfMarker - innerGuideEdge == config->quietZone);
+            - halfMarker - innerGuideEdge >= config->quietZone);
         assert(OpenOmr::markerCenter(*config, OpenOmr::MarkerPosition::FB).x
             - halfMarker
             - (OpenOmr::markerCenter(*config, OpenOmr::MarkerPosition::BL).x
                 + halfMarker)
-            == config->quietZone);
+            >= config->quietZone * 2);
         assert(config->referenceSize.height - config->identityCodeArea.br().y
             == config->quietZone);
         assert(OpenOmr::markerCenter(*config, OpenOmr::MarkerPosition::BR).x
-            - halfMarker - config->identityCodeArea.br().x == config->quietZone);
-        assert(config->identityCodeArea.y - config->gridArea.br().y == 24);
+            - halfMarker - config->identityCodeArea.br().x >= config->quietZone);
+        assert(config->identityCodeArea.y - config->gridArea.br().y == 12);
         assert((config->identityCodeArea & config->gridArea).empty());
         for (auto const position : {
                  OpenOmr::MarkerPosition::TL, OpenOmr::MarkerPosition::TR,
@@ -163,6 +163,46 @@ namespace
 
 int main()
 {
+    auto const config = OpenOmr::sheetVersionConfig(1);
+    assert(config);
+    auto const halfMarker = config->markerSize / 2;
+    OpenOmr::SheetGenerator defaultGenerator;
+    defaultGenerator.initialize(config->referenceSize, testRevisionId(1));
+    auto const sheet = defaultGenerator.generate();
+    cv::Mat qrInk;
+    cv::threshold(sheet(config->identityCodeArea), qrInk, 128, 255, cv::THRESH_BINARY_INV);
+    auto const inkBounds = cv::boundingRect(qrInk);
+    auto const inkTop = config->identityCodeArea.y + inkBounds.y;
+    auto const inkBottom = inkTop + inkBounds.height;
+    // Every marker owns the same four physical white margins as the QR.
+    auto const leftPadding = inkBounds.x;
+    auto const topPadding = inkBounds.y;
+    auto const rightPadding = config->identityCodeArea.width - inkBounds.br().x;
+    auto const bottomPadding = config->identityCodeArea.height - inkBounds.br().y;
+    cv::Rect gridWithStroke(config->gridArea.x - 2, config->gridArea.y - 2,
+        config->gridArea.width + 4, config->gridArea.height + 4);
+    assert((gridWithStroke & config->identityCodeArea).empty());
+    for (auto const& center : config->markerCenters) {
+        cv::Rect padded(center.x - halfMarker - leftPadding,
+            center.y - halfMarker - topPadding,
+            config->markerSize + leftPadding + rightPadding,
+            config->markerSize + topPadding + bottomPadding);
+        assert((padded & gridWithStroke).empty());
+        cv::Mat dark;
+        cv::threshold(sheet(padded), dark, 128, 255, cv::THRESH_BINARY_INV);
+        assert(cv::boundingRect(dark) == cv::Rect(leftPadding, topPadding,
+            config->markerSize, config->markerSize));
+    }
+    for (auto const position : {OpenOmr::MarkerPosition::BL, OpenOmr::MarkerPosition::BR}) {
+        auto const bottom = OpenOmr::markerCenter(*config, position).y + halfMarker;
+        assert(bottom == inkBottom);
+        assert(bottom + config->guideThickness / 2
+            < config->referenceSize.height - config->guideInset);
+    }
+    assert(OpenOmr::markerCenter(*config, OpenOmr::MarkerPosition::FB).y - halfMarker == inkTop);
+    OpenOmr::SheetGrader defaultGrader;
+    defaultGrader.detectAruco(sheet);
+    assert(defaultGrader.detectedVersion() == 1);
     testInheritedConfigurations();
     testDerivedGeometry();
     testGeneratorValidation();

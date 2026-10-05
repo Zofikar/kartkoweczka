@@ -93,6 +93,7 @@ namespace OpenOmr
         cv::Mat m_source{};
         cv::Mat m_normalized{};
         std::vector<ArUcoDetection> m_aruco{};
+        std::vector<std::array<cv::Point2f, 4>> m_markerCorners{};
         std::vector<DetectedMarker> m_detectedMarkers{};
         std::optional<PositionedSheet> m_positioned{};
     };

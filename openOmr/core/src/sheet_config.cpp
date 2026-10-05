@@ -14,28 +14,30 @@ namespace OpenOmr
             .version = version,
             // Canonical web/print geometry: 180 x 205 mm at 10 units/mm.
             .referenceSize = {1800, 2050},
-            .guideInset = 50,
+            .guideInset = 20,
             .guideLength = 120,
             .guideThickness = 4,
             .quietZone = 30,
             .markerSize = 120,
             .markerCenters = {{
-                {140, 140},   // TL: guide + quiet zone + half marker
-                {1660, 140},  // TR
-                {1660, 1910}, // BR
-                {140, 1910},  // BL
-                {290, 1910},  // FB: one quiet zone after BL
+                {126, 126},   // TL: QR-sized padding clears the guide stroke
+                {1674, 126},  // TR
+                {1674, 1918}, // BR: visible bottom edge matches QR ink
+                {126, 1918},  // BL: visible bottom edge matches QR ink
+                {331, 1859},  // FB: adjacent padded bounds, no extra quiet-zone gap
             }},
             // Compact binary revision QR, bottom-aligned with the old code.
-            // Version-2 QR plus quiet zone is 33 modules; 264 canonical units
-            // gives an exact 8 pixels/module before print scaling.
+            // Includes encoder padding and the explicit four-module quiet
+            // zone. Visible QR ink spans y=[1799,1978), not the full ROI.
             .identityCodeArea = {1306, 1756, 264, 264},
             // The grid reserves one leading question-number column.
             // Matura-scale 8.4 mm cells fit 18 questions. The
             // 166 mm reservation fits the requested 40-question mixed sheet
             // as ordered 18 + 18 + 4 question blocks.
             .cellSize = {84, 84},
-            .gridArea = {70, 220, 1660, 1512},
+            // Clear the top markers' padded bounds (ending at y=228),
+            // including the grid border stroke; retain all 18 rows.
+            .gridArea = {70, 232, 1660, 1512},
             .questionColumnGutter = 80,
             .maxAnswerCount = 8,
             .innerSquareRatio = 0.5,

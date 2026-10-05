@@ -79,7 +79,7 @@ const aruco = grader.detectAruco(sheet);
 assert.equal(aruco.size(), 5);
 assert.deepEqual(
     Array.from(aruco, detection => detection.id).sort((a, b) => a - b),
-    [26, 26, 26, 26, 31],
+    [3, 3, 3, 3, 31],
 );
 assert.equal(grader.normalize({width: 1800, height: 2050}), true);
 

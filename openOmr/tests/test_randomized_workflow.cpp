@@ -159,7 +159,7 @@ namespace
 
         auto scan = transformed(
             sheet, random, version % 4U,
-            missingIndex == static_cast<std::size_t>(OpenOmr::MarkerPosition::FB));
+            true);
         OpenOmr::SheetGrader grader;
         auto const detections = grader.detectAruco(scan);
         if (detections.size() != 4 || grader.detectedVersion() != version) {

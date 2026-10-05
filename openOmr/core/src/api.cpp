@@ -233,7 +233,7 @@ namespace OpenOmr
     void SheetGenerator::initialize(
         cv::Size size, std::vector<std::uint8_t> revisionId)
     {
-        if (!initializeForVersion(size, std::move(revisionId), MarkerPositioner::LatestVersion)) {
+        if (!initializeForVersion(size, std::move(revisionId), 1)) {
             throw std::invalid_argument("invalid sheet generator configuration");
         }
     }
@@ -396,6 +396,19 @@ namespace OpenOmr
             {guideEnd.x, guideBottom},
             {guideInset.x, m_size.height - guideEnd.y});
 
+        // Measure the QR's actual white margin, including encoder padding,
+        // and give every ArUco exactly the same physical quiet zone.
+        cv::Mat qr = generateQr(
+            revisionPayload(m_revisionId), config->identityCodeArea.size());
+        if (qr.empty()) return {};
+        cv::Mat qrInk;
+        cv::threshold(qr, qrInk, 128, 255, cv::THRESH_BINARY_INV);
+        auto const qrInkBounds = cv::boundingRect(qrInk);
+        auto const paddingTopLeft = scaleSize(
+            {qrInkBounds.x, qrInkBounds.y}, config->referenceSize, m_size);
+        auto const paddingBottomRight = scaleSize(
+            {qr.cols - qrInkBounds.br().x, qr.rows - qrInkBounds.br().y},
+            config->referenceSize, m_size);
         for (auto const& placement : *placementsValue) {
             auto const markerId = SheetDictionary::localId(placement.id);
             if (!markerId) return {};
@@ -404,18 +417,20 @@ namespace OpenOmr
                 dictionary, *markerId, squareMarkerSize, marker, 1);
             marker = rotatedMarker(marker, placement.rotation);
             auto const center = scalePoint(markerCenter(*config, placement.position), config->referenceSize, m_size);
-            auto const target = centeredRect(center, marker.size()) & cv::Rect({}, m_size);
+            auto const inkTarget = centeredRect(center, marker.size());
+            cv::copyMakeBorder(marker, marker,
+                paddingTopLeft.height, paddingBottomRight.height,
+                paddingTopLeft.width, paddingBottomRight.width,
+                cv::BORDER_CONSTANT, cv::Scalar(255));
+            auto const target = cv::Rect(
+                inkTarget.tl() - cv::Point(paddingTopLeft.width, paddingTopLeft.height),
+                marker.size()) & cv::Rect({}, m_size);
             if (target.size() != marker.size()) {
                 return {};
             }
             marker.copyTo(sheet(target));
         }
 
-        cv::Mat qr = generateQr(
-            revisionPayload(m_revisionId), config->identityCodeArea.size());
-        if (qr.empty()) {
-            return {};
-        }
         auto const qrTopLeft = scalePoint(
             config->identityCodeArea.tl(), config->referenceSize, m_size);
         auto const qrSize = scaleSize(
@@ -626,6 +641,7 @@ namespace OpenOmr
         m_source = image.clone();
         m_normalized.release();
         m_aruco.clear();
+        m_markerCorners.clear();
         m_detectedMarkers.clear();
         m_positioned.reset();
         if (image.empty()) {
@@ -649,6 +665,7 @@ namespace OpenOmr
         // hence three safe marker-ID correction bits. OpenCV defaults to
         // using only 60% of that budget; use the complete guaranteed radius.
         detectorParameters.errorCorrectionRate = 1.0;
+        detectorParameters.cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
         cv::aruco::ArucoDetector detector(dictionary, detectorParameters);
         std::vector<int> ids;
         std::vector<std::vector<cv::Point2f>> corners;
@@ -659,6 +676,7 @@ namespace OpenOmr
             ArUcoDetection detection;
             DetectedMarker marker;
             double area{};
+            std::array<cv::Point2f, 4> corners{};
         };
         std::vector<Candidate> candidates;
         candidates.reserve(ids.size());
@@ -688,6 +706,7 @@ namespace OpenOmr
                 },
                 {id, center.x, center.y, angle},
                 std::abs(cv::contourArea(value)),
+                {value[0], value[1], value[2], value[3]},
             });
         }
 
@@ -770,6 +789,7 @@ namespace OpenOmr
             m_positioned = std::move(bestPositioned);
             for (auto const index : bestIndices) {
                 m_aruco.push_back(candidates[index].detection);
+                m_markerCorners.push_back(candidates[index].corners);
                 m_detectedMarkers.push_back(candidates[index].marker);
             }
         } else {
@@ -777,6 +797,7 @@ namespace OpenOmr
             // subset can be resolved.
             for (auto const& candidate : candidates) {
                 m_aruco.push_back(candidate.detection);
+                m_markerCorners.push_back(candidate.corners);
                 m_detectedMarkers.push_back(candidate.marker);
             }
         }
@@ -797,40 +818,96 @@ namespace OpenOmr
 
         std::vector<cv::Point2f> source;
         std::vector<cv::Point2f> target;
-        constexpr std::array cornerPositions{
-            MarkerPosition::TL, MarkerPosition::TR,
-            MarkerPosition::BR, MarkerPosition::BL};
-        for (auto const position : cornerPositions) {
-            auto const found = std::ranges::find_if(
-                m_positioned->markers,
-                [position](PositionedMarker const& value) {
-                    return value.position == position;
+        auto const placements = MarkerPositioner::placements(m_positioned->version);
+        if (!placements) return false;
+        for (auto const& positioned : m_positioned->markers) {
+            auto const placement = std::ranges::find(*placements, positioned.position,
+                &MarkerPlacement::position);
+            auto const detection = std::ranges::find_if(m_detectedMarkers,
+                [&](DetectedMarker const& marker) {
+                    return marker.id == positioned.marker.id
+                        && marker.centerX == positioned.marker.centerX
+                        && marker.centerY == positioned.marker.centerY;
                 });
-            if (found == m_positioned->markers.end()) continue;
-            source.emplace_back(
-                static_cast<float>(found->marker.centerX),
-                static_cast<float>(found->marker.centerY));
-            auto const canonical = markerCenter(*config, position);
-            target.emplace_back(
-                static_cast<float>(canonical.x) * sheetOriginalSize.width / config->referenceSize.width,
-                static_cast<float>(canonical.y) * sheetOriginalSize.height / config->referenceSize.height);
+            if (placement == placements->end() || detection == m_detectedMarkers.end()) return false;
+            auto const index = std::distance(m_detectedMarkers.begin(), detection);
+            auto const center = markerCenter(*config, positioned.position);
+            auto const half = config->markerSize / 2;
+            // Subpixel black/white transitions lie half a pixel outside the ink centers.
+            std::array<cv::Point2f, 4> canonical{{
+                {float(center.x - half) - 0.5F, float(center.y - half) - 0.5F},
+                {float(center.x + half) - 0.5F, float(center.y - half) - 0.5F},
+                {float(center.x + half) - 0.5F, float(center.y + half) - 0.5F},
+                {float(center.x - half) - 0.5F, float(center.y + half) - 0.5F}}};
+            for (int corner = 0; corner < 4; ++corner) {
+                source.push_back(m_markerCorners[index][corner]);
+                auto point = canonical[(corner + placement->rotation / 90) % 4];
+                point.x *= float(sheetOriginalSize.width) / config->referenceSize.width;
+                point.y *= float(sheetOriginalSize.height) / config->referenceSize.height;
+                target.push_back(point);
+            }
         }
-        if (source.size() < 3) {
-            return false;
+        if (source.size() < 16) return false;
+        auto transform = cv::findHomography(source, target, 0);
+        if (transform.empty() || !cv::checkRange(transform)) return false;
+        cv::warpPerspective(m_source, m_normalized, transform, sheetOriginalSize,
+            cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(255));
+        std::vector<cv::Point2f> projected;
+        cv::perspectiveTransform(source, projected, transform);
+        auto const initialError = cv::norm(projected, target, cv::NORM_L2)
+            / std::sqrt(double(target.size()));
+        if (m_positioned->markers.size() == 5 && initialError < 0.75) {
+            return !m_normalized.empty();
         }
-        if (source.size() == 4) {
-            auto const transform = cv::getPerspectiveTransform(source, target);
-            cv::warpPerspective(
-                m_source, m_normalized, transform, sheetOriginalSize,
-                cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(255));
-        } else {
-            // FB lies on the BL-BR baseline, so it cannot replace a missing
-            // corner in a projective homography. Three genuine corners define
-            // a stable affine fallback for a one-corner-missing scan.
-            auto const transform = cv::getAffineTransform(source, target);
-            cv::warpAffine(
-                m_source, m_normalized, transform, sheetOriginalSize,
-                cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(255));
+        // A rectified marker permits a second, locally constrained corner fit.
+        // Always resample the original image, never the already warped image.
+        std::vector<cv::Point2f> refinedSource;
+        std::vector<cv::Point2f> refinedTarget;
+        cv::aruco::DetectorParameters parameters;
+        parameters.errorCorrectionRate = 1.0;
+        parameters.cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
+        cv::aruco::ArucoDetector detector(SheetDictionary::value(), parameters);
+        for (std::size_t offset = 0; offset < target.size(); offset += 4) {
+            auto bounds = cv::boundingRect(std::vector<cv::Point2f>(
+                target.begin() + offset, target.begin() + offset + 4));
+            auto const margin = std::max(12, bounds.width / 3);
+            bounds = cv::Rect(bounds.x - margin, bounds.y - margin,
+                bounds.width + 2 * margin, bounds.height + 2 * margin)
+                & cv::Rect({}, sheetOriginalSize);
+            std::vector<int> ids;
+            std::vector<std::vector<cv::Point2f>> corners;
+            detector.detectMarkers(m_normalized(bounds), corners, ids);
+            for (std::size_t candidate = 0; candidate < ids.size(); ++candidate) {
+                auto const canonicalId = SheetDictionary::canonicalId(ids[candidate]);
+                if (!canonicalId || *canonicalId != m_positioned->markers[offset / 4].marker.id) continue;
+                bool nearby = true;
+                for (int corner = 0; corner < 4; ++corner) {
+                    auto const point = corners[candidate][corner] + cv::Point2f(bounds.tl());
+                    nearby &= cv::norm(point - target[offset + corner]) < margin;
+                }
+                if (!nearby) continue;
+                for (int corner = 0; corner < 4; ++corner) {
+                    refinedSource.push_back(corners[candidate][corner] + cv::Point2f(bounds.tl()));
+                    refinedTarget.push_back(target[offset + corner]);
+                }
+                break;
+            }
+        }
+        if (refinedSource.size() >= 16) {
+            auto correction = cv::findHomography(refinedSource, refinedTarget, 0);
+            if (!correction.empty() && cv::checkRange(correction)) {
+                cv::Mat candidate = correction * transform;
+                cv::perspectiveTransform(source, projected, candidate);
+                auto const candidateError = cv::norm(projected, target, cv::NORM_L2)
+                    / std::sqrt(double(target.size()));
+                std::vector<cv::Point2f> corrected;
+                cv::perspectiveTransform(target, corrected, correction);
+                if (candidateError <= initialError + 0.25
+                    && cv::norm(corrected, target, cv::NORM_INF) < 4.0) {
+                    cv::warpPerspective(m_source, m_normalized, candidate, sheetOriginalSize,
+                        cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(255));
+                }
+            }
         }
         return !m_normalized.empty();
     }
@@ -966,17 +1043,32 @@ namespace OpenOmr
             }
             if (blockAnswers == 0) break;
 
+            // Printed/photo geometry can drift by a few pixels after homography.
+            // Locate each border locally rather than requiring it to intersect
+            // a five-pixel strip at the exact nominal coordinate. Keep the
+            // search well within half a cell so adjacent rows cannot alias.
+            auto const findBorder = [&](int expectedY) -> std::optional<int> {
+                auto const radius = std::max(1, step.height / 8);
+                double bestRatio = 0.25;
+                std::optional<int> bestY;
+                for (int offset = -radius; offset <= radius; ++offset) {
+                    auto const edge = cv::Rect{
+                        blockX + 3, expectedY + offset - 2,
+                        std::max(1, step.width - 6), 5};
+                    auto const ratio = darkRatio(gray, edge);
+                    if (ratio > bestRatio) {
+                        bestRatio = ratio;
+                        bestY = expectedY + offset;
+                    }
+                }
+                return bestY;
+            };
+            auto topBorder = findBorder(gridTopLeft.y);
             for (int row = 0; row < rowsPerBlock; ++row) {
-                auto const y = gridTopLeft.y + row * step.height
-                    + step.height / 2;
-                auto const topEdge = cv::Rect{
-                    blockX + 3, y - step.height / 2 - 2,
-                    std::max(1, step.width - 6), 5};
-                auto const bottomEdge = cv::Rect{
-                    blockX + 3, y + step.height / 2 - 2,
-                    std::max(1, step.width - 6), 5};
-                if (darkRatio(gray, topEdge) <= 0.25
-                    || darkRatio(gray, bottomEdge) <= 0.25) break;
+                auto const bottomBorder = findBorder(
+                    gridTopLeft.y + (row + 1) * step.height);
+                if (!topBorder || !bottomBorder) break;
+                auto const y = (*topBorder + *bottomBorder) / 2;
 
                 uint8_t flags = 0;
                 for (std::uint32_t answer = 0; answer < blockAnswers; ++answer) {
@@ -1002,6 +1094,7 @@ namespace OpenOmr
                     }
                 }
                 result.push_back(flags);
+                topBorder = bottomBorder;
             }
             blockX += static_cast<int>(blockAnswers + 1U) * step.width + gutter;
         }
