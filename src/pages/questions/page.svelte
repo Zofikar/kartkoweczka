@@ -14,6 +14,7 @@
 		deleteQuestion,
 		getQuestion,
 		listQuestions,
+		QuestionInUseError,
 		updateQuestion,
 		type QuestionEditData,
 		type QuestionFilters,
@@ -142,6 +143,10 @@
 			await refreshQuestions();
 			snackSuccess(i18n.t('questions.deleted'));
 		} catch (err) {
+			if (err instanceof QuestionInUseError) {
+				snackError(i18n.t('questions.deleteInUse', { count: err.testCount }));
+				return;
+			}
 			snackError(i18n.t('questions.deleteError'));
 			console.error('Failed to delete question:', err);
 		}

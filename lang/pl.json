@@ -68,6 +68,7 @@
 		"saveError": "Nie udało się zapisać pytania",
 		"deleted": "Pytanie usunięte",
 		"deleteError": "Nie udało się usunąć pytania",
+		"deleteInUse": "Nie można usunąć pytania, bo jest używane w testach (liczba testów: {count}). Najpierw usuń je z tych testów.",
 		"noAnswers": "Brak odpowiedzi dla tego pytania.",
 		"imageAlt": "Obraz do pytania",
 		"filters": {
@@ -110,6 +111,7 @@
 		"validation": {
 			"contentRequired": "Treść pytania jest wymagana.",
 			"minimumAnswers": "Dodaj co najmniej 3 odpowiedzi dla pytania jednokrotnego wyboru.",
+			"maximumAnswers": "Pytanie jednokrotnego wyboru może mieć najwyżej {count} odpowiedzi.",
 			"correctRequired": "Wskaż poprawną odpowiedź.",
 			"statementRequired": "Dodaj co najmniej jedno stwierdzenie."
 		}
@@ -311,7 +313,8 @@
 		"scanAgain": "Skanuj ponownie",
 		"answer": "Odpowiedź",
 		"correctAnswer": "Poprawna odpowiedź",
-		"correct": "Poprawna"
+		"correct": "Poprawna",
+		"rowMismatch": "Na karcie rozpoznano {detected} wierszy odpowiedzi, a ta wersja testu ma ich {expected}. Wynik może być błędny – sprawdź, czy karta pasuje do tej wersji i czy cała jest widoczna na zdjęciu."
 	},
 	"errors": {
 		"canvasContext": "Nie można utworzyć kontekstu canvas 2D.",

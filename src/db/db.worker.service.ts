@@ -1,6 +1,11 @@
 import sqlite3InitModule, { type SqlValue } from '@sqlite.org/sqlite-wasm';
 
-import type { DatabaseBridgeResult, DatabaseMethod, DatabaseValue } from './bridge';
+import {
+	databaseClientLockName,
+	type DatabaseBridgeResult,
+	type DatabaseMethod,
+	type DatabaseValue,
+} from './bridge';
 
 interface PendingExecution {
 	clientId: string;
@@ -14,6 +19,8 @@ interface PendingExecution {
 let databasePromise: ReturnType<typeof createDatabase> | undefined;
 let transactionOwner: string | undefined;
 let isExecuting = false;
+let ownerCheckTimer: ReturnType<typeof setTimeout> | undefined;
+const OWNER_CHECK_INTERVAL_MS = 1_000;
 const pendingExecutions: PendingExecution[] = [];
 
 export interface DatabaseWorkerApi {
@@ -65,21 +72,28 @@ async function drainExecutionQueue(): Promise<void> {
 	if (isExecuting) return;
 
 	const nextIndex = findNextExecutionIndex();
-	if (nextIndex < 0) return;
+	if (nextIndex < 0) {
+		// Other clients are waiting on a transaction; make sure its owner is still alive.
+		if (pendingExecutions.length > 0) scheduleOwnerCheck();
+		return;
+	}
 
 	isExecuting = true;
 	const [execution] = pendingExecutions.splice(nextIndex, 1);
 
+	let settle: () => void;
 	try {
 		const result = await executeStatement(execution);
-		updateTransactionOwner(execution.clientId, execution.sql);
-		execution.resolve(result);
+		settle = () => execution.resolve(result);
 	} catch (error) {
-		execution.reject(error);
-	} finally {
-		isExecuting = false;
-		void drainExecutionQueue();
+		settle = () => execution.reject(error);
 	}
+
+	// Ownership must be settled before the client hears back and sends its next statement.
+	await updateTransactionOwner(execution.clientId);
+	isExecuting = false;
+	settle();
+	void drainExecutionQueue();
 }
 
 function findNextExecutionIndex(): number {
@@ -100,20 +114,62 @@ async function executeStatement(execution: PendingExecution): Promise<DatabaseBr
 		},
 	});
 
-	return { rows: execution.method === 'get' ? (rows[0] ?? []) : rows };
+	return { rows: execution.method === 'get' ? (rows[0] ?? null) : rows };
 }
 
-function updateTransactionOwner(clientId: string, sql: string): void {
-	const operation = sql.trimStart().split(/\s+/, 1)[0]?.toUpperCase();
-
-	if (operation === 'BEGIN') {
-		transactionOwner = clientId;
-	} else if (operation === 'COMMIT' || operation === 'ROLLBACK') {
+/**
+ * Derives ownership from the connection itself rather than parsing SQL, so a
+ * failed BEGIN/COMMIT or an implicit rollback can never leave a stale owner.
+ */
+async function updateTransactionOwner(clientId: string): Promise<void> {
+	try {
+		const { sqlite3, database } = await getDatabaseHandle();
+		const inTransaction = sqlite3.capi.sqlite3_get_autocommit(database.pointer!) === 0;
+		transactionOwner = inTransaction ? clientId : undefined;
+	} catch {
+		// The database never opened, so no transaction can be open either.
 		transactionOwner = undefined;
 	}
 }
 
-function getDatabase() {
+function scheduleOwnerCheck(): void {
+	ownerCheckTimer ??= setTimeout(() => {
+		ownerCheckTimer = undefined;
+		void releaseAbandonedTransaction();
+	}, OWNER_CHECK_INTERVAL_MS);
+}
+
+/** Rolls back a transaction whose tab closed before it could COMMIT or ROLLBACK. */
+async function releaseAbandonedTransaction(): Promise<void> {
+	const owner = transactionOwner;
+	if (!owner || isExecuting) {
+		void drainExecutionQueue();
+		return;
+	}
+
+	const { database } = await getDatabaseHandle();
+	const { held = [] } = await navigator.locks.query();
+	const ownerAlive = held.some(({ name }) => name === databaseClientLockName(owner));
+	if (ownerAlive || transactionOwner !== owner || isExecuting) {
+		void drainExecutionQueue();
+		return;
+	}
+
+	console.warn('Rolling back a transaction abandoned by a closed tab.');
+	try {
+		database.exec('ROLLBACK');
+	} catch (error) {
+		console.error('Failed to roll back abandoned transaction:', error);
+	}
+	transactionOwner = undefined;
+	void drainExecutionQueue();
+}
+
+async function getDatabase() {
+	return (await getDatabaseHandle()).database;
+}
+
+function getDatabaseHandle() {
 	databasePromise ??= createDatabase();
 	return databasePromise;
 }
@@ -126,10 +182,10 @@ async function createDatabase() {
 	database.exec('PRAGMA foreign_keys = ON;');
 	await runMigrations(database);
 
-	return database;
+	return { sqlite3, database };
 }
 
-type SQLiteDatabase = Awaited<ReturnType<typeof createDatabase>>;
+type SQLiteDatabase = Awaited<ReturnType<typeof createDatabase>>['database'];
 
 async function runMigrations(database: SQLiteDatabase): Promise<void> {
 	const migrations = import.meta.glob<string>('./drizzle/*.sql', {

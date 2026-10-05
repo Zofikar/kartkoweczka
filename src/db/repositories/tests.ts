@@ -121,7 +121,9 @@ export async function updateTest(id: string, data: SaveTestData): Promise<void> 
 
 export async function deleteTest(id: string): Promise<void> {
 	const db = await getDb();
-	await db.delete(tests).where(eq(tests.id, id));
+	await db.transaction(async (tx) => {
+		await tx.delete(tests).where(eq(tests.id, id));
+	});
 
 	emitDataChanged('tests');
 }
