@@ -72,6 +72,12 @@ export const staticRoutesChildren = (() => {
 
 const filteredRoutes = filterRoutes();
 
-export const { p, navigate, isActive, route } = createRouter(filteredRoutes, {
+const router = createRouter(filteredRoutes, {
 	base: '#',
 });
+
+export const { navigate, isActive, route } = router;
+
+// sv-router generates /#/ for home; keep every link fragment-relative instead.
+// Hash links preserve the current deployment path in Pages, local, and native builds.
+export const p: typeof router.p = (...args) => router.p(...args).replace(/^\/#/, '#');
