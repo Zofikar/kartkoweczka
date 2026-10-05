@@ -38,7 +38,7 @@ export interface DetectedQrCode {
 
 export interface GradingSheetScan {
 	imageData: ImageData;
-	normalizedImage: ImageData;
+	normalizedImage?: ImageData;
 	markers: DetectedArucoMarker[];
 	qrCode: DetectedQrCode;
 	scannedAnswers: number[];
@@ -101,7 +101,9 @@ export async function scanGradingSheetImage(file: File): Promise<GradingSheetSca
 }
 
 export async function scanGradingSheetImageData(imageData: ImageData): Promise<GradingSheetScan> {
-	const diagnostics = await diagnoseGradingSheetImageData(imageData);
+	const diagnostics = await diagnoseGradingSheetImageData(imageData, {
+		includeNormalizedImage: false,
+	});
 	const scan = scanFromDiagnostics(diagnostics);
 	if (!scan) throw new Error(diagnostics.warnings.at(-1));
 	return scan;
@@ -110,12 +112,13 @@ export async function scanGradingSheetImageData(imageData: ImageData): Promise<G
 /** The complete scan, or null when diagnostics stopped before grading (see `warnings`). */
 export function scanFromDiagnostics(diagnostics: GradingSheetDiagnostics): GradingSheetScan | null {
 	const { imageData, normalizedImage, markers, qrCode, scannedAnswers } = diagnostics;
-	if (!normalizedImage || !qrCode || !scannedAnswers) return null;
+	if (!qrCode || !scannedAnswers) return null;
 	return { imageData, normalizedImage, markers, qrCode, scannedAnswers };
 }
 
 export async function diagnoseGradingSheetImageData(
-	imageData: ImageData
+	imageData: ImageData,
+	{ includeNormalizedImage = true }: { includeNormalizedImage?: boolean } = {}
 ): Promise<GradingSheetDiagnostics> {
 	const openOmr = await getOpenOmr();
 	const stages: OmrDiagnosticStage[] = ['module-loaded'];
@@ -151,12 +154,14 @@ export async function diagnoseGradingSheetImageData(
 		}
 		stages.push('normalized');
 
-		const normalized = grader.normalizedImage();
-		let normalizedImage: ImageData;
-		try {
-			normalizedImage = openOmrImageToImageData(openOmr, normalized);
-		} finally {
-			normalized.data.delete();
+		let normalizedImage: ImageData | undefined;
+		if (includeNormalizedImage) {
+			const normalized = grader.normalizedImage();
+			try {
+				normalizedImage = openOmrImageToImageData(openOmr, normalized);
+			} finally {
+				normalized.data.delete();
+			}
 		}
 
 		const revision = grader.detectRevisionId();

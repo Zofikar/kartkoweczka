@@ -315,7 +315,9 @@
 		// One pass gives both the image quality (for the torch) and the scan itself.
 		let diagnostics: GradingSheetDiagnostics | null = null;
 		try {
-			diagnostics = await diagnoseGradingSheetImageData(captureFrame(videoElement));
+			diagnostics = await diagnoseGradingSheetImageData(captureFrame(videoElement), {
+				includeNormalizedImage: false,
+			});
 			if (session === cameraSession) await adjustTorch(diagnostics.quality);
 		} catch (error) {
 			console.warn('Failed to analyse camera frame:', error);
