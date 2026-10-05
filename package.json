@@ -10,6 +10,7 @@
 		"tauri": "tauri",
 		"tauri:dev": "tauri dev",
 		"tauri:build": "tauri build",
+		"tauri:android:init": "tauri android init --ci && node scripts/configure-android-insets.mjs",
 		"tauri:frontend:dev": "node scripts/run-with-database-backend.mjs yarn vite --host 127.0.0.1 --port 5173 --strictPort",
 		"tauri:frontend:build": "node scripts/run-with-database-backend.mjs yarn build",
 		"prebuild": "node scripts/generate-sitemap.mjs",

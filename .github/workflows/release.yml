@@ -98,6 +98,8 @@ jobs:
           echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
       - run: node scripts/prepare-native-release.mjs
       - run: yarn tauri android init --ci
+      - name: Configure Android system-bar and notch insets
+        run: node scripts/configure-android-insets.mjs
       - run: yarn tauri android build --target aarch64 --apk
       - name: Sign APK with persistent release key
         shell: bash
