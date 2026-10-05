@@ -84,7 +84,8 @@ są dołączane do bundla desktopowego.
 ### PWA na GitHub Pages
 
 Workflow `pages.yml` publikuje wersję przeglądarkową po udanym workflow `Native release`.
-Można go również uruchomić ręcznie dla istniejącego tagu `vX.Y.Z`.
+Można go również uruchomić ręcznie dla gałęzi, tagu lub commita. Puste pole `ref`
+używa gałęzi wybranej w formularzu workflow, bez ponownego budowania instalatorów.
 W Settings → Pages ustaw Source na **GitHub Actions**. Workflow Pages musi znajdować się
 na domyślnej gałęzi repozytorium. Środowisko `github-pages` musi zezwalać na wdrożenia
 z wybranych tagów i gałęzi.
