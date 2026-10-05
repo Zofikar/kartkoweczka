@@ -210,6 +210,7 @@
 			try {
 				await track.applyConstraints(trackConstraints);
 			} catch (error) {
+				if (session !== cameraSession || stream !== newStream) return;
 				// Camera still works; only enhancement failed.
 				console.warn('Camera enhancement constraints rejected:', error);
 				trackConstraints = opened.constraints;
@@ -313,7 +314,9 @@
 		if (enabled === torch) return true;
 		if (!stream || !torchSupported) return false;
 
-		const track = stream.getVideoTracks()[0];
+		const session = cameraSession;
+		const activeStream = stream;
+		const track = activeStream.getVideoTracks()[0];
 		const advanced = (trackConstraints.advanced ?? []).filter(
 			(set: ExtendedMediaTrackConstraintSet) => set.torch === undefined
 		);
@@ -324,6 +327,14 @@
 		try {
 			await track.applyConstraints(constraints);
 		} catch {
+			return false;
+		}
+		// Cancellation or restart may have replaced the track while constraints were pending.
+		if (
+			session !== cameraSession ||
+			stream !== activeStream ||
+			stream.getVideoTracks()[0] !== track
+		) {
 			return false;
 		}
 		trackConstraints = constraints;
