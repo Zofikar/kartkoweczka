@@ -1,12 +1,13 @@
 <script lang="ts">
 	import {
-		scanGradingSheetImage,
-		scanGradingSheetImageData,
-		checkImageQuality,
 		computeScore,
+		diagnoseGradingSheetImageData,
+		scanFromDiagnostics,
+		scanGradingSheetImage,
+		type GradingSheetDiagnostics,
+		type GradingSheetScan,
 		type OmrScanResult,
 	} from '@/utils/omrScanner';
-	import { getOpenOmr } from '@/utils/openOmr';
 	import { getTest, getTestRevision } from '@/db/repositories';
 	import Button from '$lib/ui/Button.svelte';
 	import { tick } from 'svelte';
@@ -24,10 +25,19 @@
 	let errorMessage = $state('');
 	let statusLabel = $state('');
 
+	/** Pause between frame analyses; each one copies the full frame into WASM on the main thread. */
+	const SCAN_INTERVAL_MS = 400;
+	/** Poll interval while the video has no frame to read yet. */
+	const VIDEO_POLL_MS = 100;
+
 	let videoElement = $state<HTMLVideoElement>();
-	let stream = $state<MediaStream | null>(null);
-	let searchAnimationId = $state<number>(0);
-	let torch = $state(false);
+	let stream: MediaStream | null = null;
+	let searchTimer: ReturnType<typeof setTimeout> | undefined;
+	/** Bumped by stopCamera() so async camera work started earlier can tell it was cancelled. */
+	let cameraSession = 0;
+	let torch = false;
+	/** Set once the torch made the frame too bright; from then on it stays off for this session. */
+	let torchAutoDisabled = false;
 	let fileInput: HTMLInputElement;
 	const busy = $derived(
 		imageState === 'analyzing' || cameraState === 'searching' || cameraState === 'processing'
@@ -80,7 +90,8 @@
 		statusLabel = i18n.t('scanner.analyzing');
 
 		try {
-			result = await scanAndScoreImage(file);
+			const scan = await scanGradingSheetImage(file);
+			result = await scoreScan(scan);
 			imageState = 'result';
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : String(error);
@@ -88,8 +99,8 @@
 		}
 	}
 
-	async function scanAndScoreImage(file: File): Promise<OmrScanResult> {
-		const scan = await scanGradingSheetImage(file);
+	/** Looks up the revision named by the sheet's QR code and grades the scanned rows. */
+	async function scoreScan(scan: GradingSheetScan): Promise<OmrScanResult> {
 		const revisionId = scan.qrCode.metadata!.revisionId;
 
 		statusLabel = i18n.t('scanner.loadingRevision');
@@ -97,23 +108,18 @@
 		if (!revision) throw new Error(i18n.t('scanner.unknownRevision'));
 
 		const test = await getTest(revision.testId);
-		const testName = test?.name ?? i18n.t('scanner.unknownTest');
 
-		statusLabel = i18n.t('scanner.scanningAnswers');
-		const score = computeScore(scan.scannedAnswers, revision.content);
+		// Same labels the sheet was printed with (see PrintTestSheets).
+		const score = computeScore(scan.scannedAnswers, revision.content, {
+			trueLabel: i18n.t('questions.editor.trueShort'),
+			falseLabel: i18n.t('questions.editor.falseShort'),
+		});
 		return {
-			scanStatus: 'success',
 			revisionId,
 			testId: revision.testId,
-			testName,
+			testName: test?.name ?? i18n.t('scanner.unknownTest'),
 			revisionName: revision.name,
-			scannedAnswers: scan.scannedAnswers,
-			correctAnswers: score.correctAnswers,
-			correctAnswerIndices: score.correctAnswerIndices,
-			responseLabels: score.responseLabels,
-			score: score.score,
-			totalQuestions: score.totalQuestions,
-			normalizedImage: scan.normalizedImage,
+			...score,
 		};
 	}
 
@@ -144,24 +150,30 @@
 	};
 
 	async function startCamera() {
+		stopCamera();
+		const session = cameraSession;
 		resetResults();
 		cameraState = 'searching';
 		statusLabel = i18n.t('scanner.searching');
 		await tick();
 
+		let newStream: MediaStream;
 		try {
-			stream = await openPortraitCameraStream();
+			newStream = await openPortraitCameraStream();
 		} catch {
+			if (session !== cameraSession) return;
 			errorMessage = i18n.t('scanner.cameraUnavailable');
 			cameraState = 'error';
 			return;
 		}
-		if (!videoElement) {
-			stopCamera();
+		// Cancelled (or restarted) while the permission prompt was open: don't leave this camera on.
+		if (session !== cameraSession || !videoElement) {
+			newStream.getTracks().forEach((t) => t.stop());
 			return;
 		}
+		stream = newStream;
 
-		const track = stream.getVideoTracks()[0];
+		const track = newStream.getVideoTracks()[0];
 		const caps = track.getCapabilities() as ExtendedMediaTrackCapabilities;
 
 		const advanced: ExtendedMediaTrackConstraintSet = {};
@@ -197,9 +209,26 @@
 			console.warn('Camera enhancement constraints rejected:', error);
 		}
 
+		if (session !== cameraSession) return;
+		if (!videoElement) {
+			stopCamera();
+			return;
+		}
+
 		videoElement.srcObject = stream;
-		await videoElement.play();
-		requestAnimationFrame(searchFrame);
+		try {
+			await videoElement.play();
+		} catch (error) {
+			// Expected when the camera was stopped mid-start; anything else is a real failure.
+			if (session !== cameraSession) return;
+			console.error('Camera preview failed to start:', error);
+			stopCamera();
+			errorMessage = i18n.t('scanner.cameraUnavailable');
+			cameraState = 'error';
+			return;
+		}
+		if (session !== cameraSession) return;
+		scheduleSearch(0);
 	}
 
 	async function openPortraitCameraStream(): Promise<MediaStream> {
@@ -220,13 +249,17 @@
 	}
 
 	function stopCamera() {
-		if (searchAnimationId) cancelAnimationFrame(searchAnimationId);
-		searchAnimationId = 0;
+		cameraSession++;
+		clearTimeout(searchTimer);
+		searchTimer = undefined;
 		if (stream) {
 			stream.getTracks().forEach((t) => t.stop());
 			stream = null;
 		}
 		if (videoElement) videoElement.srcObject = null;
+		// A new stream always starts with the torch off.
+		torch = false;
+		torchAutoDisabled = false;
 	}
 
 	async function setTorch(enabled: boolean): Promise<boolean> {
@@ -236,7 +269,7 @@
 		const track = stream.getVideoTracks()[0];
 		try {
 			await track.applyConstraints({
-				advanced: [{ torch: true }],
+				advanced: [{ torch: enabled }],
 			} as ExtendedMediaTrackConstraintSet);
 		} catch {
 			return false;
@@ -245,69 +278,73 @@
 		return true;
 	}
 
+	/**
+	 * Turns the torch on for dark frames, and off for good if that overexposes
+	 * the sheet — otherwise a borderline scene would toggle it on every frame.
+	 */
+	async function adjustTorch(quality: GradingSheetDiagnostics['quality']): Promise<void> {
+		if (quality === 'too-dark' && !torchAutoDisabled) {
+			await setTorch(true);
+		} else if (quality === 'too-bright' && torch) {
+			torchAutoDisabled = true;
+			await setTorch(false);
+		}
+	}
+
+	function scheduleSearch(delayMs: number) {
+		clearTimeout(searchTimer);
+		searchTimer = setTimeout(() => void searchFrame(), delayMs);
+	}
+
+	function captureFrame(video: HTMLVideoElement): ImageData {
+		const canvas = new OffscreenCanvas(video.videoWidth, video.videoHeight);
+		const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+		ctx.drawImage(video, 0, 0);
+		return ctx.getImageData(0, 0, canvas.width, canvas.height);
+	}
+
 	async function searchFrame() {
-		if (cameraState !== 'searching' || !videoElement || videoElement.readyState < 2) {
-			searchAnimationId = requestAnimationFrame(searchFrame);
+		searchTimer = undefined;
+		const session = cameraSession;
+		if (cameraState !== 'searching') return;
+		if (!videoElement || videoElement.readyState < 2) {
+			scheduleSearch(VIDEO_POLL_MS);
 			return;
 		}
-		searchAnimationId = 0;
 
+		// One pass gives both the image quality (for the torch) and the scan itself.
+		let diagnostics: GradingSheetDiagnostics | null = null;
 		try {
-			const canvas = new OffscreenCanvas(videoElement.videoWidth, videoElement.videoHeight);
-			const ctx = canvas.getContext('2d')!;
-			ctx.drawImage(videoElement, 0, 0);
-			const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-			statusLabel = i18n.t('scanner.scanningAnswers');
-			const openOmr = await getOpenOmr();
-			const quality = await checkImageQuality(imageData);
-			if (quality.value === openOmr.ImageQuality.TooDark.value) await setTorch(true);
-			if (quality.value === openOmr.ImageQuality.TooBright.value) await setTorch(false);
-
-			const scan = await scanGradingSheetImageData(imageData);
-			cameraState = 'processing';
-			stopCamera();
-			statusLabel = i18n.t('scanner.processing');
-			result = await processFrozenFrame(scan);
-			cameraState = 'result';
-		} catch {
-			scheduleNextFrame();
+			diagnostics = await diagnoseGradingSheetImageData(captureFrame(videoElement));
+			if (session === cameraSession) await adjustTorch(diagnostics.quality);
+		} catch (error) {
+			console.warn('Failed to analyse camera frame:', error);
 		}
-	}
 
-	function scheduleNextFrame() {
-		searchAnimationId = requestAnimationFrame(() => {
-			searchAnimationId = 0;
-			searchFrame();
-		});
-	}
+		// The user may have cancelled or switched modes while the frame was analysed.
+		if (session !== cameraSession || cameraState !== 'searching') return;
 
-	async function processFrozenFrame(
-		scan: Awaited<ReturnType<typeof scanGradingSheetImageData>>
-	): Promise<OmrScanResult> {
-		const revisionId = scan.qrCode.metadata!.revisionId;
-		const revision = await getTestRevision(revisionId);
-		if (!revision) throw new Error(i18n.t('scanner.unknownRevision'));
+		const scan = diagnostics && scanFromDiagnostics(diagnostics);
+		if (!scan) {
+			// No readable sheet in this frame yet — keep looking.
+			scheduleSearch(SCAN_INTERVAL_MS);
+			return;
+		}
 
-		const test = await getTest(revision.testId);
-		const testName = test?.name ?? i18n.t('scanner.unknownTest');
-
-		const score = computeScore(scan.scannedAnswers, revision.content);
-
-		return {
-			scanStatus: 'success',
-			revisionId,
-			testId: revision.testId,
-			testName,
-			revisionName: revision.name,
-			scannedAnswers: scan.scannedAnswers,
-			correctAnswers: score.correctAnswers,
-			correctAnswerIndices: score.correctAnswerIndices,
-			responseLabels: score.responseLabels,
-			score: score.score,
-			totalQuestions: score.totalQuestions,
-			normalizedImage: scan.normalizedImage,
-		};
+		cameraState = 'processing';
+		stopCamera();
+		statusLabel = i18n.t('scanner.processing');
+		try {
+			const scored = await scoreScan(scan);
+			if (cameraState !== 'processing') return;
+			result = scored;
+			cameraState = 'result';
+		} catch (error) {
+			// The sheet was read but cannot be graded (e.g. unknown revision): retrying frames won't help.
+			if (cameraState !== 'processing') return;
+			errorMessage = error instanceof Error ? error.message : String(error);
+			cameraState = 'error';
+		}
 	}
 
 	function retry() {
@@ -316,8 +353,9 @@
 		else imageState = 'idle';
 	}
 
-	function answerLabel(index: number): string {
-		return String.fromCharCode(65 + index);
+	function boxLabel(labels: string[], index: number): string {
+		if (index < 0) return '—';
+		return labels[index] ?? '?';
 	}
 </script>
 
@@ -400,6 +438,15 @@
 				<Button size="sm" variant="outline" onclick={retry}>{i18n.t('scanner.scanAgain')}</Button>
 			</div>
 
+			{#if result.detectedRows !== result.totalQuestions}
+				<p class="warning-text" role="alert">
+					{i18n.t('scanner.rowMismatch', {
+						detected: result.detectedRows,
+						expected: result.totalQuestions,
+					})}
+				</p>
+			{/if}
+
 			<table class="answers-table">
 				<thead>
 					<tr>
@@ -410,17 +457,15 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each result.scannedAnswers as scanned, i (i)}
-						{@const isCorrect = result.correctAnswers[i]}
-						{@const correctIdx = result.correctAnswerIndices[i]}
-						<tr class:correct={isCorrect} class:incorrect={!isCorrect}>
-							<td>{result.responseLabels[i]}</td>
-							<td class:empty={scanned < 0}>
-								{scanned >= 0 ? answerLabel(scanned) : '—'}
+					{#each result.responses as response (response.label)}
+						<tr class:correct={response.isCorrect} class:incorrect={!response.isCorrect}>
+							<td>{response.label}</td>
+							<td class:empty={response.scannedIndex < 0}>
+								{boxLabel(response.answerLabels, response.scannedIndex)}
 							</td>
-							<td>{correctIdx >= 0 ? answerLabel(correctIdx) : '—'}</td>
+							<td>{boxLabel(response.answerLabels, response.correctIndex)}</td>
 							<td>
-								{#if isCorrect}
+								{#if response.isCorrect}
 									<span class="check">✅</span>
 								{:else}
 									<span class="cross">❌</span>
@@ -524,6 +569,15 @@
 	}
 
 	/* Result */
+	.warning-text {
+		border: 1px solid var(--warning);
+		border-left-width: 4px;
+		border-radius: var(--radius-md);
+		padding: var(--space-3);
+		margin: 0 0 var(--space-4);
+		font-size: 0.875rem;
+	}
+
 	.result-meta {
 		margin-bottom: var(--space-4);
 	}

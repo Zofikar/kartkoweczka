@@ -1,5 +1,11 @@
 import type { SnapshotQuestion } from '@/db/repositories';
-import type { ArucoDetection, ImageQuality, Point, RevisionDetection } from '@/wasm/openOmr.js';
+import type {
+	ArucoDetection,
+	ImageQuality,
+	Point,
+	RevisionDetection,
+	SheetGrader,
+} from '@/wasm/openOmr.js';
 import {
 	bytesToUuid,
 	getOpenOmr,
@@ -7,7 +13,7 @@ import {
 	openOmrImageToImageData,
 } from '@/utils/openOmr';
 import { i18n } from '@/lib/i18n.svelte';
-import { buildQuestionResponseRows } from '@/utils/questionResponses';
+import { buildQuestionResponseRows, type TrueFalseResponseLabels } from '@/utils/questionResponses';
 
 export const SHEET_SIZE = { width: 1800, height: 2050 } as const;
 export const ANSWER_CELL_SIZE = { width: 84, height: 84 } as const;
@@ -57,20 +63,32 @@ export interface GradingSheetDiagnostics {
 	warnings: string[];
 }
 
-export interface OmrScanResult {
-	scanStatus: 'success' | 'error';
+/** One graded row of the answer sheet, aligned with the revision's questions. */
+export interface ScoredResponse {
+	/** Question number as printed on the sheet, e.g. "3" or "3.2". */
+	label: string;
+	/** Box labels as printed on the sheet, e.g. ["A", "B", "C"] or ["P", "F"]. */
+	answerLabels: string[];
+	/** Marked box, or -1 when the row is blank, has several marks, or was not detected. */
+	scannedIndex: number;
+	/** Correct box, or -1 when the question has no correct answer. */
+	correctIndex: number;
+	isCorrect: boolean;
+}
+
+export interface ScoreSummary {
+	responses: ScoredResponse[];
+	score: number;
+	totalQuestions: number;
+	/** Rows read from the sheet; differs from `totalQuestions` when the sheet doesn't match the revision. */
+	detectedRows: number;
+}
+
+export interface OmrScanResult extends ScoreSummary {
 	revisionId: string;
 	testId: string;
 	testName: string;
 	revisionName: string;
-	scannedAnswers: number[];
-	correctAnswers: boolean[];
-	correctAnswerIndices: number[];
-	responseLabels: string[];
-	score: number;
-	totalQuestions: number;
-	normalizedImage?: ImageData;
-	error?: string;
 }
 
 export async function scanGradingSheetImage(file: File): Promise<GradingSheetScan> {
@@ -84,16 +102,16 @@ export async function scanGradingSheetImage(file: File): Promise<GradingSheetSca
 
 export async function scanGradingSheetImageData(imageData: ImageData): Promise<GradingSheetScan> {
 	const diagnostics = await diagnoseGradingSheetImageData(imageData);
-	if (!diagnostics.normalizedImage) throw new Error(diagnostics.warnings.at(-1));
-	if (!diagnostics.qrCode) throw new Error(diagnostics.warnings.at(-1));
-	if (!diagnostics.scannedAnswers) throw new Error(diagnostics.warnings.at(-1));
-	return {
-		imageData,
-		normalizedImage: diagnostics.normalizedImage,
-		markers: diagnostics.markers,
-		qrCode: diagnostics.qrCode,
-		scannedAnswers: diagnostics.scannedAnswers,
-	};
+	const scan = scanFromDiagnostics(diagnostics);
+	if (!scan) throw new Error(diagnostics.warnings.at(-1));
+	return scan;
+}
+
+/** The complete scan, or null when diagnostics stopped before grading (see `warnings`). */
+export function scanFromDiagnostics(diagnostics: GradingSheetDiagnostics): GradingSheetScan | null {
+	const { imageData, normalizedImage, markers, qrCode, scannedAnswers } = diagnostics;
+	if (!normalizedImage || !qrCode || !scannedAnswers) return null;
+	return { imageData, normalizedImage, markers, qrCode, scannedAnswers };
 }
 
 export async function diagnoseGradingSheetImageData(
@@ -103,9 +121,10 @@ export async function diagnoseGradingSheetImageData(
 	const stages: OmrDiagnosticStage[] = ['module-loaded'];
 	const image = imageDataToOpenOmrImage(openOmr, imageData);
 	stages.push('image-copied');
-	const grader = new openOmr.SheetGrader();
+	let grader: SheetGrader | undefined;
 
 	try {
+		grader = new openOmr.SheetGrader();
 		const qualityValue = openOmr.checkImageQuality(image);
 		const quality = imageQualityName(openOmr, qualityValue);
 		const detections = grader.detectAruco(image);
@@ -173,7 +192,7 @@ export async function diagnoseGradingSheetImageData(
 			grades.delete();
 		}
 	} finally {
-		grader.delete();
+		grader?.delete();
 		image.data.delete();
 	}
 }
@@ -212,28 +231,33 @@ function logDiagnostics(label: string, value: unknown): void {
 	console.info(`[openOmr] ${label}`, value);
 }
 
-export async function checkImageQuality(imageData: ImageData): Promise<ImageQuality> {
-	const openOmr = await getOpenOmr();
-	const image = imageDataToOpenOmrImage(openOmr, imageData);
-	try {
-		return openOmr.checkImageQuality(image);
-	} finally {
-		image.data.delete();
-	}
-}
-
-export function computeScore(scannedAnswers: number[], revisionContent: SnapshotQuestion[]) {
-	const responseRows = buildQuestionResponseRows(revisionContent);
-	const correctAnswerIndices = responseRows.map((row) => row.correctAnswerIndex);
-	const correctAnswers = correctAnswerIndices.map(
-		(correctAnswer, index) => scannedAnswers[index] === correctAnswer
+/**
+ * Grades scanned rows against the revision. Pass the same true/false labels the
+ * sheet was printed with so the result shows what the student actually saw.
+ */
+export function computeScore(
+	scannedAnswers: number[],
+	revisionContent: SnapshotQuestion[],
+	trueFalseLabels?: TrueFalseResponseLabels
+): ScoreSummary {
+	const responses = buildQuestionResponseRows(revisionContent, trueFalseLabels).map(
+		(row, index): ScoredResponse => {
+			const scannedIndex = scannedAnswers[index] ?? -1;
+			return {
+				label: row.displayNumber,
+				answerLabels: row.answerLabels,
+				scannedIndex,
+				correctIndex: row.correctAnswerIndex,
+				// A blank row must not match a question that has no correct answer (-1 === -1).
+				isCorrect: row.correctAnswerIndex >= 0 && scannedIndex === row.correctAnswerIndex,
+			};
+		}
 	);
 	return {
-		correctAnswers,
-		correctAnswerIndices,
-		responseLabels: responseRows.map((row) => row.displayNumber),
-		score: correctAnswers.filter(Boolean).length,
-		totalQuestions: responseRows.length,
+		responses,
+		score: responses.filter((response) => response.isCorrect).length,
+		totalQuestions: responses.length,
+		detectedRows: scannedAnswers.length,
 	};
 }
 

@@ -17,7 +17,7 @@
 	import SegmentedControl from '@/lib/ui/SegmentedControl.svelte';
 	import { migrateToPlainFormat } from '@/utils/math';
 	import { getTags, initTags } from '@/lib/stores/tags.svelte';
-	import { validateQuestionData } from '@/pages/questions/validation';
+	import { MAX_CHOICE_ANSWERS, validateQuestionData } from '@/pages/questions/validation';
 	import { snackError } from '@/lib/stores/snackbar.svelte';
 	import { onMount } from 'svelte';
 	import { v4 as randomUUID } from 'uuid';
@@ -122,6 +122,8 @@
 			!tagsEqual(selectedTags, originalSelectedTags)
 	);
 
+	let canAddAnswer = $derived(type !== 'choice' || answerList.length < MAX_CHOICE_ANSWERS);
+
 	let pendingTypeChange = $state<QuestionType | null>(null);
 	let showCancelConfirm = $state(false);
 
@@ -171,6 +173,7 @@
 	}
 
 	function addAnswer() {
+		if (!canAddAnswer) return;
 		answerList = [...answerList, { key: randomUUID(), content: '', isCorrect: false }];
 	}
 
@@ -328,7 +331,7 @@
 			{/each}
 		</ul>
 
-		<Button variant="outline" size="sm" onclick={addAnswer}>
+		<Button variant="outline" size="sm" onclick={addAnswer} disabled={!canAddAnswer}>
 			{i18n.t(
 				type === 'true_false' ? 'questions.editor.addStatement' : 'questions.editor.addAnswer'
 			)}

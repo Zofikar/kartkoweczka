@@ -31,14 +31,16 @@ export async function createTestRevision(
 	data: CreateRevisionData
 ): Promise<string> {
 	const db = await getDb();
-	const [revision] = await db
-		.insert(testRevisions)
-		.values({
-			testId,
-			name: data.name,
-			content: data.questions,
-		})
-		.returning({ id: testRevisions.id });
+	const [revision] = await db.transaction((tx) =>
+		tx
+			.insert(testRevisions)
+			.values({
+				testId,
+				name: data.name,
+				content: data.questions,
+			})
+			.returning({ id: testRevisions.id })
+	);
 
 	emitDataChanged('revisions');
 	return revision.id;
@@ -49,11 +51,13 @@ export async function updateTestRevision(
 	data: CreateRevisionData
 ): Promise<void> {
 	const db = await getDb();
-	const updated = await db
-		.update(testRevisions)
-		.set({ name: data.name, content: data.questions })
-		.where(eq(testRevisions.id, revisionId))
-		.returning({ id: testRevisions.id });
+	const updated = await db.transaction((tx) =>
+		tx
+			.update(testRevisions)
+			.set({ name: data.name, content: data.questions })
+			.where(eq(testRevisions.id, revisionId))
+			.returning({ id: testRevisions.id })
+	);
 
 	if (updated.length === 0) {
 		throw new Error(`Test revision not found: ${revisionId}`);
@@ -64,7 +68,9 @@ export async function updateTestRevision(
 
 export async function deleteTestRevision(revisionId: string): Promise<void> {
 	const db = await getDb();
-	await db.delete(testRevisions).where(eq(testRevisions.id, revisionId));
+	await db.transaction(async (tx) => {
+		await tx.delete(testRevisions).where(eq(testRevisions.id, revisionId));
+	});
 
 	emitDataChanged('revisions');
 }

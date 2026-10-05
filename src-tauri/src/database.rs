@@ -38,7 +38,19 @@ pub struct DatabaseResult {
 
 #[tauri::command]
 pub fn database_ready(app: AppHandle, state: State<'_, DatabaseState>) -> Result<(), String> {
-    with_connection(&app, &state, |_| Ok(()))
+    with_connection(&app, &state, rollback_abandoned_transaction)
+}
+
+/// The frontend calls `database_ready` once per page load. A transaction still
+/// open at that point was left behind by a page that reloaded mid-transaction;
+/// without a rollback every later BEGIN would fail.
+fn rollback_abandoned_transaction(connection: &Connection) -> Result<(), String> {
+    if connection.is_autocommit() {
+        return Ok(());
+    }
+    connection
+        .execute_batch("ROLLBACK")
+        .map_err(|error| format!("failed to roll back abandoned transaction: {error}"))
 }
 
 #[tauri::command]
@@ -211,10 +223,9 @@ fn execute_statement(
         rows.push(JsonValue::Array(values));
     }
 
+    // Drizzle treats any non-null `get` result as a row, so "no row" must be null.
     let rows = if matches!(method, DatabaseMethod::Get) {
-        rows.into_iter()
-            .next()
-            .unwrap_or_else(|| JsonValue::Array(Vec::new()))
+        rows.into_iter().next().unwrap_or(JsonValue::Null)
     } else {
         JsonValue::Array(rows)
     };
@@ -316,6 +327,37 @@ mod tests {
             result.rows,
             JsonValue::Array(vec![JsonValue::String("algebra".to_string())])
         );
+    }
+
+    #[test]
+    fn get_without_match_returns_null() {
+        let connection = migrated_database();
+
+        let result = execute_statement(
+            &connection,
+            "SELECT tag_name FROM tags WHERE tag_name = ?",
+            vec![JsonValue::String("missing".to_string())],
+            DatabaseMethod::Get,
+        )
+        .expect("query should succeed");
+
+        assert_eq!(result.rows, JsonValue::Null);
+    }
+
+    #[test]
+    fn abandoned_transaction_is_rolled_back() {
+        let connection = migrated_database();
+        connection
+            .execute_batch("BEGIN; INSERT INTO tags (tag_name) VALUES ('stale');")
+            .expect("transaction should start");
+
+        rollback_abandoned_transaction(&connection).expect("rollback should succeed");
+
+        assert!(connection.is_autocommit());
+        let count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM tags", [], |row| row.get(0))
+            .expect("tags should be countable");
+        assert_eq!(count, 0);
     }
 
     #[test]

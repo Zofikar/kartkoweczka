@@ -11,7 +11,7 @@ export function renderDocumentToHtml(content: string | null | undefined): string
 
 	if (!migrated.includes(MATH_DELIMITER)) {
 		if (/\\[a-zA-Z]+/.test(migrated)) {
-			return convertLatexToMarkup(wrapLatexIfNeeded(escapeHtml(migrated)));
+			return latexToMarkup(wrapLatexIfNeeded(escapeHtml(migrated)), migrated);
 		}
 		return escapeHtml(migrated);
 	}
@@ -39,13 +39,26 @@ export function renderDocumentToHtml(content: string | null | undefined): string
 
 		const latex = afterStart.slice(0, endIdx).trim();
 		if (latex) {
-			parts.push(convertLatexToMarkup(`\\(${latex}\\)`));
+			parts.push(latexToMarkup(`\\(${latex}\\)`, latex));
 		}
 
 		remaining = afterStart.slice(endIdx + MATH_DELIMITER.length);
 	}
 
 	return parts.join('');
+}
+
+/**
+ * mathlive throws on some input (e.g. a `javascript:` URL in `\href`, or a quote
+ * in `\class`), which would otherwise take down the component rendering it.
+ */
+function latexToMarkup(latex: string, fallbackText: string): string {
+	try {
+		return convertLatexToMarkup(latex);
+	} catch (error) {
+		console.warn('Failed to render LaTeX:', error);
+		return escapeHtml(fallbackText);
+	}
 }
 
 function escapeHtml(text: string): string {

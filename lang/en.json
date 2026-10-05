@@ -68,6 +68,7 @@
 		"saveError": "Could not save the question",
 		"deleted": "Question deleted",
 		"deleteError": "Could not delete the question",
+		"deleteInUse": "This question is used in {count} test(s) and cannot be deleted. Remove it from those tests first.",
 		"noAnswers": "This question has no answers.",
 		"imageAlt": "Question image",
 		"filters": {
@@ -110,6 +111,7 @@
 		"validation": {
 			"contentRequired": "Question content is required.",
 			"minimumAnswers": "Add at least 3 answers for a single-choice question.",
+			"maximumAnswers": "A single-choice question can have at most {count} answers.",
 			"correctRequired": "Select the correct answer.",
 			"statementRequired": "Add at least one statement."
 		}
@@ -311,7 +313,8 @@
 		"scanAgain": "Scan again",
 		"answer": "Answer",
 		"correctAnswer": "Correct answer",
-		"correct": "Correct"
+		"correct": "Correct",
+		"rowMismatch": "The sheet has {detected} answer rows, but this test version has {expected}. The score may be wrong — check that the sheet matches this version and is fully visible in the photo."
 	},
 	"errors": {
 		"canvasContext": "Could not create a 2D canvas context.",

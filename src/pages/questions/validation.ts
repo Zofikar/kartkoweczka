@@ -1,6 +1,9 @@
 import type { QuestionType } from '@/db/repositories';
 import { i18n } from '@/lib/i18n.svelte';
 
+/** The answer sheet stores each response as an 8-bit mask, so a row fits at most 8 boxes. */
+export const MAX_CHOICE_ANSWERS = 8;
+
 export interface ValidationResult {
 	valid: boolean;
 	error?: string;
@@ -21,6 +24,13 @@ export function validateQuestionData(
 		return {
 			valid: false,
 			error: i18n.t('questions.validation.minimumAnswers'),
+		};
+	}
+
+	if (type === 'choice' && nonEmptyAnswers.length > MAX_CHOICE_ANSWERS) {
+		return {
+			valid: false,
+			error: i18n.t('questions.validation.maximumAnswers', { count: MAX_CHOICE_ANSWERS }),
 		};
 	}
 

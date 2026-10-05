@@ -1,7 +1,7 @@
 import { eq, inArray, sql } from 'drizzle-orm';
 import type { Transaction } from '../client';
 import { getDb } from '@/db';
-import { answers, questions, questionTags, tags } from '../schema';
+import { answers, questions, questionTags, tags, testQuestions } from '../schema';
 import { emitDataChanged } from './events';
 import type { QuestionEditData, QuestionFilters, QuestionWithAnswers } from './types';
 
@@ -173,9 +173,23 @@ export async function updateQuestion(id: string, data: QuestionEditData): Promis
 	emitDataChanged('questions', 'tags');
 }
 
+/** Thrown when deleting a question that tests still reference. */
+export class QuestionInUseError extends Error {
+	constructor(readonly testCount: number) {
+		super(`Question is used in ${testCount} test(s)`);
+		this.name = 'QuestionInUseError';
+	}
+}
+
 export async function deleteQuestion(id: string): Promise<void> {
 	const db = await getDb();
 	await db.transaction(async (tx) => {
+		const [{ testCount }] = await tx
+			.select({ testCount: sql<number>`COUNT(*)` })
+			.from(testQuestions)
+			.where(eq(testQuestions.questionId, id));
+		if (testCount > 0) throw new QuestionInUseError(testCount);
+
 		await tx.delete(questions).where(eq(questions.id, id));
 		await cleanupOrphanedTags(tx);
 	});

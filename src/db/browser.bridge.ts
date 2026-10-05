@@ -1,6 +1,12 @@
 import * as Comlink from 'comlink';
 
-import type { DatabaseBridge, DatabaseBridgeResult, DatabaseMethod, DatabaseValue } from './bridge';
+import {
+	databaseClientLockName,
+	type DatabaseBridge,
+	type DatabaseBridgeResult,
+	type DatabaseMethod,
+	type DatabaseValue,
+} from './bridge';
 import type { DatabaseWorkerHostApi } from './db.worker.service';
 
 const DATABASE_OWNER_LOCK = 'kartkoweczka-database-owner-v2';
@@ -54,6 +60,11 @@ class DatabaseCoordinator implements DatabaseBridge {
 
 	start(): void {
 		this.clientChannel.addEventListener('message', this.handleClientMessage);
+		// Held until the tab goes away; lets the host roll back a transaction this tab abandoned.
+		void navigator.locks.request(
+			databaseClientLockName(this.clientId),
+			() => new Promise(() => {})
+		);
 		void this.waitForDatabaseOwnership().catch((error) => {
 			console.error('Database ownership coordinator failed:', error);
 		});
