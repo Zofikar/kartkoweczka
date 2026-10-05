@@ -37,6 +37,7 @@ async fn native_update(app: tauri::AppHandle, install: bool) -> Result<Option<St
 #[tauri::command]
 async fn open_licenses(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("licenses") {
+        #[cfg(desktop)]
         window.unminimize().map_err(|error| error.to_string())?;
         return window.set_focus().map_err(|error| error.to_string());
     }
@@ -57,9 +58,9 @@ async fn open_licenses(app: tauri::AppHandle) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(desktop)]
-            app.handle()
+            _app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
             Ok(())
         })

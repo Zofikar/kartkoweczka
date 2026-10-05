@@ -6,3 +6,4 @@ src/wasm/openOmr.d.ts
 src/wasm/WASM_API.md
 .venv
 opencv-setup/
+openOmr/
