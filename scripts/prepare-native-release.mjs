@@ -6,7 +6,11 @@ const config = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'));
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 config.version = pkg.version = version;
 if (process.env.NATIVE_DESKTOP === 'true') {
-	if (!process.env.TAURI_UPDATER_PUBLIC_KEY) throw new Error('Missing TAURI_UPDATER_PUBLIC_KEY');
+	if (!process.env.TAURI_UPDATER_PUBLIC_KEY?.trim()) {
+		throw new Error(
+			'Missing TAURI_UPDATER_PUBLIC_KEY: configure a GitHub Actions repository variable or secret with the complete updater public key file contents.'
+		);
+	}
 	config.bundle.createUpdaterArtifacts = true;
 	config.plugins = {
 		...config.plugins,

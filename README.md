@@ -93,7 +93,8 @@ Manifest zachowuje stare linki `downloads` i dodaje warianty w `packages`.
 
 Przed pierwszym wydaniem skonfiguruj w GitHub Actions:
 
-- zmienną `TAURI_UPDATER_PUBLIC_KEY`;
+- zmienną (lub sekret) `TAURI_UPDATER_PUBLIC_KEY` w Settings → Secrets and variables → Actions
+  (zmienna ma pierwszeństwo, jeśli istnieją oba wpisy);
 - sekrety `TAURI_SIGNING_PRIVATE_KEY` i `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`;
 - sekrety `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
   `ANDROID_KEY_PASSWORD` i `ANDROID_KEY_ALIAS`.

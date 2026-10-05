@@ -1,4 +1,5 @@
 src-tauri/**
+.secrets/
 
 src/wasm/openOmr.js
 src/wasm/openOmr.d.ts

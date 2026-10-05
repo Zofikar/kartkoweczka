@@ -34,3 +34,4 @@ AGENTS.md
 
 # Test stuff (generate with script)
 test_images/test_image_*.png
+.secrets/

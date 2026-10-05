@@ -58,7 +58,7 @@ jobs:
         run: node scripts/prepare-native-release.mjs
         env:
           NATIVE_DESKTOP: 'true'
-          TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY }}
+          TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY || secrets.TAURI_UPDATER_PUBLIC_KEY }}
       - name: Build signed desktop installer
         run: yarn tauri build --bundles ${{ matrix.bundles }}
         env:
@@ -90,6 +90,8 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Install Android tools
         run: |
           sdkmanager 'ndk;27.2.12479018' 'build-tools;35.0.0' 'platforms;android-35'
