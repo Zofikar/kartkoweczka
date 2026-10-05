@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import { isActive, p, type Route, staticRoutes, staticRoutesChildren } from '@/router';
 	import { i18n, type TranslationKey } from '../i18n.svelte';
+	import NativeUpdater from './NativeUpdater.svelte';
 
 	interface Props {
 		mobileOpen?: boolean;
@@ -63,6 +64,12 @@
 	}
 </script>
 
+{#snippet updater()}
+	{#if __DATABASE_BACKEND__ === 'tauri' && !/Android|iPhone|iPad/i.test(navigator.userAgent)}
+		<div class="sidebar-bottom"><NativeUpdater /></div>
+	{/if}
+{/snippet}
+
 <svelte:window onkeydown={handleDrawerKeydown} />
 
 {#if isMobile}
@@ -84,6 +91,7 @@
 						{/each}
 					</List>
 				</nav>
+				{@render updater()}
 			</aside>
 		</div>
 	{/if}
@@ -100,11 +108,15 @@
 				{/each}
 			</List>
 		</nav>
+		{@render updater()}
 	</aside>
 {/if}
 
 <style>
 	.sidebar {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
 		width: 200px;
 		background-color: var(--background-muted);
 		overflow: auto;
@@ -121,6 +133,11 @@
 		text-decoration: none;
 		color: inherit;
 		display: block;
+	}
+
+	.sidebar-bottom {
+		margin-top: auto;
+		padding-top: var(--space-4);
 	}
 
 	.sidebar-overlay {

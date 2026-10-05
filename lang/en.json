@@ -372,6 +372,7 @@
 		"check": "Check for app updates",
 		"update": "Install update and restart",
 		"current": "The app is up to date.",
+		"available": "Update {version} is available. Install it using the sidebar button.",
 		"updateError": "Could not check or install the update. Please try again online."
 	}
 }

@@ -14,7 +14,7 @@ export function getSnacks(): readonly Snack[] {
 	return snacks;
 }
 
-export function pushSnack(flavor: SnackFlavor, message: string, duration = 4000): void {
+export function pushSnack(flavor: SnackFlavor, message: string, duration = 4000): string {
 	const id = `snack-${nextId++}`;
 	const snack: Snack = { id, flavor, message, duration };
 	snacks = [...snacks, snack];
@@ -24,6 +24,22 @@ export function pushSnack(flavor: SnackFlavor, message: string, duration = 4000)
 			dismissSnack(id);
 		}, duration);
 	}
+	return id;
+}
+
+/** Replace a persistent notification with its final, auto-dismissed status. */
+export function replaceSnack(
+	id: string,
+	flavor: SnackFlavor,
+	message: string,
+	duration = 4000
+): void {
+	if (!snacks.some((snack) => snack.id === id)) {
+		pushSnack(flavor, message, duration);
+		return;
+	}
+	snacks = snacks.map((snack) => (snack.id === id ? { id, flavor, message, duration } : snack));
+	if (duration > 0) setTimeout(() => dismissSnack(id), duration);
 }
 
 export function dismissSnack(id: string): void {

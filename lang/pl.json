@@ -372,6 +372,7 @@
 		"check": "Sprawdź aktualizacje aplikacji",
 		"update": "Zainstaluj aktualizację i uruchom ponownie",
 		"current": "Aplikacja jest aktualna.",
+		"available": "Aktualizacja {version} jest dostępna. Zainstaluj ją przyciskiem w panelu bocznym.",
 		"updateError": "Nie udało się sprawdzić lub zainstalować aktualizacji. Spróbuj ponownie online."
 	}
 }
