@@ -459,7 +459,8 @@
 	.revision-page {
 		display: flex;
 		flex-direction: column;
-		height: 100%;
+		min-height: 100%;
+		box-sizing: border-box;
 		padding: var(--space-4);
 		gap: var(--space-4);
 	}

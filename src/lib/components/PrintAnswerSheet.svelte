@@ -250,6 +250,8 @@
 	}
 
 	.answer-cell {
+		print-color-adjust: exact;
+		-webkit-print-color-adjust: exact;
 		position: relative;
 		display: grid;
 		place-items: center;

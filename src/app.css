@@ -151,9 +151,13 @@ body {
 	gap: 4px;
 	min-height: 0;
 	flex-grow: 1;
+	flex-basis: 0;
+	grid-template-rows: minmax(0, 1fr);
 }
 
 main {
+	min-height: 0;
+	min-width: 0;
 	padding: var(--space-4);
 	overflow: auto;
 }
