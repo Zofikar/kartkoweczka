@@ -3,6 +3,18 @@ import createOpenOmr from "../build/wasm/wasm/openOmr.js";
 
 const module = await createOpenOmr();
 
+// Bulk views preserve offsets and byte values; JS copies survive vector deletion.
+const bulk = new module.Vector_Bytes();
+bulk.resize(4, 0);
+module.byteVectorView(bulk).set(new Uint8ClampedArray([9, 0, 127, 255, 8]).subarray(1, 5));
+const bulkCopy = module.byteVectorView(bulk).slice();
+assert.deepEqual(bulkCopy, new Uint8Array([0, 127, 255, 8]));
+bulk.delete();
+assert.deepEqual(bulkCopy, new Uint8Array([0, 127, 255, 8]));
+const empty = new module.Vector_Bytes();
+assert.equal(module.byteVectorView(empty).length, 0);
+empty.delete();
+
 function makeBytes(values) {
     const result = new module.Vector_Bytes();
     for (const value of values) result.push_back(value);

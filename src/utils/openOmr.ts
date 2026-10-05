@@ -14,8 +14,14 @@ export function getOpenOmr(): Promise<MainModule> {
 
 export function toWasmBytes(openOmr: MainModule, source: ArrayLike<number>): Vector_Bytes {
 	const bytes = new openOmr.Vector_Bytes();
-	for (let index = 0; index < source.length; index++) bytes.push_back(source[index]);
-	return bytes;
+	try {
+		bytes.resize(source.length, 0);
+		openOmr.byteVectorView(bytes).set(source);
+		return bytes;
+	} catch (error) {
+		bytes.delete();
+		throw error;
+	}
 }
 
 export function uuidToBytes(uuid: string): Uint8Array {
@@ -49,10 +55,15 @@ export function imageDataToOpenOmrImage(openOmr: MainModule, imageData: ImageDat
 
 export function openOmrImageToImageData(openOmr: MainModule, image: Image): ImageData {
 	if (image.layout.value === openOmr.PixelLayout.RGBA.value) {
-		return new ImageData(Uint8ClampedArray.from(image.data), image.width, image.height);
+		return new ImageData(
+			new Uint8ClampedArray(openOmr.byteVectorView(image.data)),
+			image.width,
+			image.height
+		);
 	}
 
-	const gray = Uint8Array.from(image.data);
+	// Consume the borrowed view before any further WASM calls can invalidate it.
+	const gray = openOmr.byteVectorView(image.data);
 	const rgba = new Uint8ClampedArray(image.width * image.height * 4);
 	for (let pixel = 0; pixel < gray.length; pixel++) {
 		const offset = pixel * 4;

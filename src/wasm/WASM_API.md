@@ -76,6 +76,16 @@ try {
 
 ## Byte values
 
+### Bulk byte transfer
+
+`byteVectorView(bytes: Vector_Bytes): Uint8Array` returns a borrowed view of the
+vector's WASM storage. For input, call `bytes.resize(source.length, 0)` and then
+`module.byteVectorView(bytes).set(source)`. For output, call
+`module.byteVectorView(bytes).slice()` to obtain an owned JavaScript copy.
+
+Consume views immediately. Do not retain them across vector resize/deletion or
+WASM calls that may grow linear memory. The view does not own the vector.
+
 Two byte representations appear in the API.
 
 ### `Uint8Array` parameters

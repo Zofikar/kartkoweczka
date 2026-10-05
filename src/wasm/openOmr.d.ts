@@ -129,6 +129,7 @@ interface EmbindModule {
   generateQr(_0: Vector_Bytes, _1: Size): Image;
   detectQrCode(_0: Image, _1?: View): Vector_QrDetection;
   checkImageQuality(_0: Image): ImageQuality;
+  byteVectorView(bytes: Vector_Bytes): Uint8Array;
 }
 
 export type MainModule = WasmModule & EmbindModule;

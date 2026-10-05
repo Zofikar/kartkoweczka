@@ -3,6 +3,7 @@ add_executable(
         src/generated/bind.cpp
         src/generated/glue.cpp
         src/conversions.cpp
+        src/bytes.cpp
 )
 
 target_include_directories(
