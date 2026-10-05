@@ -81,6 +81,20 @@ są dołączane do bundla desktopowego.
 
 ### Wydania natywne i aktualizacje
 
+### PWA na GitHub Pages
+
+Workflow `pages.yml` publikuje wersję przeglądarkową po udanym workflow `Native release`.
+Można go również uruchomić ręcznie dla istniejącego tagu `vX.Y.Z`.
+W Settings → Pages ustaw Source na **GitHub Actions**. Workflow Pages musi znajdować się
+na domyślnej gałęzi repozytorium. Środowisko `github-pages` musi zezwalać na wdrożenia
+z wybranych tagów i gałęzi.
+
+Build używa backendu przeglądarkowego, generuje service worker i manifest PWA oraz
+ustawia ścieżkę bazową z konfiguracji Pages. Dodaje też `404.html` dla tras SPA.
+Adres witryny jest widoczny w podsumowaniu deploymentu oraz Settings → Pages.
+
+### Publikacja instalatorów
+
 Workflow `release.yml` buduje wydania dla Windows x64 (NSIS), Linux x64 i ARM64 (AppImage i `.deb`)
 oraz Android ARM64 (APK). Uruchamia się po wypchnięciu stabilnego tagu `vX.Y.Z` albo ręcznie
 dla istniejącego tagu. Publikacja następuje dopiero po powodzeniu wszystkich buildów.

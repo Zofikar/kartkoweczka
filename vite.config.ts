@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
 	const databaseBackend = env.DATABASE_BACKEND === 'tauri' ? 'tauri' : 'browser';
 
 	return {
-		base: './',
+		base: env.VITE_BASE_PATH || './',
 		define: {
 			__DATABASE_BACKEND__: JSON.stringify(databaseBackend),
 		},
@@ -53,7 +53,8 @@ export default defineConfig(({ mode }) => {
 				workbox: {
 					navigateFallback: 'index.html',
 					globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,wasm,data,woff2}'],
-					maximumFileSizeToCacheInBytes: 11 * 1024 * 1024,
+					// The bundled license report is ~19 MB and must remain available offline.
+					maximumFileSizeToCacheInBytes: 25 * 1024 * 1024,
 				},
 			}),
 			zodCompiler(),
