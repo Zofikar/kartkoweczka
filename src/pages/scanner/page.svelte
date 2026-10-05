@@ -29,6 +29,13 @@
 	const SCAN_INTERVAL_MS = 400;
 	/** Poll interval while the video has no frame to read yet. */
 	const VIDEO_POLL_MS = 100;
+	/**
+	 * A live frame is accepted only when the same answers are read from this many frames in a row.
+	 * The first frame where the QR code decodes is often motion-blurred or still out of focus.
+	 */
+	const STABLE_FRAMES_REQUIRED = 2;
+	/** The fixed bottom marker (`MarkerPositioner::FixedBottomId`); every other id is a corner. */
+	const FIXED_BOTTOM_MARKER_ID = 31;
 
 	let videoElement = $state<HTMLVideoElement>();
 	let stream: MediaStream | null = null;
@@ -38,6 +45,9 @@
 	let torch = false;
 	/** Set once the torch made the frame too bright; from then on it stays off for this session. */
 	let torchAutoDisabled = false;
+	/** Answers read from the previous frames and how many frames in a row agreed on them. */
+	let candidateKey: string | undefined;
+	let candidateFrames = 0;
 	let fileInput: HTMLInputElement;
 	const busy = $derived(
 		imageState === 'analyzing' || cameraState === 'searching' || cameraState === 'processing'
@@ -125,29 +135,33 @@
 
 	// ─── Camera mode ──────────────────────────────────────────────────────────
 
-	type NumericCapability = {
-		min: number;
-		max: number;
-		step: number;
-	};
-
 	type ExtendedMediaTrackCapabilities = MediaTrackCapabilities & {
-		contrast?: NumericCapability;
-		sharpness?: NumericCapability;
-		saturation?: NumericCapability;
 		focusMode?: string[];
 		exposureMode?: string[];
-		exposureCompensation?: NumericCapability;
+		whiteBalanceMode?: string[];
+		torch?: boolean;
 	};
 
 	type ExtendedMediaTrackConstraintSet = MediaTrackConstraintSet & {
-		contrast?: number;
-		sharpness?: number;
-		saturation?: number;
 		focusMode?: string;
 		exposureMode?: string;
-		exposureCompensation?: number;
+		whiteBalanceMode?: string;
+		torch?: boolean;
 	};
+
+	/** Frames right after the stream starts are dark while auto exposure settles; don't judge them. */
+	const TORCH_WARMUP_MS = 1500;
+	/** Consecutive too-dark frames needed before the torch turns on. */
+	const DARK_FRAMES_FOR_TORCH = 3;
+
+	/**
+	 * Everything the track was opened and tuned with. `applyConstraints` replaces the whole set, so
+	 * toggling the torch must re-send it, or the browser may drop focus mode or the resolution.
+	 */
+	let trackConstraints: MediaTrackConstraints = {};
+	let torchSupported = false;
+	let streamStartedAt = 0;
+	let darkFrames = 0;
 
 	async function startCamera() {
 		stopCamera();
@@ -157,15 +171,16 @@
 		statusLabel = i18n.t('scanner.searching');
 		await tick();
 
-		let newStream: MediaStream;
+		let opened: { stream: MediaStream; constraints: MediaTrackConstraints };
 		try {
-			newStream = await openPortraitCameraStream();
+			opened = await openPortraitCameraStream();
 		} catch {
 			if (session !== cameraSession) return;
 			errorMessage = i18n.t('scanner.cameraUnavailable');
 			cameraState = 'error';
 			return;
 		}
+		const newStream = opened.stream;
 		// Cancelled (or restarted) while the permission prompt was open: don't leave this camera on.
 		if (session !== cameraSession || !videoElement) {
 			newStream.getTracks().forEach((t) => t.stop());
@@ -174,39 +189,31 @@
 		stream = newStream;
 
 		const track = newStream.getVideoTracks()[0];
-		const caps = track.getCapabilities() as ExtendedMediaTrackCapabilities;
+		// Not implemented by every browser (e.g. older Firefox).
+		const caps = (
+			typeof track.getCapabilities === 'function' ? track.getCapabilities() : {}
+		) as ExtendedMediaTrackCapabilities;
+		torchSupported = caps.torch === true;
 
-		const advanced: ExtendedMediaTrackConstraintSet = {};
-
-		if (caps.contrast) {
-			advanced.contrast = caps.contrast.min + (caps.contrast.max - caps.contrast.min) * 0.6;
+		// One set per feature: an advanced set the camera can't satisfy is skipped as a whole.
+		// Contrast and sharpness stay at the camera defaults; sharpening halos and clipped
+		// contrast skew the fixed dark-pixel threshold used for grading.
+		const advanced: ExtendedMediaTrackConstraintSet[] = [];
+		if (caps.focusMode?.includes('continuous')) advanced.push({ focusMode: 'continuous' });
+		if (caps.exposureMode?.includes('continuous')) advanced.push({ exposureMode: 'continuous' });
+		if (caps.whiteBalanceMode?.includes('continuous')) {
+			advanced.push({ whiteBalanceMode: 'continuous' });
 		}
+		trackConstraints = { ...opened.constraints, advanced };
 
-		if (caps.sharpness) {
-			advanced.sharpness = caps.sharpness.min + (caps.sharpness.max - caps.sharpness.min) * 0.4;
-		}
-
-		if (caps.saturation) {
-			advanced.saturation = caps.saturation.min;
-		}
-
-		if (caps.focusMode?.includes('continuous')) {
-			advanced.focusMode = 'continuous';
-		}
-
-		if (caps.exposureMode?.includes('continuous')) {
-			advanced.exposureMode = 'continuous';
-		}
-
-		try {
-			if (Object.keys(advanced).length > 0) {
-				await track.applyConstraints({
-					advanced: [advanced],
-				});
+		if (advanced.length > 0) {
+			try {
+				await track.applyConstraints(trackConstraints);
+			} catch (error) {
+				// Camera still works; only enhancement failed.
+				console.warn('Camera enhancement constraints rejected:', error);
+				trackConstraints = opened.constraints;
 			}
-		} catch (error) {
-			// Camera still works; only enhancement failed.
-			console.warn('Camera enhancement constraints rejected:', error);
 		}
 
 		if (session !== cameraSession) return;
@@ -228,23 +235,36 @@
 			return;
 		}
 		if (session !== cameraSession) return;
+		streamStartedAt = performance.now();
 		scheduleSearch(0);
 	}
 
-	async function openPortraitCameraStream(): Promise<MediaStream> {
-		const portraitConstraints: MediaStreamConstraints = {
-			video: {
-				facingMode: { ideal: 'environment' },
-				width: { ideal: 3000, min: 720 },
-				aspectRatio: { ideal: 3 / 4 },
-				/* @ts-expect-error resize mode exists */
-				resizeMode: 'none',
-			},
+	async function openPortraitCameraStream(): Promise<{
+		stream: MediaStream;
+		constraints: MediaTrackConstraints;
+	}> {
+		const portrait: MediaTrackConstraints = {
+			facingMode: { ideal: 'environment' },
+			width: { ideal: 3000, min: 720 },
+			aspectRatio: { ideal: 3 / 4 },
+			/* @ts-expect-error resize mode exists */
+			resizeMode: 'none',
 		};
 		try {
-			return await navigator.mediaDevices.getUserMedia(portraitConstraints);
+			return {
+				stream: await navigator.mediaDevices.getUserMedia({ video: portrait }),
+				constraints: portrait,
+			};
 		} catch {
-			return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+			// Without a size hint browsers default to 640×480, too coarse to read the answer boxes.
+			const fallback: MediaTrackConstraints = {
+				facingMode: { ideal: 'environment' },
+				width: { ideal: 1920 },
+			};
+			return {
+				stream: await navigator.mediaDevices.getUserMedia({ video: fallback }),
+				constraints: fallback,
+			};
 		}
 	}
 
@@ -260,35 +280,77 @@
 		// A new stream always starts with the torch off.
 		torch = false;
 		torchAutoDisabled = false;
+		torchSupported = false;
+		trackConstraints = {};
+		darkFrames = 0;
+		candidateKey = undefined;
+		candidateFrames = 0;
+	}
+
+	/**
+	 * Whether this frame's reading can be trusted. With a corner marker missing the sheet is
+	 * normalized by an affine transform, which ignores perspective, so a phone held at an angle
+	 * shifts the answer grid. Waits for all four corners and for consecutive frames that agree.
+	 */
+	function isStableScan(scan: GradingSheetScan): boolean {
+		const corners = scan.markers.filter((marker) => marker.id !== FIXED_BOTTOM_MARKER_ID);
+		if (corners.length < 4) {
+			candidateKey = undefined;
+			candidateFrames = 0;
+			return false;
+		}
+		const key = `${scan.qrCode.data}:${scan.scannedAnswers.join(',')}`;
+		if (key === candidateKey) {
+			candidateFrames++;
+		} else {
+			candidateKey = key;
+			candidateFrames = 1;
+		}
+		return candidateFrames >= STABLE_FRAMES_REQUIRED;
 	}
 
 	async function setTorch(enabled: boolean): Promise<boolean> {
 		if (enabled === torch) return true;
-		if (!stream) return false;
+		if (!stream || !torchSupported) return false;
 
 		const track = stream.getVideoTracks()[0];
+		const advanced = (trackConstraints.advanced ?? []).filter(
+			(set: ExtendedMediaTrackConstraintSet) => set.torch === undefined
+		);
+		const constraints: MediaTrackConstraints = {
+			...trackConstraints,
+			advanced: [...advanced, { torch: enabled } as ExtendedMediaTrackConstraintSet],
+		};
 		try {
-			await track.applyConstraints({
-				advanced: [{ torch: enabled }],
-			} as ExtendedMediaTrackConstraintSet);
+			await track.applyConstraints(constraints);
 		} catch {
 			return false;
 		}
+		trackConstraints = constraints;
 		torch = enabled;
+		// Exposure re-settles under the new lighting; frames read so far no longer compare.
+		candidateKey = undefined;
+		candidateFrames = 0;
 		return true;
 	}
 
 	/**
-	 * Turns the torch on for dark frames, and off for good if that overexposes
-	 * the sheet — otherwise a borderline scene would toggle it on every frame.
+	 * Turns the torch on once the scene stays dark after auto exposure settled, and off for good
+	 * if that overexposes the sheet — otherwise a borderline scene would toggle it on every frame.
+	 * The torch glints off pencil marks, so it is only a last resort.
 	 */
 	async function adjustTorch(quality: GradingSheetDiagnostics['quality']): Promise<void> {
-		if (quality === 'too-dark' && !torchAutoDisabled) {
-			await setTorch(true);
-		} else if (quality === 'too-bright' && torch) {
+		if (quality === 'too-bright' && torch) {
 			torchAutoDisabled = true;
 			await setTorch(false);
+			return;
 		}
+		if (quality !== 'too-dark' || performance.now() - streamStartedAt < TORCH_WARMUP_MS) {
+			darkFrames = 0;
+			return;
+		}
+		darkFrames++;
+		if (darkFrames >= DARK_FRAMES_FOR_TORCH && !torchAutoDisabled) await setTorch(true);
 	}
 
 	function scheduleSearch(delayMs: number) {
@@ -329,7 +391,14 @@
 		const scan = diagnostics && scanFromDiagnostics(diagnostics);
 		if (!scan) {
 			// No readable sheet in this frame yet — keep looking.
+			candidateKey = undefined;
+			candidateFrames = 0;
 			scheduleSearch(SCAN_INTERVAL_MS);
+			return;
+		}
+		if (!isStableScan(scan)) {
+			// Confirm the reading on the next frame right away, while the sheet is still in view.
+			scheduleSearch(candidateFrames > 0 ? VIDEO_POLL_MS : SCAN_INTERVAL_MS);
 			return;
 		}
 
