@@ -1,0 +1,35 @@
+services:
+  policy-tests:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: policy
+    command: ['yarn', 'test:scripts']
+
+  android-build:
+    platform: linux/amd64
+    profiles: [android]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: android
+    command: ['bash', '/workspace/docker/android-build.sh']
+    volumes:
+      - artifacts:/artifacts
+
+  emulator-tests:
+    profiles: [emulator]
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: emulator
+    devices:
+      - /dev/kvm:/dev/kvm
+    command: ['bash', '/workspace/docker/emulator-tests.sh']
+    volumes:
+      - artifacts:/artifacts
+    shm_size: 2gb
+
+volumes:
+  artifacts:
