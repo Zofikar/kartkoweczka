@@ -128,6 +128,20 @@ namespace OpenOmrWasm::Generated
         return CPP2WASM::Convert(response);
     }
 
+    std::vector<std::uint8_t> WasmSheetGrader::alignmentDiagnostics() const
+    {
+        auto response = m_impl->alignmentDiagnostics();
+
+        return CPP2WASM::Convert(response);
+    }
+
+    std::vector<std::uint8_t> WasmSheetGrader::overlayDiagnostics() const
+    {
+        auto response = m_impl->overlayDiagnostics();
+
+        return CPP2WASM::Convert(response);
+    }
+
     std::optional<OpenOmrWasm::RevisionDetection> WasmSheetGrader::detectRevisionId()
     {
         auto response = m_impl->detectRevisionId();

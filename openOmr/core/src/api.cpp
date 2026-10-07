@@ -14,11 +14,24 @@
 #include <functional>
 #include <limits>
 #include <stdexcept>
+#include <sstream>
 
 namespace OpenOmr
 {
     namespace
     {
+        // Coordinates are always in the normalized bitmap's pixel space.
+        void appendOverlay(std::string& output, std::string const& kind,
+            std::string const& label, cv::Rect const& bounds)
+        {
+            if (!output.empty()) output += ',';
+            std::ostringstream entry;
+            entry << "{\"kind\":\"" << kind << "\",\"label\":\"" << label
+                << "\",\"x\":" << bounds.x << ",\"y\":" << bounds.y
+                << ",\"width\":" << bounds.width << ",\"height\":" << bounds.height << '}';
+            output += entry.str();
+        }
+
         Point ConvertPoint(cv::Point2f const& in)
         {
             return Point{
@@ -644,6 +657,9 @@ namespace OpenOmr
         m_markerCorners.clear();
         m_detectedMarkers.clear();
         m_positioned.reset();
+        m_alignmentDiagnostics.clear();
+        m_alignmentOverlays.clear();
+        m_answerOverlays.clear();
         if (image.empty()) {
             return {};
         }
@@ -670,6 +686,33 @@ namespace OpenOmr
         std::vector<int> ids;
         std::vector<std::vector<cv::Point2f>> corners;
         detector.detectMarkers(gray, corners, ids);
+
+        // Phone-resolution texture can prevent a marker from decoding even
+        // when its outline is clear. Retry at 1800 pixels, keeping the
+        // original corner estimates for markers already found.
+        if (ids.size() < 5 && std::max(gray.cols, gray.rows) > 1800) {
+            cv::Mat reduced;
+            auto const scale = 1800.0 / std::max(gray.cols, gray.rows);
+            cv::resize(gray, reduced, {}, scale, scale, cv::INTER_AREA);
+            std::vector<int> reducedIds;
+            std::vector<std::vector<cv::Point2f>> reducedCorners;
+            detector.detectMarkers(reduced, reducedCorners, reducedIds);
+            for (std::size_t candidate = 0; candidate < reducedIds.size(); ++candidate) {
+                auto recovered = reducedCorners[candidate];
+                for (auto& point : recovered) {
+                    point.x = (point.x + 0.5F) * float(gray.cols) / reduced.cols - 0.5F;
+                    point.y = (point.y + 0.5F) * float(gray.rows) / reduced.rows - 0.5F;
+                }
+                auto const bounds = cv::boundingRect(recovered);
+                bool const duplicate = std::ranges::any_of(corners, [&](auto const& existing) {
+                    auto const existingBounds = cv::boundingRect(existing);
+                    return (bounds & existingBounds).area() > 0;
+                });
+                if (duplicate) continue;
+                ids.push_back(reducedIds[candidate]);
+                corners.push_back(std::move(recovered));
+            }
+        }
 
         struct Candidate
         {
@@ -807,6 +850,9 @@ namespace OpenOmr
     bool SheetGrader::normalize(cv::Size sheetOriginalSize)
     {
         m_normalized.release();
+        m_alignmentDiagnostics.clear();
+        m_alignmentOverlays.clear();
+        m_answerOverlays.clear();
         if (!m_positioned || m_source.empty()
             || sheetOriginalSize.width <= 0 || sheetOriginalSize.height <= 0) {
             return false;
@@ -850,12 +896,139 @@ namespace OpenOmr
         if (source.size() < 16) return false;
         auto transform = cv::findHomography(source, target, 0);
         if (transform.empty() || !cv::checkRange(transform)) return false;
+        std::ostringstream diagnostics;
+        constexpr std::array positionNames{"TL", "TR", "BR", "BL", "FB"};
+        auto positionName = [&](MarkerPosition position) {
+            // Enum values are not part of the diagnostic serialization contract.
+            for (std::size_t i = 0; i < placements->size(); ++i) {
+                if ((*placements)[i].position == position) return positionNames[i];
+            }
+            return "unknown";
+        };
+        diagnostics << "Coordinates: source pixels for initial detections; normalized pixels for recovery.\n";
+        for (auto const& marker : m_positioned->markers) {
+            diagnostics << "Detected " << positionName(marker.position) << " id="
+                << marker.marker.id << " center=(" << marker.marker.centerX << ", "
+                << marker.marker.centerY << ")\n";
+        }
+        // FB provides a provisional solution, not a substitute BR landmark.
+        // Rectify once for a bounded search, then map recovered corners back
+        // to the original image before fitting the final transform.
+        bool recoveredMarker = false;
+        std::optional<MarkerPosition> recoveredPosition;
+        if (m_positioned->markers.size() == 4) {
+            cv::Mat provisional;
+            cv::warpPerspective(m_source, provisional, transform, sheetOriginalSize,
+                cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(255));
+            cv::aruco::DetectorParameters recoveryParameters;
+            recoveryParameters.cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
+            recoveryParameters.adaptiveThreshWinSizeMax = 53;
+            recoveryParameters.adaptiveThreshWinSizeStep = 4;
+            recoveryParameters.minMarkerPerimeterRate = 0.02;
+            recoveryParameters.polygonalApproxAccuracyRate = 0.05;
+            // Keep dictionary correction at the normal default: relaxation
+            // applies to candidate extraction, never arbitrary ID acceptance.
+            cv::aruco::ArucoDetector recoveryDetector(SheetDictionary::value(), recoveryParameters);
+            for (auto const& placement : *placements) {
+                if (std::ranges::any_of(m_positioned->markers, [&](auto const& marker) {
+                    return marker.position == placement.position;
+                })) continue;
+                auto const center = markerCenter(*config, placement.position);
+                float const sx = float(sheetOriginalSize.width) / config->referenceSize.width;
+                float const sy = float(sheetOriginalSize.height) / config->referenceSize.height;
+                auto const half = config->markerSize / 2;
+                std::vector<cv::Point2f> expected;
+                std::array<cv::Point2f, 4> canonical{{
+                    {float(center.x - half) - 0.5F, float(center.y - half) - 0.5F},
+                    {float(center.x + half) - 0.5F, float(center.y - half) - 0.5F},
+                    {float(center.x + half) - 0.5F, float(center.y + half) - 0.5F},
+                    {float(center.x - half) - 0.5F, float(center.y + half) - 0.5F}}};
+                for (int corner = 0; corner < 4; ++corner) {
+                    auto point = canonical[(corner + placement.rotation / 90) % 4];
+                    expected.push_back({point.x * sx, point.y * sy});
+                }
+                auto bounds = cv::boundingRect(expected);
+                auto const padding = std::max(bounds.width, bounds.height);
+                bounds = cv::Rect(bounds.x - padding, bounds.y - padding,
+                    bounds.width + 2 * padding, bounds.height + 2 * padding)
+                    & cv::Rect({}, sheetOriginalSize);
+                diagnostics << "Missing " << positionName(placement.position) << "; recovery ROI=("
+                    << bounds.x << ", " << bounds.y << ", " << bounds.width << ", "
+                    << bounds.height << "), expected id=" << placement.id << "\n";
+                if (bounds.empty()) continue;
+                std::vector<int> ids;
+                std::vector<std::vector<cv::Point2f>> corners;
+                recoveryDetector.detectMarkers(provisional(bounds), corners, ids);
+                std::vector<std::vector<cv::Point2f>> accepted;
+                for (std::size_t candidate = 0; candidate < ids.size(); ++candidate) {
+                    auto const id = SheetDictionary::canonicalId(ids[candidate]);
+                    auto points = corners[candidate];
+                    for (auto& point : points) point += cv::Point2f(bounds.tl());
+                    auto const areaRatio = std::abs(cv::contourArea(points))
+                        / std::abs(cv::contourArea(expected));
+                    double displacement = 0;
+                    for (int corner = 0; corner < 4; ++corner)
+                        displacement = std::max(displacement, cv::norm(points[corner] - expected[corner]));
+                    bool const valid = id && *id == placement.id
+                        && areaRatio > 0.6 && areaRatio < 1.5
+                        && displacement < 0.6 * config->markerSize * std::min(sx, sy);
+                    diagnostics << "Recovery candidate id=" << (id ? int(*id) : -1)
+                        << " corner displacement=" << displacement << "px area ratio=" << areaRatio
+                        << (valid ? " accepted for ambiguity check" : " rejected (ID/size/orientation/location)") << "\n";
+                    if (valid) accepted.push_back(std::move(points));
+                }
+                if (accepted.size() != 1) {
+                    diagnostics << "Recovery not used: " << accepted.size() << " valid candidates.\n";
+                    continue;
+                }
+                std::vector<cv::Point2f> original;
+                cv::perspectiveTransform(accepted.front(), original, transform.inv());
+                source.insert(source.end(), original.begin(), original.end());
+                target.insert(target.end(), expected.begin(), expected.end());
+                auto candidateTransform = cv::findHomography(source, target, 0);
+                if (!candidateTransform.empty() && cv::checkRange(candidateTransform)) {
+                    transform = candidateTransform;
+                    recoveredMarker = true;
+                    recoveredPosition = placement.position;
+                    diagnostics << "Recovered " << positionName(placement.position)
+                        << "; final fit uses five marker landmarks.\n";
+                }
+            }
+        }
+        diagnostics << "Method: projective marker-corner fit; recovery="
+            << (recoveredMarker ? "used" : "not used") << ".\n";
         cv::warpPerspective(m_source, m_normalized, transform, sheetOriginalSize,
             cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(255));
         std::vector<cv::Point2f> projected;
         cv::perspectiveTransform(source, projected, transform);
         auto const initialError = cv::norm(projected, target, cv::NORM_L2)
             / std::sqrt(double(target.size()));
+        diagnostics << "Marker-fit RMS=" << initialError
+            << " normalized pixels (not an independent alignment guarantee).\n";
+        m_alignmentDiagnostics = diagnostics.str();
+        for (auto const& placement : *placements) {
+            bool const found = recoveredPosition == placement.position
+                || std::ranges::any_of(m_positioned->markers, [&](auto const& marker) {
+                    return marker.position == placement.position;
+                });
+            auto const center = markerCenter(*config, placement.position);
+            auto const half = config->markerSize / 2;
+            auto const topLeft = scalePoint({center.x - half, center.y - half},
+                config->referenceSize, sheetOriginalSize);
+            auto const size = scaleSize({config->markerSize, config->markerSize},
+                config->referenceSize, sheetOriginalSize);
+            appendOverlay(m_alignmentOverlays, found ? "marker" : "missing",
+                std::string(positionName(placement.position))
+                    + (recoveredPosition == placement.position ? " recovered" : found ? " found" : " missing"),
+                cv::Rect(topLeft, size));
+        }
+        auto const qrTopLeft = scalePoint(config->identityCodeArea.tl(),
+            config->referenceSize, sheetOriginalSize);
+        appendOverlay(m_alignmentOverlays, "qr", "QR expected region",
+            cv::Rect(qrTopLeft, scaleSize(config->identityCodeArea.size(),
+                config->referenceSize, sheetOriginalSize)));
+        // The existing refinement indexes only initially positioned markers.
+        if (recoveredMarker) return !m_normalized.empty();
         if (m_positioned->markers.size() == 5 && initialError < 0.75) {
             return !m_normalized.empty();
         }
@@ -1002,6 +1175,7 @@ namespace OpenOmr
         cv::Size innerCellSize)
     {
         std::vector<uint8_t> result;
+        m_answerOverlays.clear();
         if (!m_positioned || m_normalized.empty()
             || cellSize.width <= 0 || cellSize.height <= 0
             || innerCellSize.width <= 0 || innerCellSize.height <= 0) {
@@ -1034,11 +1208,16 @@ namespace OpenOmr
             // block. Probe cell-width segments to recover its local width.
             std::uint32_t blockAnswers = 0;
             for (std::uint32_t cell = 0; cell <= config->maxAnswerCount; ++cell) {
-                auto const edge = cv::Rect{
-                    blockX + static_cast<int>(cell) * step.width + 3,
-                    gridTopLeft.y - 2,
-                    std::max(1, step.width - 6), 5};
-                if (darkRatio(gray, edge) <= 0.25) break;
+                double bestRatio = 0.0;
+                auto const radius = std::max(1, step.height / 8);
+                for (int offset = -radius; offset <= radius; ++offset) {
+                    auto const edge = cv::Rect{
+                        blockX + static_cast<int>(cell) * step.width + 3,
+                        gridTopLeft.y + offset - 2,
+                        std::max(1, step.width - 6), 5};
+                    bestRatio = std::max(bestRatio, darkRatio(gray, edge));
+                }
+                if (bestRatio <= 0.25) break;
                 if (cell > 0) blockAnswers = cell;
             }
             if (blockAnswers == 0) break;
@@ -1078,6 +1257,9 @@ namespace OpenOmr
                         y};
                     auto const outer = centeredRect(center, step);
                     auto const inner = centeredRect(center, innerSize);
+                    auto const label = "row " + std::to_string(result.size() + 1)
+                        + " answer " + std::to_string(answer + 1);
+                    appendOverlay(m_answerOverlays, "grid", label + " expected box", inner);
                     if (frameRatio(gray, inner) <= 0.12) continue;
 
                     auto answerArea = inner;
@@ -1089,6 +1271,11 @@ namespace OpenOmr
                         >= config->answerFillThreshold;
                     auto const correctionMarked = correctionRatio(gray, outer, inner)
                         >= config->correctionFillThreshold;
+                    if (correctionMarked) {
+                        appendOverlay(m_answerOverlays, "corrected", label + " correction detected", outer);
+                    } else if (answerMarked) {
+                        appendOverlay(m_answerOverlays, "marked", label + " marked", answerArea);
+                    }
                     if (answerMarked && !correctionMarked) {
                         flags |= static_cast<uint8_t>(1U << answer);
                     }
@@ -1110,6 +1297,19 @@ namespace OpenOmr
     cv::Mat const& SheetGrader::normalizedImage() const noexcept
     {
         return m_normalized;
+    }
+
+    std::vector<uint8_t> SheetGrader::alignmentDiagnostics() const
+    {
+        return {m_alignmentDiagnostics.begin(), m_alignmentDiagnostics.end()};
+    }
+
+    std::vector<uint8_t> SheetGrader::overlayDiagnostics() const
+    {
+        auto json = '[' + m_alignmentOverlays;
+        if (!m_alignmentOverlays.empty() && !m_answerOverlays.empty()) json += ',';
+        json += m_answerOverlays + ']';
+        return {json.begin(), json.end()};
     }
 
 

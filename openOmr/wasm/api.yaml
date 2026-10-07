@@ -124,6 +124,14 @@ classes:
         returns: Image
         const: true
 
+      alignmentDiagnostics:
+        returns: bytes
+        const: true
+
+      overlayDiagnostics:
+        returns: bytes
+        const: true
+
       detectRevisionId:
         cpp: detectRevisionId
         returns: RevisionDetection?

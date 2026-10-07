@@ -88,6 +88,8 @@ namespace OpenOmr
         std::vector<uint8_t> gradeSheet(cv::Size cellSize, cv::Size innerCellSize);
         [[nodiscard]] std::optional<uint32_t> detectedVersion() const noexcept;
         [[nodiscard]] cv::Mat const& normalizedImage() const noexcept;
+        [[nodiscard]] std::vector<uint8_t> alignmentDiagnostics() const;
+        [[nodiscard]] std::vector<uint8_t> overlayDiagnostics() const;
 
     private:
         cv::Mat m_source{};
@@ -96,6 +98,9 @@ namespace OpenOmr
         std::vector<std::array<cv::Point2f, 4>> m_markerCorners{};
         std::vector<DetectedMarker> m_detectedMarkers{};
         std::optional<PositionedSheet> m_positioned{};
+        std::string m_alignmentDiagnostics{};
+        std::string m_alignmentOverlays{};
+        std::string m_answerOverlays{};
     };
 
 };

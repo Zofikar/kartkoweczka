@@ -82,6 +82,9 @@ assert.deepEqual(
     [3, 3, 3, 3, 31],
 );
 assert.equal(grader.normalize({width: 1800, height: 2050}), true);
+const alignmentDiagnostics = grader.alignmentDiagnostics();
+assert.match(new TextDecoder().decode(Uint8Array.from(alignmentDiagnostics)), /Detected BR/);
+alignmentDiagnostics.delete();
 
 const normalized = grader.normalizedImage();
 assert.equal(normalized.width, 1800);
@@ -98,6 +101,34 @@ const grades = grader.gradeSheet(
     {width: 42, height: 42},
 );
 assert.deepEqual(Array.from(grades), [0b0100, 0]);
+const overlayBytes = grader.overlayDiagnostics();
+const overlays = JSON.parse(new TextDecoder().decode(Uint8Array.from(overlayBytes)));
+assert.equal(overlays.filter(rect => rect.kind === "marker").length, 5);
+assert.ok(overlays.some(rect => rect.kind === "qr"));
+assert.ok(overlays.some(rect => rect.kind === "marked" && rect.label.includes("answer 3")));
+assert.ok(overlays.some(rect => rect.kind === "grid"));
+overlayBytes.delete();
+
+// A slightly sloped top border must not truncate the block after answer B.
+// Move only the C/D top-edge segments; the answer cells remain in place.
+for (let x = 322; x < 487; ++x) {
+    for (let y = 216; y <= 224; ++y) sheet.data.set(y * sheet.width + x, 255);
+    for (let y = 226; y <= 228; ++y) sheet.data.set(y * sheet.width + x, 0);
+}
+const driftGrader = new module.SheetGrader();
+const driftMarkers = driftGrader.detectAruco(sheet);
+assert.equal(driftGrader.normalize({width: 1800, height: 2050}), true);
+const driftGrades = driftGrader.gradeSheet(
+    {width: 84, height: 84}, {width: 42, height: 42},
+);
+assert.deepEqual(Array.from(driftGrades), [0b0100, 0]);
+const driftOverlayBytes = driftGrader.overlayDiagnostics();
+const driftOverlays = JSON.parse(new TextDecoder().decode(Uint8Array.from(driftOverlayBytes)));
+assert.equal(driftOverlays.filter(rect => rect.kind === "grid").length, 8);
+driftOverlayBytes.delete();
+driftGrades.delete();
+driftMarkers.delete();
+driftGrader.delete();
 
 // Delete every Embind-owned handle returned or constructed above. This also
 // verifies that generated classes expose the expected ownership API.
