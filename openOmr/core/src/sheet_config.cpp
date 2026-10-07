@@ -44,10 +44,10 @@ namespace OpenOmr
             // 0.4 mm / 1.13 pt. After flat A5 scaling this remains about
             // 0.283 mm, or 2.23 printer dots at 200 DPI.
             .innerSquareThickness = 4,
-            // Filled human marks remain well above 50% after normalization;
-            // the lower answer threshold tolerates erosion while the higher
+            // Photographed pencil marks can fall below 50% after normalization;
+            // the 40% answer threshold tolerates erosion while the higher
             // correction threshold rejects inner-frame bleed into the ring.
-            .answerFillThreshold = 0.50,
+            .answerFillThreshold = 0.40,
             .correctionFillThreshold = 0.50,
         };
     }

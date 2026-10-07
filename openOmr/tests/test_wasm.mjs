@@ -130,6 +130,24 @@ driftGrades.delete();
 driftMarkers.delete();
 driftGrader.delete();
 
+// Sparse pencil shading can cover less than half the writable square.
+// Keep the existing blank printed answers as false-positive controls.
+for (let y = 342; y < 375; ++y) {
+    for (let x = 180; x < 200; ++x) {
+        sheet.data.set(y * sheet.width + x, 0);
+    }
+}
+const sparseGrader = new module.SheetGrader();
+const sparseMarkers = sparseGrader.detectAruco(sheet);
+assert.equal(sparseGrader.normalize({width: 1800, height: 2050}), true);
+const sparseGrades = sparseGrader.gradeSheet(
+    {width: 84, height: 84}, {width: 42, height: 42},
+);
+assert.deepEqual(Array.from(sparseGrades), [0b0100, 0b0001]);
+sparseGrades.delete();
+sparseMarkers.delete();
+sparseGrader.delete();
+
 // Delete every Embind-owned handle returned or constructed above. This also
 // verifies that generated classes expose the expected ownership API.
 grades.delete();
