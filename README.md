@@ -94,7 +94,37 @@ Build używa backendu przeglądarkowego, generuje service worker i manifest PWA 
 ustawia ścieżkę bazową z konfiguracji Pages. Dodaje też `404.html` dla tras SPA.
 Adres witryny jest widoczny w podsumowaniu deploymentu oraz Settings → Pages.
 
-### Publikacja instalatorów
+### Wersjonowanie z Git
+
+Jedynym źródłem wersji są stabilne tagi Git `vX.Y.Z`. `yarn version:describe` pokazuje
+wersję wyznaczoną przez `git describe`, SHA commita i stan zmian. Build web udostępnia
+te metadane w `version.json` oraz stałych `__APP_VERSION__` i `__APP_COMMIT__`.
+Po tagu wersja opisowa zawiera liczbę commitów i hash; lokalne zmiany dodają `-dirty`.
+
+W GitHub Actions uruchom **Version bump** na `main`, wybierz `patch`, `minor` lub `major`.
+Domyślne `dry_run` tylko sprawdza i pokazuje wynik. Wyłącz je, aby utworzyć adnotowany tag
+i automatycznie uruchomić **Native release**. Workflow nie tworzy commita wersjonującego.
+Weryfikacja obejmuje krótkie `yarn test:version` (limit 2 minut), lint i typy — bez testów
+Docker, emulatora ani buildów natywnych. Buildy instalatorów pozostają osobnym workflow wydania.
+Reguły repozytorium muszą zezwalać tokenowi workflow na tworzenie tagów i dispatch workflow.
+Jeśli tag został wypchnięty, ale dispatch zawiódł, uruchom **Native release** ręcznie
+z tym samym tagiem; nie wykonuj kolejnego bumpa i nie przesuwaj opublikowanych tagów.
+
+Pola wersji Cargo/Tauri `0.0.0` są tylko wymaganymi placeholderami. Używaj `yarn tauri`,
+`yarn tauri:dev` i `yarn tauri:build`: wrapper wpisuje wersję z Git, przekazuje ją do
+frontendu i przywraca konfigurację po zakończeniu. Bez `.git` build deweloperski używa
+`0.0.1-dev` (Android wymaga wersji większej niż zero); oficjalne wydanie wymaga czystego
+checkoutu dokładnie wskazanego przez tag.
+Android używa kodu `major * 1000000 + minor * 1000 + patch` (minor/patch do 999).
+
+Docker celowo nie zawiera `.git`. Przekaż metadane hosta przed lokalnym buildem Android:
+
+```powershell
+$env:BUILD_VERSION_JSON = node scripts/version.mjs
+yarn test:docker:android
+```
+
+### Pipeline instalatorów
 
 Workflow `release.yml` buduje wydania dla Windows x64 (NSIS), Linux x64 i ARM64 (AppImage i `.deb`)
 oraz Android ARM64 (APK). Uruchamia się po wypchnięciu stabilnego tagu `vX.Y.Z` albo ręcznie
@@ -108,14 +138,13 @@ Manifest zachowuje stare linki `downloads` i dodaje warianty w `packages`.
 
 Przed pierwszym wydaniem skonfiguruj w GitHub Actions:
 
-- zmienną (lub sekret) `TAURI_UPDATER_PUBLIC_KEY` w Settings → Secrets and variables → Actions
-  (zmienna ma pierwszeństwo, jeśli istnieją oba wpisy);
+- publiczny klucz updatera w `src-tauri/tauri.conf.json`;
 - sekrety `TAURI_SIGNING_PRIVATE_KEY` i `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`;
 - sekrety `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
   `ANDROID_KEY_PASSWORD` i `ANDROID_KEY_ALIAS`.
 
 Klucze updatera wygeneruj lokalnie przez `yarn tauri signer generate -w <ścieżka-klucza>`.
-Do zmiennej i sekretu wstaw pełną zawartość odpowiednich plików. Klucze prywatne i keystore
+Do konfiguracji i sekretu wstaw pełną zawartość odpowiednich plików. Klucze prywatne i keystore
 przechowuj poza repozytorium. Android wymaga tego samego klucza podpisującego w kolejnych wydaniach.
 
 Generowany `version_mainfest.json` zawiera `downloads` z linkami oraz `platforms` z podpisanymi
