@@ -19,14 +19,21 @@ function walk(dir) {
 		entry.isDirectory() ? walk(join(dir, entry.name)) : [join(dir, entry.name)]
 	);
 }
-for (const [platform, key, extension] of [
+const targets = [
 	['Windows_x64', 'windows-x86_64', '.exe'],
 	['Linux_x64', 'linux-x86_64-appimage', '.AppImage'],
 	['Linux_arm', 'linux-aarch64-appimage', '.AppImage'],
 	['Linux_x64', 'linux-x86_64-deb', '.deb'],
 	['Linux_arm', 'linux-aarch64-deb', '.deb'],
 	['Android_arm', null, '.apk'],
-]) {
+];
+const enabledPlatforms = process.env.RELEASE_PLATFORMS?.split(',') ?? [
+	...new Set(targets.map(([platform]) => platform)),
+];
+if (enabledPlatforms.some((platform) => !targets.some(([name]) => name === platform)))
+	throw new Error('RELEASE_PLATFORMS contains an unknown platform');
+for (const [platform, key, extension] of targets) {
+	if (!enabledPlatforms.includes(platform)) continue;
 	const files = walk(join('artifacts', platform));
 	const candidates = files.filter((file) => file.endsWith(extension));
 	if (candidates.length !== 1)

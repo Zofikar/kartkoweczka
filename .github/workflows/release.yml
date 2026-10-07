@@ -30,14 +30,8 @@ jobs:
           - platform: Windows_x64
             runner: windows-latest
             bundles: nsis
-          - platform: Linux_x64
-            runner: ubuntu-24.04
-            bundles: appimage,deb
-            container: debian:12
-          - platform: Linux_arm
-            runner: ubuntu-24.04-arm
-            bundles: appimage,deb
-            container: debian:12
+          # Linux builds are temporarily disabled to save Actions time.
+          # Restore their matrix entries and RELEASE_PLATFORMS together.
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.container }}
     steps:
@@ -150,6 +144,8 @@ jobs:
         with:
           path: artifacts
       - run: node scripts/assemble-native-release.mjs
+        env:
+          RELEASE_PLATFORMS: Windows_x64,Android_arm
       - name: Publish complete release
         env:
           GH_TOKEN: ${{ github.token }}

@@ -126,8 +126,9 @@ yarn test:docker:android
 
 ### Pipeline instalatorów
 
-Workflow `release.yml` buduje wydania dla Windows x64 (NSIS), Linux x64 i ARM64 (AppImage i `.deb`)
-oraz Android ARM64 (APK). Uruchamia się po wypchnięciu stabilnego tagu `vX.Y.Z` albo ręcznie
+Workflow `release.yml` buduje obecnie wydania dla Windows x64 (NSIS) i Android ARM64 (APK).
+Buildy Linux x64 i ARM64 (AppImage i `.deb`) są tymczasowo wyłączone, aby oszczędzić czas Actions.
+Uruchamia się po wypchnięciu stabilnego tagu `vX.Y.Z` albo ręcznie
 dla istniejącego tagu. Publikacja następuje dopiero po powodzeniu wszystkich buildów.
 
 Linux jest budowany w kontenerach Debian 12 na runnerach Ubuntu 24.04, aby nie wymagać

@@ -29,7 +29,7 @@ test('release includes both Linux formats and rejects missing Debian signatures'
 					writeFileSync(join(path, 'app' + extension + '.sig'), 'signature');
 			}
 		}
-		const run = () =>
+		const run = (platforms = '') =>
 			spawnSync(
 				process.execPath,
 				[fileURLToPath(new URL('./assemble-native-release.mjs', import.meta.url))],
@@ -40,6 +40,9 @@ test('release includes both Linux formats and rejects missing Debian signatures'
 						BUILD_VERSION_JSON: '',
 						RELEASE_TAG: 'v1.2.3',
 						GITHUB_REPOSITORY: 'Zofikar/kartkoweczka',
+						...(platforms
+							? { RELEASE_PLATFORMS: platforms }
+							: { RELEASE_PLATFORMS: 'Windows_x64,Linux_x64,Linux_arm,Android_arm' }),
 					},
 					encoding: 'utf8',
 				}
@@ -65,6 +68,16 @@ test('release includes both Linux formats and rejects missing Debian signatures'
 		);
 		rmSync(join(dir, 'artifacts/Linux_arm/app.deb.sig'));
 		assert.notEqual(run().status, 0);
+		rmSync(join(dir, 'artifacts/Linux_x64'), { recursive: true });
+		rmSync(join(dir, 'artifacts/Linux_arm'), { recursive: true });
+		const reduced = run('Windows_x64,Android_arm');
+		assert.equal(reduced.status, 0, reduced.stderr);
+		const reducedManifest = JSON.parse(
+			readFileSync(join(dir, 'release/version_mainfest.json'), 'utf8')
+		);
+		assert.deepEqual(Object.keys(reducedManifest.downloads), ['Windows_x64', 'Android_arm']);
+		assert.deepEqual(Object.keys(reducedManifest.platforms), ['windows-x86_64']);
+		assert.notEqual(run('Unknown').status, 0);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
