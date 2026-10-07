@@ -7,6 +7,11 @@
 	"type": "module",
 	"scripts": {
 		"test:scripts": "node --test scripts/*.test.mjs",
+		"test:docker": "docker compose -f docker/compose.yml run --build --rm policy-tests",
+		"test:docker:android": "docker compose -f docker/compose.yml --profile android run --build --rm android-build",
+		"test:docker:emulator": "docker compose -f docker/compose.yml --profile emulator run --build --rm emulator-tests",
+		"test:docker:config": "docker compose -f docker/compose.yml --profile android --profile emulator config --quiet",
+		"test:docker:purge": "docker compose -f docker/compose.yml --profile android --profile emulator down --volumes --remove-orphans",
 		"dev": "vite",
 		"tauri": "tauri",
 		"tauri:dev": "tauri dev",
