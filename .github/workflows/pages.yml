@@ -60,9 +60,7 @@ jobs:
           VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}/
           VITE_ORIGIN: ${{ steps.pages.outputs.host }}${{ steps.pages.outputs.base_path }}
           VITE_SCHEMA: https
-        run: |
-          node scripts/generate-sitemap.mjs
-          yarn build
+        run: yarn build
       - name: Add SPA fallback
         run: cp dist/index.html dist/404.html
       - uses: actions/upload-pages-artifact@v3
