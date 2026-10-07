@@ -13,6 +13,8 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       target: android
+      args:
+        BUILD_VERSION_JSON: ${BUILD_VERSION_JSON:-}
     command: ['bash', '/workspace/docker/android-build.sh']
     volumes:
       - artifacts:/artifacts
@@ -24,6 +26,8 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       target: emulator
+      args:
+        BUILD_VERSION_JSON: ${BUILD_VERSION_JSON:-}
     devices:
       - /dev/kvm:/dev/kvm
     command: ['bash', '/workspace/docker/emulator-tests.sh']

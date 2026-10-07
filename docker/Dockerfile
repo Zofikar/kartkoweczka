@@ -9,6 +9,8 @@ COPY . .
 CMD ["yarn", "test:scripts"]
 
 FROM policy AS android
+ARG BUILD_VERSION_JSON
+ENV BUILD_VERSION_JSON=${BUILD_VERSION_JSON}
 ARG COMMAND_LINE_TOOLS=11076708
 ENV ANDROID_HOME=/opt/android-sdk \
     ANDROID_SDK_ROOT=/opt/android-sdk \
