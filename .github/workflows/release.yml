@@ -54,11 +54,10 @@ jobs:
       - run: corepack enable
       - run: yarn install --immutable
       - uses: dtolnay/rust-toolchain@stable
-      - name: Prepare version and updater configuration
+      - name: Prepare version and signed updater artifacts
         run: node scripts/prepare-native-release.mjs
         env:
           NATIVE_DESKTOP: 'true'
-          TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY || secrets.TAURI_UPDATER_PUBLIC_KEY }}
       - name: Build signed desktop installer
         run: yarn tauri build --bundles ${{ matrix.bundles }}
         env:
