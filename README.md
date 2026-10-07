@@ -1,172 +1,235 @@
+﻿<a id="english"></a>
+
 # 📝 Kartkóweczka
 
-> **Nowoczesna aplikacja webowa (SPA) do błyskawicznego generowania, drukowania i automatycznego sprawdzania testów jedno- oraz wielokrotnego wyboru.**
+**English** | [Polski — przejdź do polskiej wersji](#polski)
+
+**Less time preparing and checking tests. More time teaching.**
+
+Kartkóweczka helps teachers, lecturers and trainers create tests, print student answer
+sheets and check them using a camera or a photo. It is designed to work **offline-first**,
+keep your work **private** and leave you in control of your data.
+
+## Why Kartkóweczka?
+
+- **Work without a constant internet connection.** Once installed and ready, you can
+  prepare, print and check tests offline.
+- **Your work stays on your device.** Questions, tests and saved test versions are stored
+  locally, not remotely in an application cloud database.
+- **No account required.** There is no login and no automatic cloud synchronization.
+- **Share only when you choose.** Export a test to a file or deliberately send it to
+  another device through direct transfer.
+
+Internet access is needed to download/install the app, check for updates and establish
+optional direct-transfer connections. Offline-first does not mean the app never connects
+to the internet; it means your everyday test workflow does not depend on a cloud service.
+
+## What can you do?
+
+- Build a reusable **question bank** with tags and filtering.
+- Create **single-choice and true/false questions**, including images and mathematical formulas.
+- Organize questions into tests and save **different versions**, with optional shuffled
+  question and answer order.
+- Preview and **print A4 tests and answer sheets**, or save them as PDF through your
+  device's print dialog where supported.
+- **Scan answer sheets** with a camera or an uploaded photo and see the number of correct
+  answers and the percentage score.
+- **Export and import tests**, including their saved versions, to move them between devices.
+- Use the app in **English or Polish**.
+
+## Install the app
+
+Choose one of two separate ways to use Kartkóweczka. For safer long-term storage, we
+recommend keeping at least one native installation with copies of all your tests.
+
+### Option 1: Web app (PWA)
+
+1. Open **[Kartkóweczka in your browser](https://zofikar.github.io/kartkoweczka)**.
+2. Follow the installation instructions shown on the page. Depending on your browser,
+   choose **Install app** or **Add to Home Screen**.
+3. Open the installed app from your home screen or desktop.
+
+This version is installed **by your browser**, without downloading a native installer.
+Its data is kept locally in that browser's storage. Allow the initial installation to
+finish while online before relying on it offline.
+
+### Option 2: Native app
+
+Download an installer using the links on the
+**[application website](https://zofikar.github.io/kartkoweczka)** or directly from
+**[GitHub Releases](https://github.com/Zofikar/kartkoweczka/releases)**.
+
+Choose a download matching your device, install it and launch it like any other application.
+Availability depends on the files included in the release. This is a **separate installation**
+from the web app and keeps its own local data; your browser's tests do not automatically
+appear in it. Use export/import to move your work between installations.
+
+## Your first test
+
+1. Add questions and mark the correct answers.
+2. Create a test using questions from your bank.
+3. Save a test version and print its test and answer sheets.
+4. Have students fill in the answer sheets.
+5. Open the scanner and use your camera or select a photo to check a sheet.
+
+**Scanning on a different device?** Import the test and its saved versions there first.
+The code printed on a sheet identifies its version; it does not contain the answer key.
+Avoid editing a version after printing it if you will use it to check those sheets.
+Camera scanning requires camera permission.
+
+## Keep a backup of your work
+
+**Do not keep your only copy of important tests in the PWA.** Browser actions such as
+clearing site data can delete them. A browser can also refuse a persistent-storage request;
+without that protection, it may automatically remove stored data under its storage policies.
+Installing the PWA does not guarantee permanent storage.
+
+**Keep at least one device with the native app and transfer all your tests there, or
+frequently export every test to files kept somewhere safe.** Native storage is outside
+the browser's cleanup policies, but uninstalling the app, losing the device or disk failure
+can still lose data — keep exported copies too.
+
+Exports currently work **one test at a time**. There is no single-file full backup, so
+backing up all your work means exporting each test separately. File export/import works
+without internet; optional direct transfer needs a network connection to connect devices.
+
+## Current scope
+
+### Known shortcomings being worked on
+
+- **Camera handling varies by device and can be unreliable.** Your phone's own camera app
+  may produce better results. If live scanning struggles, take a clear photo with **all
+  sheet markers visible**, then upload it from your gallery instead.
+- **Transfer is test-wide and limited to one test at a time.** Import/export does not
+  handle conflicts: the incoming copy is treated as authoritative, rather than asking
+  which changes to keep. Export your local copy before importing a potentially conflicting test.
+- **There is no full backup to a single file yet.** You must export tests individually;
+  do not assume one test export includes your entire question bank or all other tests.
+
+### Other limitations
+
+The scanner reports correct-answer counts and percentages. Multiple-choice questions
+with several selected answers, custom grade scales, weighted scoring and manual answer
+entry are not currently supported. Print-to-PDF availability depends on your device.
+
+For the detailed feature checklist, see [FEATURE_LIST.md](FEATURE_LIST.md).
+For architecture, developer setup, testing and releases, see
+[DEVELOPMENT.md](DEVELOPMENT.md).
 
 ---
 
-## 🎯 O aplikacji
+## Polski
 
-**Kartkóweczka** to lekka, intuicyjna aplikacja stworzona z myślą o nauczycielach, wykładowcach i szkoleniowcach, którzy chcą zaoszczędzić czas na układaniu kartkówek i – co najważniejsze – na ich sprawdzaniu.
+[English — back to top](#english)
 
-Aplikacja działa w architekturze **SPA (Single Page Application)**, co oznacza pełną responsywność, płynność działania oraz **wsparcie dla pracy offline** (jako Progressive Web App – PWA). Możesz ją zainstalować na komputerze lub tablecie i korzystać z niej nawet bez dostępu do internetu w szkolnej sali!
+**Mniej czasu na układanie i sprawdzanie testów. Więcej czasu na nauczanie.**
 
----
+Kartkóweczka pomaga nauczycielom, wykładowcom i szkoleniowcom tworzyć testy, drukować
+karty odpowiedzi i sprawdzać je aparatem lub ze zdjęcia. Powstała z myślą o **pracy offline**,
+**prywatności** i zachowaniu kontroli nad własnymi danymi.
 
-## ✨ Kluczowe funkcje
+### Dlaczego Kartkóweczka?
 
-- **Tworzenie testów (Kreator zadań):**
-  - Obsługa pytań **jednokrotnego wyboru** (radio) oraz **wielokrotnego wyboru** (checkbox).
-  - Elastyczne zarządzanie punktacją dla każdego pytania z osobna lub globalnie.
-  - Losowa kolejność pytań i odpowiedzi (opcjonalnie), aby zminimalizować ryzyko ściągania.
-- **Automatyczne arkusze odpowiedzi:**
-  - Generowanie unikalnych, czytelnych kart odpowiedzi dla uczniów z czytelnymi polami do zaznaczania.
-- **Błyskawiczne sprawdzanie przez skanowanie:**
-  - **Szybkie sprawdzanie za pomocą aparatu w telefonie** – wystarczy zeskanować kartę odpowiedzi ucznia, aby system błyskawicznie zweryfikował poprawność.
-  - Opcja alternatywnego, szybkiego wprowadzania manualnego.
-  - Natychmiastowe obliczanie wyników procentowych i wystawianie ocen według konfigurowalnej skali.
-- **Tryb Offline (PWA):**
-  - Aplikacja zapisuje dane lokalnie w przeglądarce (`IndexedDB` / `LocalStorage`).
-  - Możliwość instalacji na pulpicie komputera lub ekranie głównym telefonu jako aplikacja natywna.
-- **Eksport i Druk:**
-  - Generowanie gotowych do druku testów i kluczy odpowiedzi w formacie PDF.
+- **Pracuj bez stałego dostępu do internetu.** Po instalacji i przygotowaniu aplikacji
+  możesz tworzyć, drukować i sprawdzać testy offline.
+- **Twoja praca zostaje na Twoim urządzeniu.** Pytania, testy i zapisane wersje są
+  przechowywane lokalnie, a nie zdalnie w chmurowej bazie aplikacji.
+- **Bez konta.** Nie ma logowania ani automatycznej synchronizacji z chmurą.
+- **Udostępniaj tylko wtedy, gdy chcesz.** Wyeksportuj test do pliku albo świadomie
+  prześlij go bezpośrednio na inne urządzenie.
 
----
+Internet jest potrzebny do pobrania i instalacji aplikacji, sprawdzania aktualizacji oraz
+zestawiania opcjonalnych połączeń do bezpośredniego przesyłania. Offline-first nie oznacza
+braku jakichkolwiek połączeń z internetem — oznacza, że codzienna praca z testami nie
+zależy od usługi chmurowej.
 
-## 🚀 Szybki start (Dla użytkowników)
+### Co możesz zrobić?
 
-1. Wejdź na stronę aplikacji (lub uruchom lokalnie).
-2. Kliknij ikonę **„Zainstaluj aplikację”** na pasku adresu przeglądarki (Chrome/Edge/Safari), aby korzystać z niej offline na telefonie lub komputerze.
-3. Utwórz nowy test, wprowadzając pytania i poprawne odpowiedzi.
-4. Wydrukuj testy oraz arkusze odpowiedzi dla uczniów.
-5. Po zebraniu kart **zeskanuj je aparatem w telefonie**, aby błyskawicznie uzyskać statystyki i oceny!
+- Tworzyć **bank pytań** z tagami i filtrowaniem.
+- Dodawać pytania **jednokrotnego wyboru i prawda/fałsz**, także z obrazami i wzorami matematycznymi.
+- Układać testy i zapisywać **różne wersje**, opcjonalnie losując kolejność pytań i odpowiedzi.
+- Przeglądać i **drukować testy oraz karty odpowiedzi A4**, a także zapisywać je jako PDF
+  przez okno drukowania, jeśli urządzenie to umożliwia.
+- **Skanować karty odpowiedzi** aparatem lub ze zdjęcia i odczytywać liczbę poprawnych
+  odpowiedzi oraz wynik procentowy.
+- **Eksportować i importować testy** wraz z wersjami, aby przenosić je między urządzeniami.
+- Korzystać z aplikacji **po polsku lub angielsku**.
 
----
+### Instalacja
 
-## 💻 Instalacja i Uruchomienie (Dla deweloperów)
+Wybierz jeden z dwóch osobnych sposobów korzystania z Kartkóweczki. Dla bezpieczniejszego
+przechowywania zalecamy co najmniej jedną instalację natywną z kopiami wszystkich testów.
 
-Jeśli chcesz uruchomić projekt lokalnie lub go rozwinąć:
+#### Opcja 1: Aplikacja webowa (PWA)
 
-```bash
-# 1. Sklonuj repozytorium
-git clone [https://github.com/twoja-nazwa/kartkoweczka.git](https://github.com/twoja-nazwa/kartkoweczka.git)
+1. Otwórz **[Kartkóweczkę w przeglądarce](https://zofikar.github.io/kartkoweczka)**.
+2. Postępuj zgodnie z instrukcją instalacji na stronie. Zależnie od przeglądarki wybierz
+   **Zainstaluj aplikację** lub **Dodaj do ekranu początkowego**.
+3. Uruchamiaj zainstalowaną aplikację z ekranu głównego lub pulpitu.
 
-# 2. Przejdź do katalogu projektu
-cd kartkoweczka
+Tę wersję instaluje **przeglądarka**, bez pobierania natywnego instalatora. Dane zostają
+lokalnie w pamięci tej przeglądarki. Przed rozpoczęciem pracy offline poczekaj na zakończenie
+pierwszej instalacji przy aktywnym połączeniu z internetem.
 
-# 3. Zainstaluj zależności
-yarn install
+#### Opcja 2: Aplikacja natywna
 
-# 4. Uruchom serwer deweloperski
-yarn run dev
+Pobierz instalator przez linki na **[stronie aplikacji](https://zofikar.github.io/kartkoweczka)**
+lub bezpośrednio z **[GitHub Releases](https://github.com/Zofikar/kartkoweczka/releases)**.
 
-# 5. Zbuduj wersję produkcyjną
-yarn run build
-```
+Wybierz plik odpowiedni dla urządzenia, zainstaluj go i uruchamiaj jak zwykły program.
+Dostępność zależy od plików dołączonych do wydania. To **osobna instalacja** względem
+wersji webowej, z własnymi lokalnymi danymi. Testy z przeglądarki nie pojawią się w niej
+automatycznie — przenieś je przez eksport/import.
 
-### Aplikacja desktopowa (Tauri)
+### Twój pierwszy test
 
-Wymagane są Rust oraz zależności systemowe Tauri dla wybranego systemu operacyjnego.
+1. Dodaj pytania i wskaż poprawne odpowiedzi.
+2. Utwórz test z pytań ze swojego banku.
+3. Zapisz wersję testu i wydrukuj test oraz karty odpowiedzi.
+4. Poproś uczniów o wypełnienie kart.
+5. Otwórz skaner i użyj aparatu lub wybierz zdjęcie, aby sprawdzić kartę.
 
-```bash
-# Uruchom aplikację desktopową w trybie deweloperskim
-yarn tauri:dev
+**Skanujesz na innym urządzeniu?** Najpierw zaimportuj tam test wraz z zapisanymi wersjami.
+Kod na karcie identyfikuje wersję, ale nie zawiera klucza odpowiedzi. Nie zmieniaj wydrukowanej
+wersji, jeśli zamierzasz używać jej do sprawdzania tych kart. Skanowanie aparatem wymaga
+zgody na dostęp do kamery.
 
-# Zbuduj natywną aplikację i instalator
-yarn tauri:build
-```
+### Zadbaj o kopię swojej pracy
 
-Build Tauri automatycznie ustawia natywny backend bazy danych. SQLite działa po stronie Rust i
-zapisuje plik `kartkoweczka.sqlite3` w katalogu danych aplikacji. Browserowy OPFS i SQLite WASM nie
-są dołączane do bundla desktopowego.
+**Nie przechowuj jedynej kopii ważnych testów w PWA.** Usunięcie danych witryny przez
+przeglądarkę może je skasować. Przeglądarka może też odmówić przyznania trwałego miejsca
+na dane; bez tej ochrony może automatycznie usuwać zapisane dane zgodnie ze swoimi zasadami.
+Sama instalacja PWA nie gwarantuje trwałości zapisu.
 
-### Wydania natywne i aktualizacje
+**Zachowaj co najmniej jedno urządzenie z aplikacją natywną i przenoś na nie wszystkie
+testy albo często eksportuj każdy test do plików przechowywanych w bezpiecznym miejscu.**
+Zapis natywny nie podlega czyszczeniu przez przeglądarkę, ale odinstalowanie aplikacji,
+utrata urządzenia lub awaria dysku nadal mogą oznaczać utratę danych — zachowuj też eksporty.
 
-### PWA na GitHub Pages
+Eksport działa obecnie **dla jednego testu naraz**. Nie ma pełnej kopii zapasowej w jednym
+pliku, więc zabezpieczenie całej pracy wymaga osobnego eksportu każdego testu.
+Eksport/import plikowy działa bez internetu; przesyłanie bezpośrednie wymaga sieci
+do połączenia urządzeń.
 
-Workflow `pages.yml` publikuje wersję przeglądarkową po udanym workflow `Native release`.
-Można go również uruchomić ręcznie dla gałęzi, tagu lub commita. Puste pole `ref`
-używa gałęzi wybranej w formularzu workflow, bez ponownego budowania instalatorów.
-W Settings → Pages ustaw Source na **GitHub Actions**. Workflow Pages musi znajdować się
-na domyślnej gałęzi repozytorium. Środowisko `github-pages` musi zezwalać na wdrożenia
-z wybranych tagów i gałęzi.
+### Obecny zakres
 
-Build używa backendu przeglądarkowego, generuje service worker i manifest PWA oraz
-ustawia ścieżkę bazową z konfiguracji Pages. Dodaje też `404.html` dla tras SPA.
-Adres witryny jest widoczny w podsumowaniu deploymentu oraz Settings → Pages.
+#### Znane niedoskonałości, nad którymi pracujemy
 
-### Wersjonowanie z Git
+- **Obsługa aparatu zależy od urządzenia i bywa zawodna.** Systemowa aplikacja aparatu
+  może dawać lepsze wyniki. Jeśli skanowanie na żywo sprawia problemy, zrób wyraźne zdjęcie
+  z **wszystkimi znacznikami arkusza w kadrze**, a następnie wczytaj je z galerii.
+- **Przesyłanie obejmuje cały test i działa dla jednego testu naraz.** Import/eksport nie
+  rozwiązuje konfliktów: przychodząca kopia jest uznawana za nadrzędną, bez pytania o to,
+  które zmiany zachować. Przed importem potencjalnie konfliktowego testu wyeksportuj lokalną kopię.
+- **Nie ma jeszcze pełnej kopii zapasowej w jednym pliku.** Testy trzeba eksportować
+  osobno; eksport jednego testu nie oznacza kopii całego banku pytań ani pozostałych testów.
 
-Jedynym źródłem wersji są stabilne tagi Git `vX.Y.Z`. `yarn version:describe` pokazuje
-wersję wyznaczoną przez `git describe`, SHA commita i stan zmian. Build web udostępnia
-te metadane w `version.json` oraz stałych `__APP_VERSION__` i `__APP_COMMIT__`.
-Po tagu wersja opisowa zawiera liczbę commitów i hash; lokalne zmiany dodają `-dirty`.
+#### Pozostałe ograniczenia
 
-W GitHub Actions uruchom **Version bump** na `main`, wybierz `patch`, `minor` lub `major`.
-Domyślne `dry_run` tylko sprawdza i pokazuje wynik. Wyłącz je, aby utworzyć adnotowany tag
-i automatycznie uruchomić **Native release**. Workflow nie tworzy commita wersjonującego.
-Weryfikacja obejmuje krótkie `yarn test:version` (limit 2 minut), lint i typy — bez testów
-Docker, emulatora ani buildów natywnych. Buildy instalatorów pozostają osobnym workflow wydania.
-Reguły repozytorium muszą zezwalać tokenowi workflow na tworzenie tagów i dispatch workflow.
-Jeśli tag został wypchnięty, ale dispatch zawiódł, uruchom **Native release** ręcznie
-z tym samym tagiem; nie wykonuj kolejnego bumpa i nie przesuwaj opublikowanych tagów.
+Skaner pokazuje liczbę poprawnych odpowiedzi i wynik procentowy. Pytania wielokrotnego wyboru
+z kilkoma zaznaczeniami, własne skale ocen, punktacja ważona i ręczne wprowadzanie odpowiedzi
+nie są obecnie obsługiwane. Zapis do PDF zależy od możliwości urządzenia.
 
-Pola wersji Cargo/Tauri `0.0.0` są tylko wymaganymi placeholderami. Używaj `yarn tauri`,
-`yarn tauri:dev` i `yarn tauri:build`: wrapper wpisuje wersję z Git, przekazuje ją do
-frontendu i przywraca konfigurację po zakończeniu. Bez `.git` build deweloperski używa
-`0.0.1-dev` (Android wymaga wersji większej niż zero); oficjalne wydanie wymaga czystego
-checkoutu dokładnie wskazanego przez tag.
-Android używa kodu `major * 1000000 + minor * 1000 + patch` (minor/patch do 999).
-
-Docker celowo nie zawiera `.git`. Przekaż metadane hosta przed lokalnym buildem Android:
-
-```powershell
-$env:BUILD_VERSION_JSON = node scripts/version.mjs
-yarn test:docker:android
-```
-
-### Pipeline instalatorów
-
-Workflow `release.yml` buduje obecnie wydania dla Windows x64 (NSIS) i Android ARM64 (APK).
-Buildy Linux x64 i ARM64 (AppImage i `.deb`) są tymczasowo wyłączone, aby oszczędzić czas Actions.
-Uruchamia się po wypchnięciu stabilnego tagu `vX.Y.Z` albo ręcznie
-dla istniejącego tagu. Publikacja następuje dopiero po powodzeniu wszystkich buildów.
-
-Linux jest budowany w kontenerach Debian 12 na runnerach Ubuntu 24.04, aby nie wymagać
-nowszego glibc z hosta. Pakiety `.deb` są przeznaczone dla Debian 12 i Ubuntu 24.04.
-Obie architektury wymagają testów instalacji na tych systemach przed deklaracją pełnego wsparcia.
-Web oferuje AppImage oraz osobny link `.deb`; updater wybiera format zainstalowanej aplikacji.
-Manifest zachowuje stare linki `downloads` i dodaje warianty w `packages`.
-
-Przed pierwszym wydaniem skonfiguruj w GitHub Actions:
-
-- publiczny klucz updatera w `src-tauri/tauri.conf.json`;
-- sekrety `TAURI_SIGNING_PRIVATE_KEY` i `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`;
-- sekrety `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
-  `ANDROID_KEY_PASSWORD` i `ANDROID_KEY_ALIAS`.
-
-Klucze updatera wygeneruj lokalnie przez `yarn tauri signer generate -w <ścieżka-klucza>`.
-Do konfiguracji i sekretu wstaw pełną zawartość odpowiednich plików. Klucze prywatne i keystore
-przechowuj poza repozytorium. Android wymaga tego samego klucza podpisującego w kolejnych wydaniach.
-
-Generowany `version_mainfest.json` zawiera `downloads` z linkami oraz `platforms` z podpisanymi
-artefaktami updatera Tauri. Pisownia `mainfest` jest celowa. Web pobiera kopię tego samego JSON
-z opisu najnowszego wydania przez API GitHub, wykrywa platformę i pozwala ją ręcznie zmienić.
-Brak odpowiedniego wydania pozostawia możliwość instalacji PWA. Plik w `public` jest początkowym
-przykładem bez opublikowanych plików, a nie źródłem bieżących wydań.
-
-Desktop udostępnia sprawdzanie aktualizacji i osobne potwierdzenie instalacji z restartem.
-Android aktualizuje się przez ręczną instalację APK. Podpis updatera nie zastępuje podpisu
-Windows Authenticode. Pełny pipeline wymaga sprawdzenia na runnerach GitHub oraz testu instalacji
-i aktualizacji na urządzeniach docelowych.
-
-### Raporty licencji (FOSSA)
-
-Workflow `update-license.yml` uruchamiany ręcznie wymaga sekretu `FOSSA_API_KEY`
-z uprawnieniami do analizy projektu i pobierania raportów. Analizuje zależności Yarn
-oraz Rust z `src-tauri`, a następnie tworzy PR aktualizujący `LICENSES.md` i
-`public/licenses.html`. Niepowodzenie analizy zatrzymuje generowanie raportów;
-wyniki kontroli polityk FOSSA nie blokują pobierania informacji o licencjach.
-
-Zależności kompilowane przez OMR są zadeklarowane w `fossa-deps.yml`. Przy zmianie
-wersji OpenCV, OpenCV contrib, FreeType lub HarfBuzz w `openOmr/docker/Dockerfile`
-zaktualizuj również wersje i adresy archiwów w tym pliku.
+Szczegółową listę funkcji znajdziesz w [FEATURE_LIST.md](FEATURE_LIST.md).
+Architekturę, konfigurację deweloperską, testy i wydania opisuje
+[DEVELOPMENT.md](DEVELOPMENT.md) (po angielsku).
