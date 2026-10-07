@@ -3,15 +3,19 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 import zodCompiler from 'zod-compiler/vite';
 import path from 'path';
+import { resolveVersion } from './scripts/version.mjs';
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
 	const databaseBackend = env.DATABASE_BACKEND === 'tauri' ? 'tauri' : 'browser';
+	const version = resolveVersion();
 
 	return {
 		base: env.VITE_BASE_PATH || './',
 		define: {
+			__APP_VERSION__: JSON.stringify(version.displayVersion),
+			__APP_COMMIT__: JSON.stringify(version.commit),
 			__DATABASE_BACKEND__: JSON.stringify(databaseBackend),
 		},
 		resolve: {
@@ -21,6 +25,16 @@ export default defineConfig(({ mode }) => {
 			},
 		},
 		plugins: [
+			{
+				name: 'git-build-version',
+				generateBundle() {
+					this.emitFile({
+						type: 'asset',
+						fileName: 'version.json',
+						source: JSON.stringify(version),
+					});
+				},
+			},
 			svelte(),
 			VitePWA({
 				// Tauri bundles its assets locally and must not install a PWA worker.
@@ -52,7 +66,7 @@ export default defineConfig(({ mode }) => {
 				},
 				workbox: {
 					navigateFallback: 'index.html',
-					globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,wasm,data,woff2}'],
+					globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,wasm,data,woff2}', 'version.json'],
 					// The bundled license report is ~19 MB and must remain available offline.
 					maximumFileSizeToCacheInBytes: 25 * 1024 * 1024,
 				},
