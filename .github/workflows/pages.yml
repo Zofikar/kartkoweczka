@@ -12,6 +12,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -35,22 +36,40 @@ jobs:
           REQUESTED_REF: ${{ inputs.ref }}
           EVENT_NAME: ${{ github.event_name }}
           WORKFLOW_REF: ${{ github.ref }}
+          RELEASE_RUN_ID: ${{ github.event.workflow_run.id }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           ref="$REQUESTED_REF"
           if [ "$EVENT_NAME" = workflow_dispatch ]; then
             ref="${ref:-$WORKFLOW_REF}"
           else
-            ref=$(gh api "repos/${{ github.repository }}/releases/latest" --jq '.tag_name')
+            title=$(gh api "repos/${{ github.repository }}/actions/runs/$RELEASE_RUN_ID" --jq '.display_title')
+            ref="${title#Native release }"
             [[ "$ref" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            gh release view "$ref" --repo '${{ github.repository }}' > /dev/null
           fi
           printf 'ref=%s\n' "$ref" >> "$GITHUB_OUTPUT"
+          printf 'expected_sha=%s\n' "$RELEASE_SHA" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.release.outputs.ref }}
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
       - run: corepack enable
+      - name: Snapshot build version
+        env:
+          DEPLOY_REF: ${{ steps.release.outputs.ref }}
+          EXPECTED_SHA: ${{ steps.release.outputs.expected_sha }}
+        run: |
+          if [ -n "$EXPECTED_SHA" ]; then
+            test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          fi
+          if [[ "$DEPLOY_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            export RELEASE_TAG="$DEPLOY_REF"
+          fi
+          node scripts/version.mjs --github-env
       - run: yarn install --immutable
       - uses: actions/configure-pages@v5
         id: pages

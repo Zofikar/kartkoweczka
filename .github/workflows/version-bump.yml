@@ -1,0 +1,79 @@
+name: Version bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Stable version increment
+        required: true
+        type: choice
+        options: [patch, minor, major]
+      dry_run:
+        description: Validate and preview without creating a tag
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: version-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: Plan version bump
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: node scripts/bump-version.mjs "$BUMP"
+      - name: Short versioning tests (no Docker or native builds)
+        timeout-minutes: 2
+        run: yarn test:version
+      - run: yarn lint
+      - run: yarn check
+      - name: Create annotated release tag
+        if: inputs.dry_run == false
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          TARGET_SHA: ${{ steps.version.outputs.commit }}
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$TARGET_SHA"
+          test -z "$(git ls-remote origin "refs/tags/$TAG" "refs/tags/$TAG^{}")"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$TAG" "$TARGET_SHA" -m "Release $TAG"
+          git push origin "refs/tags/$TAG"
+      - name: Start native release explicitly
+        if: inputs.dry_run == false
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if ! gh workflow run release.yml --ref "$TAG" -f "tag=$TAG"; then
+            echo "::error::Tag $TAG was pushed. Retry Native release manually for this tag; do not bump again."
+            exit 1
+          fi
+      - name: Summary
+        if: always()
+        env:
+          PREVIOUS: ${{ steps.version.outputs.previous }}
+          TAG: ${{ steps.version.outputs.tag }}
+          TARGET_SHA: ${{ steps.version.outputs.commit }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          printf '## Version bump\n\nPrevious: `%s`\n\nNext: `%s`\n\nCommit: `%s`\n\nDry run: `%s`\n' "$PREVIOUS" "$TAG" "$TARGET_SHA" "$DRY_RUN" >> "$GITHUB_STEP_SUMMARY"
