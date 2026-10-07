@@ -394,7 +394,28 @@ Pass the logical generation size, not the camera image size. A canonical sheet
 uses `1800 × 2050` even when the photograph has another size or orientation.
 Four corners use a projective transform; three use an affine fallback.
 
+### `alignmentDiagnostics(): Vector_Bytes`
+
+Returns UTF-8 diagnostic text for the latest normalization attempt. It records
+initial marker roles and source-pixel centers, missing-marker recovery regions
+in normalized pixels, candidate ID/geometry checks, recovery outcome, and
+marker-fit RMS. RMS measures the fitted landmarks, not independent alignment
+accuracy. Copy/decode the returned bytes and delete the owned vector afterward.
+Recovery landmarks contribute to normalization but do not alter the initial
+`detectAruco()` result. Corner-guide detection is not implemented yet.
+
 ### `normalizedImage(): Image`
+
+### Overlay diagnostics
+
+`overlayDiagnostics()` returns an owned byte vector containing a UTF-8 JSON
+array of normalized-pixel rectangles (`kind`, `label`, `x`, `y`, `width`,
+`height`). Delete the vector after decoding. Marker rectangles are expected
+positions classified as found/recovered (`marker`) or absent (`missing`), not
+measured contours. `qr` is the expected QR region. After grading, `grid` entries
+show answer boxes in scanned rows, `marked` entries show positive answer sampling
+regions, and `corrected` entries show detected correction cells. Multiple marks
+are retained. Unrecognized rows are not extrapolated into speculative boxes.
 
 Returns a snapshot of the rectified bitmap produced by the most recent
 successful `normalize()` call. This is useful for a diagnostics page that lets
