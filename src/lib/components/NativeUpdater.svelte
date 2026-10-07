@@ -16,8 +16,16 @@
 				'info',
 				version ? i18n.t('native.available', { version }) : i18n.t('native.current')
 			);
-		} catch {
-			replaceSnack(snackId, 'error', i18n.t('native.updateError'));
+		} catch (error) {
+			replaceSnack(
+				snackId,
+				'error',
+				i18n.t(
+					String(error).includes('android-install-permission')
+						? 'native.installPermission'
+						: 'native.updateError'
+				)
+			);
 		} finally {
 			busy = false;
 		}

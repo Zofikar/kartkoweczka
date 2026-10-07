@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, copyFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const config = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'));
@@ -14,38 +14,17 @@ if (!packageDeclaration || !activity.includes('class MainActivity : TauriActivit
 	throw new Error('Unexpected Android activity template; review safe-area integration');
 }
 
-writeFileSync(
-	activityPath,
-	`${packageDeclaration}
-
-import android.os.Bundle
-import android.view.View
-import androidx.activity.enableEdgeToEdge
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-
-class MainActivity : TauriActivity() {
-  override fun onCreate(savedInstanceState: Bundle?) {
-    enableEdgeToEdge()
-    super.onCreate(savedInstanceState)
-
-    // Inset the native container, including fixed-position WebView overlays.
-    val content = findViewById<View>(android.R.id.content)
-    ViewCompat.setOnApplyWindowInsetsListener(content) { view, windowInsets ->
-      val safeArea = windowInsets.getInsets(
-        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-      )
-      val keyboard = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
-      view.setPadding(
-        safeArea.left,
-        safeArea.top,
-        safeArea.right,
-        maxOf(safeArea.bottom, keyboard.bottom)
-      )
-      WindowInsetsCompat.CONSUMED
-    }
-    ViewCompat.requestApplyInsets(content)
-  }
+const sourcePath = 'src-tauri/android/MainActivity.kt';
+const source = readFileSync(sourcePath, 'utf8');
+if (source.split(/\r?\n/)[0] !== packageDeclaration) {
+	throw new Error('MainActivity.kt package must match the generated Android activity');
 }
-`
+copyFileSync(sourcePath, activityPath);
+copyFileSync(
+	'src-tauri/android/AndroidUpdaterPlugin.kt',
+	join(activityPath, '..', 'AndroidUpdaterPlugin.kt')
 );
+const resourceDirectory = 'src-tauri/gen/android/app/src/main/res/xml';
+copyFileSync('src-tauri/android/UpdatePolicy.java', join(activityPath, '..', 'UpdatePolicy.java'));
+mkdirSync(resourceDirectory, { recursive: true });
+copyFileSync('src-tauri/android/update-paths.xml', join(resourceDirectory, 'update_paths.xml'));

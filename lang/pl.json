@@ -365,6 +365,7 @@
 		"qualityGood": "dobry"
 	},
 	"native": {
+		"installPermission": "Zezwól na instalowanie z tej aplikacji w ustawieniach Androida, a następnie ponownie wybierz instalację aktualizacji.",
 		"alternative": "Możesz też zainstalować aplikację natywną:",
 		"platform": "Platforma do pobrania",
 		"unknown": "Nieznana / nieobsługiwana — wybierz platformę",

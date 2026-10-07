@@ -65,7 +65,7 @@
 </script>
 
 {#snippet updater()}
-	{#if __DATABASE_BACKEND__ === 'tauri' && !/Android|iPhone|iPad/i.test(navigator.userAgent)}
+	{#if __DATABASE_BACKEND__ === 'tauri' && !/iPhone|iPad/i.test(navigator.userAgent)}
 		<div class="sidebar-bottom"><NativeUpdater /></div>
 	{/if}
 {/snippet}

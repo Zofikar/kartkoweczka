@@ -365,6 +365,7 @@
 		"qualityGood": "good"
 	},
 	"native": {
+		"installPermission": "Allow installation from this app in Android settings, then tap Install update again.",
 		"alternative": "Or install the native application:",
 		"platform": "Download platform",
 		"unknown": "Unknown / unsupported ? select your platform",
