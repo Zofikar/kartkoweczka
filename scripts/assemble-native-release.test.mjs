@@ -5,10 +5,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { git } from './version.mjs';
 
 test('release includes both Linux formats and rejects missing Debian signatures', () => {
 	const dir = mkdtempSync(join(tmpdir(), 'native-release-'));
 	try {
+		git(['init', '-b', 'main'], dir);
+		git(['config', 'user.email', 'test@example.com'], dir);
+		git(['config', 'user.name', 'Test'], dir);
+		git(['commit', '--allow-empty', '-m', 'fixture'], dir);
+		git(['tag', 'v1.2.3'], dir);
 		for (const [platform, extensions] of [
 			['Windows_x64', ['.exe']],
 			['Linux_x64', ['.AppImage', '.deb']],
@@ -29,13 +35,19 @@ test('release includes both Linux formats and rejects missing Debian signatures'
 				[fileURLToPath(new URL('./assemble-native-release.mjs', import.meta.url))],
 				{
 					cwd: dir,
-					env: { ...process.env, RELEASE_TAG: 'v1.2.3', GITHUB_REPOSITORY: 'Zofikar/kartkoweczka' },
+					env: {
+						...process.env,
+						BUILD_VERSION_JSON: '',
+						RELEASE_TAG: 'v1.2.3',
+						GITHUB_REPOSITORY: 'Zofikar/kartkoweczka',
+					},
 					encoding: 'utf8',
 				}
 			);
 		const result = run();
 		assert.equal(result.status, 0, result.stderr);
 		const manifest = JSON.parse(readFileSync(join(dir, 'release/version_mainfest.json'), 'utf8'));
+		assert.equal(manifest.version, '1.2.3');
 		assert.equal(Object.keys(manifest.downloads).length, 4);
 		for (const [platform, arch] of [
 			['Linux_x64', 'x86_64'],

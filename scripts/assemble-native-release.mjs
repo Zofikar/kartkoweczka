@@ -1,7 +1,9 @@
 import { readdirSync, readFileSync, copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
+import { resolveVersion } from './version.mjs';
 
-const version = process.env.RELEASE_TAG.replace(/^v/, '');
+if (!process.env.RELEASE_TAG) throw new Error('RELEASE_TAG is required');
+const { version } = resolveVersion();
 const url = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${process.env.RELEASE_TAG}/`;
 const manifest = {
 	version,
