@@ -166,6 +166,13 @@ def build_wasm() -> None:
         WASM_BUILD_DIR / "wasm" / "WASM_API.md",
     )
 
+    # The frontend imports these artifacts directly, not from the build directory.
+    frontend_wasm_dir = ROOT.parent / "src" / "wasm"
+    frontend_wasm_dir.mkdir(parents=True, exist_ok=True)
+    for filename in ("openOmr.js", "openOmr.wasm", "openOmr.d.ts", "WASM_API.md"):
+        shutil.copyfile(WASM_BUILD_DIR / "wasm" / filename, frontend_wasm_dir / filename)
+    print(f"Synced WASM artifacts to {frontend_wasm_dir}")
+
 
 def test_wasm() -> None:
     build_wasm()
