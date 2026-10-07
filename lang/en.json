@@ -345,6 +345,8 @@
 		"source": "Source with detections",
 		"sourceAlt": "Uploaded answer sheet",
 		"normalized": "Normalized geometry",
+		"overlayToggle": "Show detection overlays",
+		"overlayLegend": "Green: found/recovered ArUco • Red dashed: missing ArUco • Blue: expected QR region • Purple: expected answer box • Orange: detected mark • Cyan: detected correction. Marker boxes show expected positions, not measured contours.",
 		"normalizedAria": "Normalized answer sheet image",
 		"normalizationFailed": "Normalization failed — details are shown above.",
 		"metadata": "Metadata QR inside the ArUco area",

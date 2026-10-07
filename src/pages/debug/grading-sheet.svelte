@@ -16,6 +16,7 @@
 	let isAnalyzing = $state(false);
 	let errorMessage = $state('');
 	let normalizedCanvas = $state<HTMLCanvasElement>();
+	let showOverlays = $state(true);
 	let sourceObjectUrl = $state('');
 	/** Manual answer-counts input, auto-filled when QR metadata resolves the revision. */
 	let answerCountsInput = $state('');
@@ -206,6 +207,9 @@
 		<section class="panel diagnostics-panel">
 			<h2>{i18n.t('debug.stages')}</h2>
 			<code>{diagnosticStagesLabel}</code>
+			{#if result.alignmentDetails}
+				<pre>{result.alignmentDetails}</pre>
+			{/if}
 		</section>
 
 		{#if result.warnings.length}
@@ -230,6 +234,12 @@
 
 			<section class="panel">
 				<h2>{i18n.t('debug.normalized')}</h2>
+				<label
+					><input type="checkbox" bind:checked={showOverlays} />{i18n.t(
+						'debug.overlayToggle'
+					)}</label
+				>
+				<p class="overlay-legend">{i18n.t('debug.overlayLegend')}</p>
 				<div class="normalized-stage" style:aspect-ratio="{SHEET_SIZE.width} / {SHEET_SIZE.height}">
 					{#if result.normalizedImage}
 						<canvas bind:this={normalizedCanvas} aria-label={i18n.t('debug.normalizedAria')}
@@ -240,9 +250,15 @@
 						</div>
 					{/if}
 					<div class="normalized-overlay" aria-hidden="true">
-						{#each result.overlayRects as rect (rect.key)}
-							<div class="overlay-rect overlay-rect--{rect.kind}" style={overlayStyle(rect)}></div>
-						{/each}
+						{#if showOverlays}
+							{#each result.overlayRects as rect (rect.key)}
+								<div
+									title={rect.label}
+									class="overlay-rect overlay-rect--{rect.kind}"
+									style={overlayStyle(rect)}
+								></div>
+							{/each}
+						{/if}
 					</div>
 				</div>
 			</section>
@@ -434,20 +450,34 @@
 		padding: 2px;
 	}
 	.overlay-rect--grid {
-		border-color: rgba(148, 163, 184, 0.8);
+		border-color: rgba(168, 85, 247, 0.8);
 	}
 	.overlay-rect--marker {
+		background: rgba(34, 197, 94, 0.12);
 		border-color: rgba(34, 197, 94, 0.95);
 		color: #166534;
 	}
 	.overlay-rect--qr {
+		background: rgba(59, 130, 246, 0.12);
 		border-color: rgba(59, 130, 246, 0.95);
 		color: #1d4ed8;
 	}
-	.overlay-rect--exclusion {
+	.overlay-rect--marked {
 		background: rgba(245, 158, 11, 0.14);
 		border-color: rgba(245, 158, 11, 0.75);
 		color: #92400e;
+	}
+	.overlay-rect--missing {
+		border-color: #ef4444;
+		border-style: dashed;
+		background: rgba(239, 68, 68, 0.12);
+	}
+	.overlay-rect--corrected {
+		border-color: #06b6d4;
+		background: rgba(6, 182, 212, 0.15);
+	}
+	.overlay-legend {
+		font-size: 0.85rem;
 	}
 	pre {
 		overflow: auto;

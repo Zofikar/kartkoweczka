@@ -3,21 +3,18 @@ import {
 	type DebugPoint,
 	type DetectedArucoMarker,
 	type DetectedQrCode,
+	type NormalizedDetectionRect,
 } from '@/utils/omrScanner';
 import { i18n } from '@/lib/i18n.svelte';
 
 export type { DebugPoint, DetectedArucoMarker, DetectedQrCode };
 
-export interface NormalizedOverlayRect {
+export interface NormalizedOverlayRect extends NormalizedDetectionRect {
 	key: string;
-	kind: 'marker' | 'qr' | 'grid' | 'exclusion';
-	x: number;
-	y: number;
-	width: number;
-	height: number;
 }
 
 export interface GradingSheetDebugResult {
+	alignmentDetails?: string;
 	image: ImageBitmap;
 	imageData: ImageData;
 	arucoMarkers: DetectedArucoMarker[];
@@ -35,12 +32,16 @@ export async function analyzeGradingSheetImage(file: File): Promise<GradingSheet
 	const imageData = readImageBitmap(image);
 	const scan = await diagnoseGradingSheetImageData(imageData);
 	return {
+		alignmentDetails: scan.alignmentDetails,
 		image,
 		imageData,
 		arucoMarkers: scan.markers,
 		qrCodeInMarkedArea: scan.qrCode,
 		normalizedImage: scan.normalizedImage,
-		overlayRects: [],
+		overlayRects: (scan.overlayRects ?? []).map((rect, index) => ({
+			...rect,
+			key: `overlay-${index}`,
+		})),
 		warnings: scan.warnings,
 		scannedAnswers: scan.scannedAnswers,
 		quality: scan.quality,

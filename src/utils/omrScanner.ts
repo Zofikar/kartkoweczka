@@ -53,6 +53,8 @@ export type OmrDiagnosticStage =
 	| 'graded';
 
 export interface GradingSheetDiagnostics {
+	overlayRects?: NormalizedDetectionRect[];
+	alignmentDetails?: string;
 	imageData: ImageData;
 	markers: DetectedArucoMarker[];
 	normalizedImage?: ImageData;
@@ -61,6 +63,24 @@ export interface GradingSheetDiagnostics {
 	quality: 'good' | 'too-dark' | 'too-bright';
 	stages: OmrDiagnosticStage[];
 	warnings: string[];
+}
+
+export interface NormalizedDetectionRect {
+	kind: 'marker' | 'missing' | 'qr' | 'grid' | 'marked' | 'corrected';
+	label: string;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+function readOverlayDiagnostics(grader: SheetGrader): NormalizedDetectionRect[] {
+	const bytes = grader.overlayDiagnostics();
+	try {
+		return JSON.parse(new TextDecoder().decode(Uint8Array.from(bytes)));
+	} finally {
+		bytes.delete();
+	}
 }
 
 /** One graded row of the answer sheet, aligned with the revision's questions. */
@@ -143,14 +163,20 @@ export async function diagnoseGradingSheetImageData(
 		if (markers.length < 3) {
 			return diagnosticsFailure(imageData, markers, quality, stages, i18n.t('errors.markers'));
 		}
-		if (!grader.normalize(SHEET_SIZE)) {
-			return diagnosticsFailure(
-				imageData,
-				markers,
-				quality,
-				stages,
-				i18n.t('errors.normalization')
-			);
+		const normalizedSuccessfully = grader.normalize(SHEET_SIZE);
+		const alignmentBytes = grader.alignmentDiagnostics();
+		let alignmentDetails: string;
+		try {
+			alignmentDetails = new TextDecoder().decode(Uint8Array.from(alignmentBytes));
+		} finally {
+			alignmentBytes.delete();
+		}
+		if (!normalizedSuccessfully) {
+			return {
+				...diagnosticsFailure(imageData, markers, quality, stages, i18n.t('errors.normalization')),
+				alignmentDetails,
+				overlayRects: readOverlayDiagnostics(grader),
+			};
 		}
 		stages.push('normalized');
 
@@ -166,14 +192,18 @@ export async function diagnoseGradingSheetImageData(
 
 		const revision = grader.detectRevisionId();
 		if (!revision) {
-			return diagnosticsFailure(
-				imageData,
-				markers,
-				quality,
-				stages,
-				i18n.t('errors.qr'),
-				normalizedImage
-			);
+			return {
+				overlayRects: readOverlayDiagnostics(grader),
+				...diagnosticsFailure(
+					imageData,
+					markers,
+					quality,
+					stages,
+					i18n.t('errors.qr'),
+					normalizedImage
+				),
+				alignmentDetails,
+			};
 		}
 		const qrCode = revisionToQrCode(revision);
 		stages.push('revision-detected');
@@ -184,6 +214,8 @@ export async function diagnoseGradingSheetImageData(
 			const scannedAnswers = Array.from(grades, answerMaskToIndex);
 			logDiagnostics('Wynik diagnostyki openOmr', { quality, stages, qrCode, scannedAnswers });
 			return {
+				alignmentDetails,
+				overlayRects: readOverlayDiagnostics(grader),
 				imageData,
 				normalizedImage,
 				markers,

@@ -345,6 +345,8 @@
 		"source": "Źródło z wykryciami",
 		"sourceAlt": "Wgrana karta odpowiedzi",
 		"normalized": "Znormalizowana geometria",
+		"overlayToggle": "Pokaż nakładki detekcji",
+		"overlayLegend": "Zielony: znaleziony/odzyskany ArUco • Czerwony przerywany: brak ArUco • Niebieski: oczekiwany obszar QR • Fioletowy: oczekiwane pole odpowiedzi • Pomarańczowy: wykryte zaznaczenie • Turkusowy: wykryta korekta. Ramki markerów pokazują oczekiwane pozycje, nie zmierzone kontury.",
 		"normalizedAria": "Znormalizowany obraz karty odpowiedzi",
 		"normalizationFailed": "Normalizacja nie powiodła się — szczegóły są powyżej.",
 		"metadata": "QR metadanych w obszarze ArUco",

@@ -49,6 +49,12 @@ test('production scans skip normalized image extraction while diagnostics retain
 			normalize() {
 				return true;
 			}
+			alignmentDiagnostics() {
+				return vector();
+			}
+			overlayDiagnostics() {
+				return Object.assign(Array.from(new TextEncoder().encode('[]')), { delete() {} });
+			}
 			normalizedImage() {
 				extracted++;
 				return { data: vector() };
