@@ -1,7 +1,6 @@
 <script lang="ts">
 	import {
 		computeScore,
-		diagnoseGradingSheetImageData,
 		scanFromDiagnostics,
 		scanGradingSheetImage,
 		type GradingSheetDiagnostics,
@@ -10,7 +9,10 @@
 	} from '@/utils/omrScanner';
 	import { getTest, getTestRevision } from '@/db/repositories';
 	import Button from '$lib/ui/Button.svelte';
-	import { tick } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
+	import { createLightingPolicy } from '@/utils/captureQuality';
+	import { createLiveDetector } from '@/utils/liveDetector';
+	import { createCamera } from '@/utils/camera';
 	import { p } from '@/router';
 	import { i18n } from '@/lib/i18n.svelte';
 
@@ -25,8 +27,8 @@
 	let errorMessage = $state('');
 	let statusLabel = $state('');
 
-	/** Pause between frame analyses; each one copies the full frame into WASM on the main thread. */
-	const SCAN_INTERVAL_MS = 400;
+	/** Pause between worker analyses to leave room for input and preview rendering. */
+	const SCAN_INTERVAL_MS = 100;
 	/** Poll interval while the video has no frame to read yet. */
 	const VIDEO_POLL_MS = 100;
 	/**
@@ -38,13 +40,13 @@
 	const FIXED_BOTTOM_MARKER_ID = 31;
 
 	let videoElement = $state<HTMLVideoElement>();
-	let stream: MediaStream | null = null;
+	const camera = createCamera();
+	const detector = createLiveDetector();
+	let torch = $state(false);
+	let lighting = createLightingPolicy();
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Bumped by stopCamera() so async camera work started earlier can tell it was cancelled. */
 	let cameraSession = 0;
-	let torch = false;
-	/** Set once the torch made the frame too bright; from then on it stays off for this session. */
-	let torchAutoDisabled = false;
 	/** Answers read from the previous frames and how many frames in a row agreed on them. */
 	let candidateKey: string | undefined;
 	let candidateFrames = 0;
@@ -83,11 +85,11 @@
 		mode = newMode;
 	}
 
-	$effect(() => {
-		return () => {
-			stopCamera();
-		};
+	onDestroy(() => {
+		stopCamera();
+		detector.stop(true);
 	});
+	onMount(() => detector.preload(i18n.locale));
 
 	// ─── Image mode ───────────────────────────────────────────────────────────
 
@@ -135,34 +137,6 @@
 
 	// ─── Camera mode ──────────────────────────────────────────────────────────
 
-	type ExtendedMediaTrackCapabilities = MediaTrackCapabilities & {
-		focusMode?: string[];
-		exposureMode?: string[];
-		whiteBalanceMode?: string[];
-		torch?: boolean;
-	};
-
-	type ExtendedMediaTrackConstraintSet = MediaTrackConstraintSet & {
-		focusMode?: string;
-		exposureMode?: string;
-		whiteBalanceMode?: string;
-		torch?: boolean;
-	};
-
-	/** Frames right after the stream starts are dark while auto exposure settles; don't judge them. */
-	const TORCH_WARMUP_MS = 1500;
-	/** Consecutive too-dark frames needed before the torch turns on. */
-	const DARK_FRAMES_FOR_TORCH = 3;
-
-	/**
-	 * Everything the track was opened and tuned with. `applyConstraints` replaces the whole set, so
-	 * toggling the torch must re-send it, or the browser may drop focus mode or the resolution.
-	 */
-	let trackConstraints: MediaTrackConstraints = {};
-	let torchSupported = false;
-	let streamStartedAt = 0;
-	let darkFrames = 0;
-
 	async function startCamera() {
 		stopCamera();
 		const session = cameraSession;
@@ -170,102 +144,15 @@
 		cameraState = 'searching';
 		statusLabel = i18n.t('scanner.searching');
 		await tick();
-
-		let opened: { stream: MediaStream; constraints: MediaTrackConstraints };
+		if (session !== cameraSession || !videoElement) return;
 		try {
-			opened = await openPortraitCameraStream();
+			camera.initialize(videoElement);
+			lighting = createLightingPolicy();
+			if (await camera.startCamera()) scheduleSearch(0);
 		} catch {
 			if (session !== cameraSession) return;
 			errorMessage = i18n.t('scanner.cameraUnavailable');
 			cameraState = 'error';
-			return;
-		}
-		const newStream = opened.stream;
-		// Cancelled (or restarted) while the permission prompt was open: don't leave this camera on.
-		if (session !== cameraSession || !videoElement) {
-			newStream.getTracks().forEach((t) => t.stop());
-			return;
-		}
-		stream = newStream;
-
-		const track = newStream.getVideoTracks()[0];
-		// Not implemented by every browser (e.g. older Firefox).
-		const caps = (
-			typeof track.getCapabilities === 'function' ? track.getCapabilities() : {}
-		) as ExtendedMediaTrackCapabilities;
-		torchSupported = caps.torch === true;
-
-		// One set per feature: an advanced set the camera can't satisfy is skipped as a whole.
-		// Contrast and sharpness stay at the camera defaults; sharpening halos and clipped
-		// contrast skew the fixed dark-pixel threshold used for grading.
-		const advanced: ExtendedMediaTrackConstraintSet[] = [];
-		if (caps.focusMode?.includes('continuous')) advanced.push({ focusMode: 'continuous' });
-		if (caps.exposureMode?.includes('continuous')) advanced.push({ exposureMode: 'continuous' });
-		if (caps.whiteBalanceMode?.includes('continuous')) {
-			advanced.push({ whiteBalanceMode: 'continuous' });
-		}
-		trackConstraints = { ...opened.constraints, advanced };
-
-		if (advanced.length > 0) {
-			try {
-				await track.applyConstraints(trackConstraints);
-			} catch (error) {
-				if (session !== cameraSession || stream !== newStream) return;
-				// Camera still works; only enhancement failed.
-				console.warn('Camera enhancement constraints rejected:', error);
-				trackConstraints = opened.constraints;
-			}
-		}
-
-		if (session !== cameraSession) return;
-		if (!videoElement) {
-			stopCamera();
-			return;
-		}
-
-		videoElement.srcObject = stream;
-		try {
-			await videoElement.play();
-		} catch (error) {
-			// Expected when the camera was stopped mid-start; anything else is a real failure.
-			if (session !== cameraSession) return;
-			console.error('Camera preview failed to start:', error);
-			stopCamera();
-			errorMessage = i18n.t('scanner.cameraUnavailable');
-			cameraState = 'error';
-			return;
-		}
-		if (session !== cameraSession) return;
-		streamStartedAt = performance.now();
-		scheduleSearch(0);
-	}
-
-	async function openPortraitCameraStream(): Promise<{
-		stream: MediaStream;
-		constraints: MediaTrackConstraints;
-	}> {
-		const portrait: MediaTrackConstraints = {
-			facingMode: { ideal: 'environment' },
-			width: { ideal: 3000, min: 720 },
-			aspectRatio: { ideal: 3 / 4 },
-			/* @ts-expect-error resize mode exists */
-			resizeMode: 'none',
-		};
-		try {
-			return {
-				stream: await navigator.mediaDevices.getUserMedia({ video: portrait }),
-				constraints: portrait,
-			};
-		} catch {
-			// Without a size hint browsers default to 640×480, too coarse to read the answer boxes.
-			const fallback: MediaTrackConstraints = {
-				facingMode: { ideal: 'environment' },
-				width: { ideal: 1920 },
-			};
-			return {
-				stream: await navigator.mediaDevices.getUserMedia({ video: fallback }),
-				constraints: fallback,
-			};
 		}
 	}
 
@@ -273,19 +160,22 @@
 		cameraSession++;
 		clearTimeout(searchTimer);
 		searchTimer = undefined;
-		if (stream) {
-			stream.getTracks().forEach((t) => t.stop());
-			stream = null;
-		}
-		if (videoElement) videoElement.srcObject = null;
-		// A new stream always starts with the torch off.
+		detector.stop();
+		camera.stopCamera();
 		torch = false;
-		torchAutoDisabled = false;
-		torchSupported = false;
-		trackConstraints = {};
-		darkFrames = 0;
 		candidateKey = undefined;
 		candidateFrames = 0;
+	}
+
+	async function toggleTorch() {
+		const session = cameraSession;
+		lighting.manual();
+		const enabled = !torch;
+		if ((await camera.feedback({ torch: enabled })) && session === cameraSession) {
+			torch = enabled;
+			candidateKey = undefined;
+			candidateFrames = 0;
+		}
 	}
 
 	/**
@@ -310,70 +200,9 @@
 		return candidateFrames >= STABLE_FRAMES_REQUIRED;
 	}
 
-	async function setTorch(enabled: boolean): Promise<boolean> {
-		if (enabled === torch) return true;
-		if (!stream || !torchSupported) return false;
-
-		const session = cameraSession;
-		const activeStream = stream;
-		const track = activeStream.getVideoTracks()[0];
-		const advanced = (trackConstraints.advanced ?? []).filter(
-			(set: ExtendedMediaTrackConstraintSet) => set.torch === undefined
-		);
-		const constraints: MediaTrackConstraints = {
-			...trackConstraints,
-			advanced: [...advanced, { torch: enabled } as ExtendedMediaTrackConstraintSet],
-		};
-		try {
-			await track.applyConstraints(constraints);
-		} catch {
-			return false;
-		}
-		// Cancellation or restart may have replaced the track while constraints were pending.
-		if (
-			session !== cameraSession ||
-			stream !== activeStream ||
-			stream.getVideoTracks()[0] !== track
-		) {
-			return false;
-		}
-		trackConstraints = constraints;
-		torch = enabled;
-		// Exposure re-settles under the new lighting; frames read so far no longer compare.
-		candidateKey = undefined;
-		candidateFrames = 0;
-		return true;
-	}
-
-	/**
-	 * Turns the torch on once the scene stays dark after auto exposure settled, and off for good
-	 * if that overexposes the sheet — otherwise a borderline scene would toggle it on every frame.
-	 * The torch glints off pencil marks, so it is only a last resort.
-	 */
-	async function adjustTorch(quality: GradingSheetDiagnostics['quality']): Promise<void> {
-		if (quality === 'too-bright' && torch) {
-			torchAutoDisabled = true;
-			await setTorch(false);
-			return;
-		}
-		if (quality !== 'too-dark' || performance.now() - streamStartedAt < TORCH_WARMUP_MS) {
-			darkFrames = 0;
-			return;
-		}
-		darkFrames++;
-		if (darkFrames >= DARK_FRAMES_FOR_TORCH && !torchAutoDisabled) await setTorch(true);
-	}
-
 	function scheduleSearch(delayMs: number) {
 		clearTimeout(searchTimer);
 		searchTimer = setTimeout(() => void searchFrame(), delayMs);
-	}
-
-	function captureFrame(video: HTMLVideoElement): ImageData {
-		const canvas = new OffscreenCanvas(video.videoWidth, video.videoHeight);
-		const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-		ctx.drawImage(video, 0, 0);
-		return ctx.getImageData(0, 0, canvas.width, canvas.height);
 	}
 
 	async function searchFrame() {
@@ -385,13 +214,13 @@
 			return;
 		}
 
-		// One pass gives both the image quality (for the torch) and the scan itself.
+		// Transfer a bounded preview frame to a dedicated WASM worker.
 		let diagnostics: GradingSheetDiagnostics | null = null;
+		let quality;
 		try {
-			diagnostics = await diagnoseGradingSheetImageData(captureFrame(videoElement), {
-				includeNormalizedImage: false,
-			});
-			if (session === cameraSession) await adjustTorch(diagnostics.quality);
+			const detected = await detector.analyze(videoElement, i18n.locale);
+			diagnostics = detected?.diagnostics ?? null;
+			quality = detected?.quality;
 		} catch (error) {
 			console.warn('Failed to analyse camera frame:', error);
 		}
@@ -400,6 +229,22 @@
 		if (session !== cameraSession || cameraState !== 'searching') return;
 
 		const scan = diagnostics && scanFromDiagnostics(diagnostics);
+		if (diagnostics && quality) {
+			const requested = lighting.next(quality, !!scan, torch);
+			if (requested !== undefined) {
+				const applied = await camera.feedback({ torch: requested });
+				if (session !== cameraSession) return;
+				if (applied) {
+					torch = requested;
+					lighting.applied();
+					candidateKey = undefined;
+					candidateFrames = 0;
+					scheduleSearch(1500);
+					return;
+				}
+			}
+			statusLabel = diagnostics.warnings.at(-1) ?? i18n.t('cameraDebug.confirming');
+		}
 		if (!scan) {
 			// No readable sheet in this frame yet — keep looking.
 			candidateKey = undefined;
@@ -408,6 +253,8 @@
 			return;
 		}
 		if (!isStableScan(scan)) {
+			statusLabel =
+				candidateFrames > 0 ? i18n.t('cameraDebug.confirming') : i18n.t('cameraDebug.corners');
 			// Confirm the reading on the next frame right away, while the sheet is still in view.
 			scheduleSearch(candidateFrames > 0 ? VIDEO_POLL_MS : SCAN_INTERVAL_MS);
 			return;
@@ -448,6 +295,11 @@
 		<Button size="lg" disabled={busy} onclick={choosePhoto}>{i18n.t('scanner.upload')}</Button>
 		<Button size="lg" disabled={busy} onclick={openCamera}>{i18n.t('scanner.startCamera')}</Button>
 	</div>
+	{#if cameraState === 'searching'}
+		<Button onclick={toggleTorch}
+			>{i18n.t(torch ? 'cameraDebug.torchOff' : 'cameraDebug.torchOn')}</Button
+		>
+	{/if}
 	<input bind:this={fileInput} type="file" accept="image/*" hidden onchange={handleImageFile} />
 
 	<!-- Image mode -->
@@ -468,11 +320,8 @@
 			{#if cameraState === 'searching'}
 				<div class="video-wrapper">
 					<video bind:this={videoElement} autoplay playsinline muted class="video-preview"></video>
-					<div class="video-overlay">
-						<div class="spinner"></div>
-						<p>{statusLabel}</p>
-					</div>
 				</div>
+				<p class="camera-status" role="status">{statusLabel}</p>
 				<Button variant="outline" onclick={cancelCamera}>{i18n.t('scanner.cancel')}</Button>
 			{/if}
 			{#if cameraState === 'processing'}
@@ -594,21 +443,19 @@
 
 	.video-preview {
 		display: block;
-		width: fit-content;
+		width: 100%;
 		max-height: 60vh;
-		object-fit: cover;
+		object-fit: contain;
 	}
 
-	.video-overlay {
-		position: absolute;
-		inset: 0;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		background: rgba(0, 0, 0, 0.5);
-		color: #fff;
-		gap: var(--space-3);
+	.camera-status {
+		min-height: 1.5em;
+		margin: var(--space-3) 0;
+		color: var(--text-muted);
+	}
+
+	.page :global(button) {
+		touch-action: manipulation;
 	}
 
 	.status-box {
