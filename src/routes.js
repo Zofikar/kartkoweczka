@@ -35,4 +35,5 @@ export const routes = [
 		path: '/debug/grading-sheet',
 		debug: true,
 	},
+	{ id: 'debug-camera', label: 'DEBUG: kamera', path: '/debug/camera', debug: true },
 ];

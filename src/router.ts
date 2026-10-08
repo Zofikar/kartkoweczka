@@ -8,6 +8,7 @@ const TestDetailPage = () => import('./pages/tests/detail.svelte');
 const TestRevisionPage = () => import('./pages/tests/revision.svelte');
 const ScannerPage = () => import('./pages/scanner/page.svelte');
 const DebugGradingSheetPage = () => import('./pages/debug/grading-sheet.svelte');
+const DebugCameraPage = () => import('./pages/debug/camera.svelte');
 
 type RoutesMap = { [key in RoutePath]: RouteComponent };
 const routesMap = {
@@ -20,6 +21,7 @@ const routesMap = {
 	'/tests/:id/revision/:revisionId': TestRevisionPage,
 	'/scanner': ScannerPage,
 	'/debug/grading-sheet': DebugGradingSheetPage,
+	'/debug/camera': DebugCameraPage,
 } satisfies RoutesMap;
 
 export type Route = keyof typeof routesMap;

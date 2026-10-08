@@ -4,6 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 import zodCompiler from 'zod-compiler/vite';
 import path from 'path';
 import { resolveVersion } from './scripts/version.mjs';
+import { cameraTelemetry } from './scripts/camera-telemetry.ts';
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -25,6 +26,7 @@ export default defineConfig(({ mode }) => {
 			},
 		},
 		plugins: [
+			cameraTelemetry(),
 			{
 				name: 'git-build-version',
 				generateBundle() {
@@ -92,6 +94,7 @@ export default defineConfig(({ mode }) => {
 			watch: {
 				ignored: ['**/src-tauri/**'],
 			},
+			allowedHosts: ['kartkoweczka.internal'],
 		},
 	};
 });
