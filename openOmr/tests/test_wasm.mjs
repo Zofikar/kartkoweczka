@@ -83,6 +83,11 @@ assert.deepEqual(
 );
 assert.equal(grader.normalize({width: 1800, height: 2050}), true);
 const alignmentDiagnostics = grader.alignmentDiagnostics();
+const timingBytes = grader.markerTimings();
+const markerTiming = JSON.parse(new TextDecoder().decode(Uint8Array.from(timingBytes)));
+assert.ok(markerTiming.markerDiscovery >= 0);
+assert.ok(markerTiming.markerRefinement >= 0);
+timingBytes.delete();
 assert.match(new TextDecoder().decode(Uint8Array.from(alignmentDiagnostics)), /Detected BR/);
 alignmentDiagnostics.delete();
 

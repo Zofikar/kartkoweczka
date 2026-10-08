@@ -55,6 +55,7 @@ export interface SheetGenerator extends ClassHandle {
 export interface SheetGrader extends ClassHandle {
   alignmentDiagnostics(): Vector_Bytes;
   overlayDiagnostics(): Vector_Bytes;
+  markerTimings(): Vector_Bytes;
   detectRevisionId(): RevisionDetection | undefined;
   normalize(_0: Size): boolean;
   gradeSheet(_0: Size, _1: Size): Vector_Bytes;

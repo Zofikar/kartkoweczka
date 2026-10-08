@@ -87,6 +87,8 @@ namespace OpenOmr
                     return result;
                 }
             }
+            // A supplied ROI is a search boundary, not a suggestion to retry globally.
+            return {};
         }
 
 
@@ -651,6 +653,11 @@ namespace OpenOmr
 
     std::vector<ArUcoDetection> SheetGrader::detectAruco(cv::Mat const& image)
     {
+        m_discoveryMilliseconds = 0;
+        m_refinementMilliseconds = 0;
+        m_preparationMilliseconds = 0;
+        m_selectionMilliseconds = 0;
+        auto const preparationStarted = cv::getTickCount();
         m_source = image.clone();
         m_normalized.release();
         m_aruco.clear();
@@ -685,34 +692,48 @@ namespace OpenOmr
         cv::aruco::ArucoDetector detector(dictionary, detectorParameters);
         std::vector<int> ids;
         std::vector<std::vector<cv::Point2f>> corners;
-        detector.detectMarkers(gray, corners, ids);
-
-        // Phone-resolution texture can prevent a marker from decoding even
-        // when its outline is clear. Retry at 1800 pixels, keeping the
-        // original corner estimates for markers already found.
-        if (ids.size() < 5 && std::max(gray.cols, gray.rows) > 1800) {
-            cv::Mat reduced;
-            auto const scale = 1800.0 / std::max(gray.cols, gray.rows);
-            cv::resize(gray, reduced, {}, scale, scale, cv::INTER_AREA);
-            std::vector<int> reducedIds;
-            std::vector<std::vector<cv::Point2f>> reducedCorners;
-            detector.detectMarkers(reduced, reducedCorners, reducedIds);
-            for (std::size_t candidate = 0; candidate < reducedIds.size(); ++candidate) {
-                auto recovered = reducedCorners[candidate];
-                for (auto& point : recovered) {
-                    point.x = (point.x + 0.5F) * float(gray.cols) / reduced.cols - 0.5F;
-                    point.y = (point.y + 0.5F) * float(gray.rows) / reduced.rows - 0.5F;
-                }
-                auto const bounds = cv::boundingRect(recovered);
-                bool const duplicate = std::ranges::any_of(corners, [&](auto const& existing) {
-                    auto const existingBounds = cv::boundingRect(existing);
-                    return (bounds & existingBounds).area() > 0;
-                });
-                if (duplicate) continue;
-                ids.push_back(reducedIds[candidate]);
-                corners.push_back(std::move(recovered));
+        // Exactly one global discovery pass. Preserve m_source at native resolution.
+        auto const discoveryStarted = cv::getTickCount();
+        m_preparationMilliseconds = (discoveryStarted - preparationStarted) * 1000.0 / cv::getTickFrequency();
+        cv::Mat discovery;
+        auto const discoveryScale = std::min(1.0, 1200.0 / std::max(gray.cols, gray.rows));
+        if (discoveryScale < 1.0) {
+            cv::resize(gray, discovery, {}, discoveryScale, discoveryScale, cv::INTER_AREA);
+        } else {
+            discovery = gray;
+        }
+        detector.detectMarkers(discovery, corners, ids);
+        for (auto& marker : corners) {
+            for (auto& point : marker) {
+                point.x = (point.x + 0.5F) * float(gray.cols) / discovery.cols - 0.5F;
+                point.y = (point.y + 0.5F) * float(gray.rows) / discovery.rows - 0.5F;
             }
         }
+
+        // Redecode each discovered marker in a bounded source ROI. Never reuse coarse
+        m_discoveryMilliseconds = (cv::getTickCount() - discoveryStarted) * 1000.0 / cv::getTickFrequency();
+        auto const refinementStarted = cv::getTickCount();
+        // coordinates as authoritative corners when a native decode is available.
+        for (std::size_t index = 0; index < corners.size(); ++index) {
+            auto bounds = cv::boundingRect(corners[index]);
+            auto const margin = std::max(8, std::max(bounds.width, bounds.height) / 2);
+            bounds = cv::Rect(bounds.x - margin, bounds.y - margin,
+                bounds.width + 2 * margin, bounds.height + 2 * margin)
+                & cv::Rect({}, gray.size());
+            std::vector<int> refinedIds;
+            std::vector<std::vector<cv::Point2f>> refinedCorners;
+            detector.detectMarkers(gray(bounds), refinedCorners, refinedIds);
+            for (std::size_t candidate = 0; candidate < refinedIds.size(); ++candidate) {
+                if (refinedIds[candidate] != ids[index]) continue;
+                auto refined = refinedCorners[candidate];
+                for (auto& point : refined) point += cv::Point2f(bounds.tl());
+                if (cv::norm(refined[0] - corners[index][0]) > margin) continue;
+                corners[index] = std::move(refined);
+                break;
+            }
+        }
+
+        m_refinementMilliseconds = (cv::getTickCount() - refinementStarted) * 1000.0 / cv::getTickFrequency();
 
         struct Candidate
         {
@@ -721,6 +742,7 @@ namespace OpenOmr
             double area{};
             std::array<cv::Point2f, 4> corners{};
         };
+        auto const selectionStarted = cv::getTickCount();
         std::vector<Candidate> candidates;
         candidates.reserve(ids.size());
         for (std::size_t i = 0; i < ids.size(); ++i) {
@@ -844,11 +866,20 @@ namespace OpenOmr
                 m_detectedMarkers.push_back(candidate.marker);
             }
         }
+        m_selectionMilliseconds = (cv::getTickCount() - selectionStarted) * 1000.0 / cv::getTickFrequency();
         return m_aruco;
     }
 
     bool SheetGrader::normalize(cv::Size sheetOriginalSize)
     {
+        struct RecordDuration {
+            double& elapsed;
+            int64 started{cv::getTickCount()};
+            ~RecordDuration() { elapsed = (cv::getTickCount() - started) * 1000.0 / cv::getTickFrequency(); }
+        } recordDuration{m_normalizationMilliseconds};
+        m_warpMilliseconds = 0;
+        m_normalizationMilliseconds = 0;
+        m_normalizationStarted = cv::getTickCount();
         m_normalized.release();
         m_alignmentDiagnostics.clear();
         m_alignmentOverlays.clear();
@@ -918,8 +949,10 @@ namespace OpenOmr
         std::optional<MarkerPosition> recoveredPosition;
         if (m_positioned->markers.size() == 4) {
             cv::Mat provisional;
+            { auto const warpStarted = cv::getTickCount();
             cv::warpPerspective(m_source, provisional, transform, sheetOriginalSize,
                 cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(255));
+            m_warpMilliseconds += (cv::getTickCount() - warpStarted) * 1000.0 / cv::getTickFrequency(); }
             cv::aruco::DetectorParameters recoveryParameters;
             recoveryParameters.cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
             recoveryParameters.adaptiveThreshWinSizeMax = 53;
@@ -997,8 +1030,10 @@ namespace OpenOmr
         }
         diagnostics << "Method: projective marker-corner fit; recovery="
             << (recoveredMarker ? "used" : "not used") << ".\n";
+        { auto const warpStarted = cv::getTickCount();
         cv::warpPerspective(m_source, m_normalized, transform, sheetOriginalSize,
             cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(255));
+        m_warpMilliseconds += (cv::getTickCount() - warpStarted) * 1000.0 / cv::getTickFrequency(); }
         std::vector<cv::Point2f> projected;
         cv::perspectiveTransform(source, projected, transform);
         auto const initialError = cv::norm(projected, target, cv::NORM_L2)
@@ -1077,8 +1112,10 @@ namespace OpenOmr
                 cv::perspectiveTransform(target, corrected, correction);
                 if (candidateError <= initialError + 0.25
                     && cv::norm(corrected, target, cv::NORM_INF) < 4.0) {
+                    { auto const warpStarted = cv::getTickCount();
                     cv::warpPerspective(m_source, m_normalized, candidate, sheetOriginalSize,
                         cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(255));
+                    m_warpMilliseconds += (cv::getTickCount() - warpStarted) * 1000.0 / cv::getTickFrequency(); }
                 }
             }
         }
@@ -1110,13 +1147,6 @@ namespace OpenOmr
             if (auto result = convert(detection)) return result;
         }
 
-        // A perspective scan followed by normalization resamples QR modules a
-        // second time. If that loses decodability, the once-sampled source is
-        // often cleaner; detect globally because its ROI is not normalized.
-        detections = OpenOmr::detectQrCode(m_source);
-        for (auto const& detection : detections) {
-            if (auto result = convert(detection)) return result;
-        }
         return std::nullopt;
     }
 
@@ -1302,6 +1332,19 @@ namespace OpenOmr
     std::vector<uint8_t> SheetGrader::alignmentDiagnostics() const
     {
         return {m_alignmentDiagnostics.begin(), m_alignmentDiagnostics.end()};
+    }
+
+    std::vector<uint8_t> SheetGrader::markerTimings() const
+    {
+        std::ostringstream output;
+        output << "{\"markerDiscovery\":" << m_discoveryMilliseconds
+            << ",\"markerRefinement\":" << m_refinementMilliseconds
+            << ",\"markerPreparation\":" << m_preparationMilliseconds
+            << ",\"markerSelection\":" << m_selectionMilliseconds
+            << ",\"normalizationWarp\":" << m_warpMilliseconds
+            << ",\"normalizationAlignment\":" << std::max(0.0, m_normalizationMilliseconds - m_warpMilliseconds) << '}';
+        auto const text = output.str();
+        return {text.begin(), text.end()};
     }
 
     std::vector<uint8_t> SheetGrader::overlayDiagnostics() const

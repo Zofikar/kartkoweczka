@@ -19,6 +19,11 @@ int main()
     assert(detections.front().tl.x >= 100);
     assert(detections.front().tl.y >= 60);
 
+    // A code elsewhere must not be found by a failed or invalid bounded search.
+    assert(OpenOmr::detectQrCode(canvas, cv::Rect(0, 0, 60, 60)).empty());
+    assert(OpenOmr::detectQrCode(canvas, cv::Rect(600, 600, 20, 20)).empty());
+    assert(OpenOmr::detectQrCode(canvas).size() == 1);
+
     cv::Mat dark(100, 100, CV_8UC1, cv::Scalar(5));
     cv::Mat bright(100, 100, CV_8UC1, cv::Scalar(255));
     cv::Mat good(100, 100, CV_8UC1, cv::Scalar(150));

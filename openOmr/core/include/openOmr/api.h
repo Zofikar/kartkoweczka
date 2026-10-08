@@ -90,9 +90,17 @@ namespace OpenOmr
         [[nodiscard]] cv::Mat const& normalizedImage() const noexcept;
         [[nodiscard]] std::vector<uint8_t> alignmentDiagnostics() const;
         [[nodiscard]] std::vector<uint8_t> overlayDiagnostics() const;
+        [[nodiscard]] std::vector<uint8_t> markerTimings() const;
 
     private:
         cv::Mat m_source{};
+        double m_discoveryMilliseconds{};
+        double m_refinementMilliseconds{};
+        double m_preparationMilliseconds{};
+        double m_selectionMilliseconds{};
+        double m_warpMilliseconds{};
+        double m_normalizationStarted{};
+        double m_normalizationMilliseconds{};
         cv::Mat m_normalized{};
         std::vector<ArUcoDetection> m_aruco{};
         std::vector<std::array<cv::Point2f, 4>> m_markerCorners{};

@@ -142,6 +142,13 @@ namespace OpenOmrWasm::Generated
         return CPP2WASM::Convert(response);
     }
 
+    std::vector<std::uint8_t> WasmSheetGrader::markerTimings() const
+    {
+        auto response = m_impl->markerTimings();
+
+        return CPP2WASM::Convert(response);
+    }
+
     std::optional<OpenOmrWasm::RevisionDetection> WasmSheetGrader::detectRevisionId()
     {
         auto response = m_impl->detectRevisionId();

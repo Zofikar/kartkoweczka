@@ -132,6 +132,10 @@ classes:
         returns: bytes
         const: true
 
+      markerTimings:
+        returns: bytes
+        const: true
+
       detectRevisionId:
         cpp: detectRevisionId
         returns: RevisionDetection?
