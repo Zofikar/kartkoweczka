@@ -26,10 +26,14 @@ const { createDatabase } = await loadSource('../src/db/database.ts', [
 
 test('production scans skip normalized image extraction while diagnostics retain it', async () => {
 	let extracted = 0;
+	let exposureChecks = 0;
 	const vector = () => ({ delete() {}, [Symbol.iterator]: function* () {} });
 	const module = {
 		ImageQuality: { TooDark: { value: 1 }, TooBright: { value: 2 } },
-		checkImageQuality: () => ({ value: 0 }),
+		checkImageQuality: () => {
+			exposureChecks++;
+			return { value: 0 };
+		},
 		SheetGrader: class {
 			detectAruco() {
 				return [
@@ -87,6 +91,12 @@ const bytesToUuid = () => 'revision';`,
 		const diagnostics = await scanner.diagnoseGradingSheetImageData({});
 		assert.equal(extracted, 1);
 		assert.deepEqual(diagnostics.normalizedImage, { normalized: true });
+		assert.equal(exposureChecks, 2);
+		await scanner.diagnoseGradingSheetImageData(
+			{},
+			{ includeNormalizedImage: false, checkExposure: false }
+		);
+		assert.equal(exposureChecks, 2);
 	} finally {
 		delete globalThis.__scannerTest;
 	}
