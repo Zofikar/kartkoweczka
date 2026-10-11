@@ -32,6 +32,8 @@ namespace OpenOmrWasm::Generated
         WasmSheetGrader();
         std::vector<OpenOmrWasm::ArucoDetection> detectAruco(OpenOmrWasm::Image image);
         bool normalize(OpenOmrWasm::Size sheetOriginalSize);
+        void enableNormalizationInspection(bool enabled);
+        OpenOmrWasm::Image initialNormalizedImage() const;
         OpenOmrWasm::Image normalizedImage() const;
         std::vector<std::uint8_t> alignmentDiagnostics() const;
         std::vector<std::uint8_t> overlayDiagnostics() const;

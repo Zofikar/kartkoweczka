@@ -119,6 +119,14 @@ classes:
           sheetOriginalSize: Size
         returns: bool
 
+      enableNormalizationInspection:
+        params:
+          enabled: bool
+
+      initialNormalizedImage:
+        returns: Image
+        const: true
+
       normalizedImage:
         cpp: normalizedImage
         returns: Image

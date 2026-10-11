@@ -121,6 +121,22 @@ namespace OpenOmrWasm::Generated
         return CPP2WASM::Convert(response);
     }
 
+    void WasmSheetGrader::enableNormalizationInspection(
+        bool enabled
+    )
+    {
+        auto cpp_enabled = WASM2CPP::Convert(enabled);
+
+        m_impl->enableNormalizationInspection(cpp_enabled);
+    }
+
+    OpenOmrWasm::Image WasmSheetGrader::initialNormalizedImage() const
+    {
+        auto response = m_impl->initialNormalizedImage();
+
+        return CPP2WASM::Convert(response);
+    }
+
     OpenOmrWasm::Image WasmSheetGrader::normalizedImage() const
     {
         auto response = m_impl->normalizedImage();

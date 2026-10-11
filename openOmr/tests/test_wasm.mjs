@@ -75,13 +75,34 @@ for (let y = 246; y < 279; ++y) {
 }
 
 const grader = new module.SheetGrader();
+// Crop away the right sheet edge while retaining the remaining landmarks.
+const croppedBytes = new module.Vector_Bytes();
+const croppedWidth = 1590;
+croppedBytes.resize(croppedWidth * sheet.height, 255);
+const originalPixels = module.byteVectorView(sheet.data);
+const croppedPixels = module.byteVectorView(croppedBytes);
+for (let y = 0; y < sheet.height; y++) {
+    croppedPixels.set(originalPixels.subarray(y * sheet.width, y * sheet.width + croppedWidth), y * croppedWidth);
+}
+const croppedGrader = new module.SheetGrader();
+const croppedMarkers = croppedGrader.detectAruco({data: croppedBytes, width: croppedWidth, height: sheet.height, layout: module.PixelLayout.Gray});
+assert.equal(croppedGrader.normalize({width: 1800, height: 2050}), false);
+croppedMarkers.delete();
+croppedGrader.delete();
+croppedBytes.delete();
 const aruco = grader.detectAruco(sheet);
 assert.equal(aruco.size(), 5);
 assert.deepEqual(
     Array.from(aruco, detection => detection.id).sort((a, b) => a - b),
     [3, 3, 3, 3, 31],
 );
+grader.enableNormalizationInspection(true);
 assert.equal(grader.normalize({width: 1800, height: 2050}), true);
+const initialNormalized = grader.initialNormalizedImage();
+assert.equal(initialNormalized.width, 1800);
+assert.equal(initialNormalized.height, 2050);
+assert.ok(initialNormalized.data.size() > 0);
+initialNormalized.data.delete();
 const alignmentDiagnostics = grader.alignmentDiagnostics();
 const timingBytes = grader.markerTimings();
 const markerTiming = JSON.parse(new TextDecoder().decode(Uint8Array.from(timingBytes)));
