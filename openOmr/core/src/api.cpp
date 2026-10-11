@@ -73,8 +73,28 @@ namespace OpenOmr
             cv::Rect roi = hintRoi.value() & cv::Rect(0, 0, image.cols, image.rows);
 
             if (roi.width > 0 && roi.height > 0) {
-                cv::Mat cropped = image(roi);
+                cv::Mat cropped;
+                cv::GaussianBlur(image(roi), cropped, cv::Size(3, 3), 0);
                 auto result = detectQrCode(cropped);
+                // Bounded recovery: only the known code crop, never the sheet.
+                if (result.empty()) {
+                    cv::Mat gray;
+                    if (cropped.channels() == 1) gray = cropped;
+                    else cv::cvtColor(cropped, gray, cropped.channels() == 4 ? cv::COLOR_BGRA2GRAY : cv::COLOR_BGR2GRAY);
+                    cv::Mat binary;
+                    cv::adaptiveThreshold(gray, binary, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C,
+                        cv::THRESH_BINARY, 31, 5);
+                    result = detectQrCode(binary);
+                    if (result.empty()) {
+                        cv::threshold(gray, binary, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+                        result = detectQrCode(binary);
+                        if (result.empty()) {
+                            cv::adaptiveThreshold(gray, binary, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C,
+                                cv::THRESH_BINARY, 15, 5);
+                            result = detectQrCode(binary);
+                        }
+                    }
+                }
                 if (!result.empty()) {
 
                     for (auto& res : result) {
@@ -870,8 +890,12 @@ namespace OpenOmr
         return m_aruco;
     }
 
+    void SheetGrader::enableNormalizationInspection(bool enabled) { m_inspectNormalization = enabled; }
+    cv::Mat const& SheetGrader::initialNormalizedImage() const noexcept { return m_initialNormalized; }
+
     bool SheetGrader::normalize(cv::Size sheetOriginalSize)
     {
+        m_initialNormalized.release();
         struct RecordDuration {
             double& elapsed;
             int64 started{cv::getTickCount()};
@@ -895,6 +919,7 @@ namespace OpenOmr
 
         std::vector<cv::Point2f> source;
         std::vector<cv::Point2f> target;
+        std::vector<uint32_t> correspondenceIds;
         auto const placements = MarkerPositioner::placements(m_positioned->version);
         if (!placements) return false;
         for (auto const& positioned : m_positioned->markers) {
@@ -907,6 +932,7 @@ namespace OpenOmr
                         && marker.centerY == positioned.marker.centerY;
                 });
             if (placement == placements->end() || detection == m_detectedMarkers.end()) return false;
+            correspondenceIds.push_back(positioned.marker.id);
             auto const index = std::distance(m_detectedMarkers.begin(), detection);
             auto const center = markerCenter(*config, positioned.position);
             auto const half = config->markerSize / 2;
@@ -927,6 +953,30 @@ namespace OpenOmr
         if (source.size() < 16) return false;
         auto transform = cv::findHomography(source, target, 0);
         if (transform.empty() || !cv::checkRange(transform)) return false;
+        // Recovery is for damaged ink, not content outside the captured frame.
+        // Validate the entire canonical scan rectangle under the inverse homography.
+        auto fullyCaptured = [&](cv::Mat const& candidate) {
+            cv::Mat inverse;
+            if (cv::invert(candidate, inverse) == 0 || !cv::checkRange(inverse)) return false;
+            std::vector<cv::Point2f> boundary{{0, 0},
+                {float(sheetOriginalSize.width - 1), 0},
+                {float(sheetOriginalSize.width - 1), float(sheetOriginalSize.height - 1)},
+                {0, float(sheetOriginalSize.height - 1)}};
+            std::vector<cv::Point2f> captured;
+            cv::perspectiveTransform(boundary, captured, inverse);
+            // One pixel accommodates corner-fit rounding, not missing marker regions.
+            for (auto const& point : captured) {
+                if (!std::isfinite(point.x) || !std::isfinite(point.y)
+                    || point.x < -1 || point.y < -1
+                    || point.x > m_source.cols || point.y > m_source.rows) return false;
+            }
+            return cv::isContourConvex(captured)
+                && std::abs(cv::contourArea(captured)) > 1;
+        };
+        if (!fullyCaptured(transform)) {
+            m_alignmentDiagnostics = "Framing rejected: expected sheet region extends outside the source image. Capture all sheet corners.\n";
+            return false;
+        }
         std::ostringstream diagnostics;
         constexpr std::array positionNames{"TL", "TR", "BR", "BL", "FB"};
         auto positionName = [&](MarkerPosition position) {
@@ -951,7 +1001,7 @@ namespace OpenOmr
             cv::Mat provisional;
             { auto const warpStarted = cv::getTickCount();
             cv::warpPerspective(m_source, provisional, transform, sheetOriginalSize,
-                cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(255));
+                cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(255));
             m_warpMilliseconds += (cv::getTickCount() - warpStarted) * 1000.0 / cv::getTickFrequency(); }
             cv::aruco::DetectorParameters recoveryParameters;
             recoveryParameters.cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
@@ -1018,6 +1068,7 @@ namespace OpenOmr
                 cv::perspectiveTransform(accepted.front(), original, transform.inv());
                 source.insert(source.end(), original.begin(), original.end());
                 target.insert(target.end(), expected.begin(), expected.end());
+                correspondenceIds.push_back(placement.id);
                 auto candidateTransform = cv::findHomography(source, target, 0);
                 if (!candidateTransform.empty() && cv::checkRange(candidateTransform)) {
                     transform = candidateTransform;
@@ -1031,9 +1082,15 @@ namespace OpenOmr
         diagnostics << "Method: projective marker-corner fit; recovery="
             << (recoveredMarker ? "used" : "not used") << ".\n";
         { auto const warpStarted = cv::getTickCount();
+        if (!fullyCaptured(transform)) {
+            m_alignmentDiagnostics = diagnostics.str()
+                + "Framing rejected after marker recovery: expected sheet region extends outside the source image.\n";
+            return false;
+        }
         cv::warpPerspective(m_source, m_normalized, transform, sheetOriginalSize,
             cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(255));
         m_warpMilliseconds += (cv::getTickCount() - warpStarted) * 1000.0 / cv::getTickFrequency(); }
+        if (m_inspectNormalization) m_initialNormalized = m_normalized.clone();
         std::vector<cv::Point2f> projected;
         cv::perspectiveTransform(source, projected, transform);
         auto const initialError = cv::norm(projected, target, cv::NORM_L2)
@@ -1087,7 +1144,7 @@ namespace OpenOmr
             detector.detectMarkers(m_normalized(bounds), corners, ids);
             for (std::size_t candidate = 0; candidate < ids.size(); ++candidate) {
                 auto const canonicalId = SheetDictionary::canonicalId(ids[candidate]);
-                if (!canonicalId || *canonicalId != m_positioned->markers[offset / 4].marker.id) continue;
+                if (!canonicalId || *canonicalId != correspondenceIds[offset / 4]) continue;
                 bool nearby = true;
                 for (int corner = 0; corner < 4; ++corner) {
                     auto const point = corners[candidate][corner] + cv::Point2f(bounds.tl());
@@ -1111,7 +1168,9 @@ namespace OpenOmr
                 std::vector<cv::Point2f> corrected;
                 cv::perspectiveTransform(target, corrected, correction);
                 if (candidateError <= initialError + 0.25
-                    && cv::norm(corrected, target, cv::NORM_INF) < 4.0) {
+                    && cv::norm(corrected, target, cv::NORM_INF) < 4.0
+                    && fullyCaptured(candidate)) {
+                    m_alignmentDiagnostics += "Refinement applied.\n";
                     { auto const warpStarted = cv::getTickCount();
                     cv::warpPerspective(m_source, m_normalized, candidate, sheetOriginalSize,
                         cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(255));

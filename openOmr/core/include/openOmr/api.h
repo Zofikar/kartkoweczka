@@ -84,6 +84,8 @@ namespace OpenOmr
     public:
         std::vector<ArUcoDetection> detectAruco(cv::Mat const& image);
         bool normalize(cv::Size sheetOriginalSize);
+        void enableNormalizationInspection(bool enabled);
+        [[nodiscard]] cv::Mat const& initialNormalizedImage() const noexcept;
         std::optional<RevisionDetection> detectRevisionId();
         std::vector<uint8_t> gradeSheet(cv::Size cellSize, cv::Size innerCellSize);
         [[nodiscard]] std::optional<uint32_t> detectedVersion() const noexcept;
@@ -102,6 +104,8 @@ namespace OpenOmr
         double m_normalizationStarted{};
         double m_normalizationMilliseconds{};
         cv::Mat m_normalized{};
+        cv::Mat m_initialNormalized{};
+        bool m_inspectNormalization{};
         std::vector<ArUcoDetection> m_aruco{};
         std::vector<std::array<cv::Point2f, 4>> m_markerCorners{};
         std::vector<DetectedMarker> m_detectedMarkers{};
