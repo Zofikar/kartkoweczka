@@ -53,6 +53,10 @@ export type OmrDiagnosticStage =
 	| 'graded';
 
 export interface GradingSheetDiagnostics {
+	initialNormalizedImage?: ImageData;
+	initialGridEdges?: import('./gridEdges').GridEdge[];
+	refinementApplied?: boolean;
+	gridEdges?: import('./gridEdges').GridEdge[];
 	overlayRects?: NormalizedDetectionRect[];
 	alignmentDetails?: string;
 	imageData: ImageData;
@@ -195,6 +199,7 @@ export async function diagnoseGradingSheetImageData(
 		if (markers.length < 3) {
 			return diagnosticsFailure(imageData, markers, quality, stages, i18n.t('errors.markers'));
 		}
+		if (includeNormalizedImage) grader.enableNormalizationInspection(true);
 		const normalizedSuccessfully = grader.normalize(SHEET_SIZE);
 		timing('normalization');
 		if (onTiming) {
@@ -226,8 +231,15 @@ export async function diagnoseGradingSheetImageData(
 		}
 		stages.push('normalized');
 
+		let initialNormalizedImage: ImageData | undefined;
 		let normalizedImage: ImageData | undefined;
 		if (includeNormalizedImage) {
+			const initial = grader.initialNormalizedImage();
+			try {
+				initialNormalizedImage = openOmrImageToImageData(openOmr, initial);
+			} finally {
+				initial.data.delete();
+			}
 			const normalized = grader.normalizedImage();
 			try {
 				normalizedImage = openOmrImageToImageData(openOmr, normalized);
@@ -250,6 +262,8 @@ export async function diagnoseGradingSheetImageData(
 					normalizedImage
 				),
 				alignmentDetails,
+				initialNormalizedImage,
+				refinementApplied: alignmentDetails.includes('Refinement applied.'),
 			};
 		}
 		const qrCode = revisionToQrCode(revision);
@@ -265,6 +279,8 @@ export async function diagnoseGradingSheetImageData(
 				alignmentDetails,
 				overlayRects: readOverlayDiagnostics(grader),
 				imageData,
+				initialNormalizedImage,
+				refinementApplied: alignmentDetails.includes('Refinement applied.'),
 				normalizedImage,
 				markers,
 				qrCode,

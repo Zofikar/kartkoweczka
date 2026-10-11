@@ -379,6 +379,7 @@
 		"updateError": "Could not check or install the update. Please try again online."
 	},
 	"cameraDebug": {
+		"gridLegend": "Lime lines and sample dots: collected grid top/left borders. Labels show offset and tilt. Diagnostic only; no normalization correction is applied.",
 		"overlayLegend": "Dashed blue: expected markers. Solid pink: markers independently detected in the final normalized image. Amber: QR search region. Missing pink outlines mean re-detection failed, not necessarily that a marker is absent. Inspection adds an extra detection pass.",
 		"inspectImages": "Inspect normalized images",
 		"imageCost": "Off: send timings to the development server. On: save normalized sheet and QR images on the server, at most once every 3 seconds. Images may contain answers and a revision code. Image mode adds overhead; leave it off for performance measurements.",

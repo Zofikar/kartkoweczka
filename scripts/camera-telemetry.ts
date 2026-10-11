@@ -32,7 +32,7 @@ export function cameraTelemetry(): Plugin {
 					let body = '';
 					for await (const chunk of request) {
 						body += chunk.toString();
-						if (Buffer.byteLength(body) > 12 * 1024 * 1024) {
+						if (Buffer.byteLength(body) > 80 * 1024 * 1024) {
 							response.statusCode = 413;
 							response.end();
 							return;
@@ -50,20 +50,81 @@ export function cameraTelemetry(): Plugin {
 							throw new SyntaxError('Invalid PNG');
 						return bytes;
 					}
-					const normalized = png(data.normalized);
-					const qr = png(data.qr);
+					const normalized = data.normalized === undefined ? undefined : png(data.normalized);
+					const qr = data.qr === undefined ? undefined : png(data.qr);
+					const original = data.original === undefined ? undefined : png(data.original);
+					const initialNormalized =
+						data.initialNormalized === undefined ? undefined : png(data.initialNormalized);
 					const id = randomUUID();
 					const images = path.join(directory, 'camera-images');
 					await mkdir(images, { recursive: true });
-					await writeFile(path.join(images, `${id}-normalized.png`), normalized);
-					await writeFile(path.join(images, `${id}-qr.png`), qr);
+					if (!original && !normalized) throw new SyntaxError('Missing capture image');
+					if (normalized) await writeFile(path.join(images, `${id}-normalized.png`), normalized);
+					if (qr) await writeFile(path.join(images, `${id}-qr.png`), qr);
+					if (original) await writeFile(path.join(images, `${id}-original.png`), original);
+					if (initialNormalized)
+						await writeFile(path.join(images, `${id}-initial-normalized.png`), initialNormalized);
 					await appendFile(
 						path.join(images, 'captures.jsonl'),
 						JSON.stringify({
 							id,
 							receivedAt: new Date().toISOString(),
+							hasOriginal: original !== undefined,
+							hasNormalized: normalized !== undefined,
+							warnings: Array.isArray(data.warnings)
+								? data.warnings
+										.filter((value: unknown) => typeof value === 'string')
+										.slice(0, 8)
+										.map((value: string) => value.slice(0, 1000))
+								: [],
+							originalWidth:
+								Number.isSafeInteger(data.originalWidth) && data.originalWidth > 0
+									? data.originalWidth
+									: null,
+							originalHeight:
+								Number.isSafeInteger(data.originalHeight) && data.originalHeight > 0
+									? data.originalHeight
+									: null,
 							readable: data.readable === true,
 							torch: data.torch === true,
+							refinementApplied: data.refinementApplied === true,
+							alignmentDetails:
+								typeof data.alignmentDetails === 'string'
+									? data.alignmentDetails.slice(0, 8192)
+									: '',
+							initialGridEdges: Array.isArray(data.initialGridEdges)
+								? data.initialGridEdges
+										.slice(0, 2)
+										.map((edge: Record<string, unknown>) =>
+											Object.fromEntries(
+												['axis', 'expected', 'offset', 'tiltDegrees', 'rms', 'coverage'].map(
+													(key) => [
+														key,
+														key === 'axis'
+															? edge[key] === 'top'
+																? 'top'
+																: 'left'
+															: typeof edge[key] === 'number' && Number.isFinite(edge[key])
+																? edge[key]
+																: null,
+													]
+												)
+											)
+										)
+								: [],
+							gridEdges: Array.isArray(data.gridEdges)
+								? data.gridEdges.slice(0, 2).map((edge: Record<string, unknown>) => ({
+										axis: edge.axis === 'top' ? 'top' : 'left',
+										...Object.fromEntries(
+											['expected', 'offset', 'tiltDegrees', 'rms', 'coverage'].map((key) => [
+												key,
+												typeof edge[key] === 'number' && Number.isFinite(edge[key])
+													? edge[key]
+													: null,
+											])
+										),
+									}))
+								: [],
 						}) + '\n'
 					);
 					response.statusCode = 204;

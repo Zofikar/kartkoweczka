@@ -379,6 +379,7 @@
 		"updateError": "Nie udało się sprawdzić lub zainstalować aktualizacji. Spróbuj ponownie online."
 	},
 	"cameraDebug": {
+		"gridLegend": "Jasnozielone linie i punkty: zebrane krawędzie górna i lewa siatki. Etykiety pokazują przesunięcie i nachylenie. To diagnostyka, bez korekty obrazu.",
 		"overlayLegend": "Niebieskie przerywane: oczekiwane markery. Różowe ciągłe: markery wykryte niezależnie w wyprostowanym obrazie. Żółte: obszar wyszukiwania QR. Brak różowego obrysu oznacza nieudane ponowne wykrywanie, niekoniecznie brak markera. Podgląd dodaje dodatkowy przebieg detekcji.",
 		"inspectImages": "Podgląd wyprostowanych obrazów",
 		"imageCost": "Wyłączony: wysyłanie pomiarów do serwera deweloperskiego. Włączony: zapis karty i obrazu QR na serwerze, najwyżej raz na 3 sekundy. Obrazy mogą zawierać odpowiedzi i kod wersji. Ten tryb zwiększa koszt przetwarzania; wyłącz go podczas pomiarów wydajności.",

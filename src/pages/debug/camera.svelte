@@ -22,6 +22,8 @@
 	let elapsed = $state(0);
 	let timings = $state<Record<string, number>>({});
 	let telemetryPending = false;
+	let uploadStatus = $state('');
+	let uploadedCaptures = 0;
 	let debugImages = $state(false);
 	let lastImageUpload = 0;
 	let normalizedPreview: HTMLCanvasElement;
@@ -29,6 +31,14 @@
 
 	let lighting = createLightingPolicy();
 	let overlay: HTMLCanvasElement;
+
+	function encodeFrame(image: ImageData): string {
+		const canvas = document.createElement('canvas');
+		canvas.width = image.width;
+		canvas.height = image.height;
+		canvas.getContext('2d')!.putImageData(image, 0, 0);
+		return canvas.toDataURL('image/png');
+	}
 
 	async function analyze(current: number) {
 		if (current !== session || !active) return;
@@ -84,6 +94,32 @@
 						);
 					}
 					drawing.setLineDash([]);
+					for (const edge of detected.gridEdges ?? []) {
+						drawing.strokeStyle = '#00b8ff';
+						drawing.setLineDash([12, 8]);
+						drawing.beginPath();
+						if (edge.axis === 'top') {
+							drawing.moveTo(edge.line[0].x, edge.expected);
+							drawing.lineTo(edge.line[1].x, edge.expected);
+						} else {
+							drawing.moveTo(edge.expected, edge.line[0].y);
+							drawing.lineTo(edge.expected, edge.line[1].y);
+						}
+						drawing.stroke();
+						drawing.setLineDash([]);
+						drawing.strokeStyle = '#76ff03';
+						drawing.fillStyle = '#76ff03';
+						drawing.beginPath();
+						drawing.moveTo(edge.line[0].x, edge.line[0].y);
+						drawing.lineTo(edge.line[1].x, edge.line[1].y);
+						drawing.stroke();
+						for (const point of edge.points) drawing.fillRect(point.x - 2, point.y - 2, 4, 4);
+						drawing.fillText(
+							`${edge.axis}: ${edge.offset.toFixed(1)}px / ${edge.tiltDegrees.toFixed(1)}deg`,
+							edge.line[1].x + 10,
+							edge.line[1].y
+						);
+					}
 					drawing.strokeStyle = '#ff4081';
 					drawing.fillStyle = '#ff4081';
 					for (const marker of detected.normalizedMarkers ?? []) {
@@ -105,43 +141,73 @@
 					import.meta.env.DEV &&
 					!telemetryPending &&
 					inspect === debugImages &&
-					(!inspect ||
-						(detected.normalizedImage &&
-							detected.overlayRects?.some((rect) => rect.kind === 'qr') &&
-							performance.now() - lastImageUpload >= 3000))
+					(!inspect || performance.now() - lastImageUpload >= 500)
 				) {
 					telemetryPending = true;
 					if (inspect) lastImageUpload = performance.now();
-					void fetch(
-						`${import.meta.env.BASE_URL}__debug/${inspect ? 'camera-images' : 'camera-timings'}`,
-						{
-							method: 'POST',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify(
-								inspect
-									? {
-											normalized: normalizedPreview.toDataURL('image/png'),
-											qr: qrPreview.toDataURL('image/png'),
-											readable: !!scanFromDiagnostics(detected),
-											torch,
-										}
-									: {
-											duration: result.duration,
-											timings: result.timings,
-											width: frame.width,
-											height: frame.height,
-											markers: detected.markers.length,
-											readable: !!scanFromDiagnostics(detected),
-											torch,
-										}
-							),
-							signal: AbortSignal.timeout(5000),
-						}
-					)
-						.catch(() => {})
-						.finally(() => {
+					void (async () => {
+						try {
+							uploadStatus = inspect ? 'Uploading capture?' : 'Uploading timings?';
+							const response = await fetch(
+								`${import.meta.env.BASE_URL}__debug/${inspect ? 'camera-images' : 'camera-timings'}`,
+								{
+									method: 'POST',
+									headers: { 'Content-Type': 'application/json' },
+									body: JSON.stringify(
+										inspect
+											? {
+													original: encodeFrame(frame),
+													originalWidth: frame.width,
+													originalHeight: frame.height,
+													initialNormalized: detected.initialNormalizedImage
+														? (() => {
+																const canvas = document.createElement('canvas');
+																canvas.width = detected.initialNormalizedImage.width;
+																canvas.height = detected.initialNormalizedImage.height;
+																canvas
+																	.getContext('2d')!
+																	.putImageData(detected.initialNormalizedImage, 0, 0);
+																return canvas.toDataURL('image/png');
+															})()
+														: undefined,
+													initialGridEdges: detected.initialGridEdges,
+													refinementApplied: detected.refinementApplied,
+													alignmentDetails: detected.alignmentDetails,
+													normalized: detected.normalizedImage
+														? normalizedPreview.toDataURL('image/png')
+														: undefined,
+													qr:
+														detected.normalizedImage &&
+														detected.overlayRects?.some((rect) => rect.kind === 'qr')
+															? qrPreview.toDataURL('image/png')
+															: undefined,
+													warnings: detected.warnings,
+													gridEdges: detected.gridEdges,
+													readable: !!scanFromDiagnostics(detected),
+													torch,
+												}
+											: {
+													duration: result.duration,
+													timings: result.timings,
+													width: frame.width,
+													height: frame.height,
+													markers: detected.markers.length,
+													readable: !!scanFromDiagnostics(detected),
+													torch,
+												}
+									),
+									signal: AbortSignal.timeout(inspect ? 15000 : 5000),
+								}
+							);
+							if (!response.ok) throw new Error(`Upload failed: HTTP ${response.status}`);
+							if (inspect) uploadedCaptures++;
+							uploadStatus = inspect ? `Saved captures: ${uploadedCaptures}` : 'Timings saved';
+						} catch (cause) {
+							uploadStatus = cause instanceof Error ? cause.message : String(cause);
+						} finally {
 							telemetryPending = false;
-						});
+						}
+					})();
 				}
 				overlay.width = frame.width;
 				overlay.height = frame.height;
@@ -266,6 +332,7 @@
 		<Button onclick={saveFrame} disabled={!active}>{i18n.t('cameraDebug.saveFrame')}</Button>
 	</div>
 	{#if error}<p role="alert">{error}</p>{/if}
+	<p aria-live="polite">{uploadStatus}</p>
 	<div class="preview">
 		<video bind:this={video} muted playsinline aria-label={i18n.t('cameraDebug.title')}></video>
 		<canvas bind:this={overlay} aria-hidden="true"></canvas>
@@ -283,6 +350,7 @@
 		<pre>{JSON.stringify(
 				{
 					quality,
+					gridEdges: diagnostics.gridEdges,
 					timings,
 					analysisSize: `${diagnostics.imageData.width}×${diagnostics.imageData.height}`,
 					revision: diagnostics.qrCode?.data,
@@ -299,6 +367,7 @@
 	>
 	<p>{i18n.t('cameraDebug.imageCost')}</p>
 	<p>{i18n.t('cameraDebug.overlayLegend')}</p>
+	<p>{i18n.t('cameraDebug.gridLegend')}</p>
 	<div class="diagnostic-images">
 		<div>
 			<h2>{i18n.t('cameraDebug.normalized')}</h2>

@@ -2,6 +2,7 @@ import { diagnoseGradingSheetImageData } from './omrScanner';
 import { measureCaptureQuality } from './captureQuality';
 import { i18n, type Locale } from '@/lib/i18n.svelte';
 import { getOpenOmr, imageDataToOpenOmrImage } from './openOmr';
+import { collectGridEdges } from './gridEdges';
 
 let canvas: OffscreenCanvas | undefined;
 self.onmessage = async (
@@ -42,6 +43,9 @@ self.onmessage = async (
 		const quality = measureCaptureQuality(frame, diagnostics.markers);
 		// Fresh detection in the final warp, not source corners projected by their own fit.
 		if (event.data.debugImages && diagnostics.normalizedImage) {
+			if (diagnostics.initialNormalizedImage)
+				diagnostics.initialGridEdges = collectGridEdges(diagnostics.initialNormalizedImage);
+			diagnostics.gridEdges = collectGridEdges(diagnostics.normalizedImage);
 			const module = await getOpenOmr();
 			const image = imageDataToOpenOmrImage(module, diagnostics.normalizedImage);
 			const grader = new module.SheetGrader();
@@ -66,6 +70,8 @@ self.onmessage = async (
 		}
 		diagnostics.quality = quality.dark ? 'too-dark' : 'good';
 		const transfer: Transferable[] = [frame.data.buffer];
+		if (diagnostics.initialNormalizedImage)
+			transfer.push(diagnostics.initialNormalizedImage.data.buffer);
 		if (diagnostics.normalizedImage) transfer.push(diagnostics.normalizedImage.data.buffer);
 		self.postMessage(
 			{ diagnostics, quality, timings, duration: Math.round(performance.now() - started) },
