@@ -185,4 +185,13 @@ namespace OpenOmrWasm::Generated
         return CPP2WASM::Convert(response);
     }
 
+    void WasmSheetGrader::setAnswerCounts(
+        emscripten::val answerCounts
+    )
+    {
+        auto cpp_answerCounts = WASM2CPP::ConvertBytes(answerCounts);
+
+        m_impl->setAnswerCounts(cpp_answerCounts);
+    }
+
 }

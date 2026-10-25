@@ -63,6 +63,7 @@ export interface SheetGrader extends ClassHandle {
   detectAruco(_0: Image): Vector_ArucoDetection;
   initialNormalizedImage(): Image;
   normalizedImage(): Image;
+  setAnswerCounts(answerCounts: Uint8Array): void;
 }
 
 export type Point = {

@@ -159,6 +159,7 @@ def build_wasm() -> None:
             "initialize(size: Size, revisionId: Uint8Array): void;",
             text,
         )
+        text = re.sub(r"setAnswerCounts\(_0: any\): void;", "setAnswerCounts(answerCounts: Uint8Array): void;", text)
         declaration.write_text(text, encoding="utf-8")
 
     shutil.copyfile(

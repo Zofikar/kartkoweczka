@@ -40,6 +40,7 @@ namespace OpenOmrWasm::Generated
         std::vector<std::uint8_t> markerTimings() const;
         std::optional<OpenOmrWasm::RevisionDetection> detectRevisionId();
         std::vector<std::uint8_t> gradeSheet(OpenOmrWasm::Size cellSize, OpenOmrWasm::Size innerCellSize);
+        void setAnswerCounts(emscripten::val answerCounts);
 
     private:
         std::unique_ptr<OpenOmr::SheetGrader> m_impl;

@@ -103,6 +103,7 @@ EMSCRIPTEN_BINDINGS(OpenOmrWasm_generated)
     bind_SheetGrader.function("markerTimings", &OpenOmrWasm::Generated::WasmSheetGrader::markerTimings);
     bind_SheetGrader.function("detectRevisionId", &OpenOmrWasm::Generated::WasmSheetGrader::detectRevisionId);
     bind_SheetGrader.function("gradeSheet", &OpenOmrWasm::Generated::WasmSheetGrader::gradeSheet);
+    bind_SheetGrader.function("setAnswerCounts", &OpenOmrWasm::Generated::WasmSheetGrader::setAnswerCounts);
 
     function("generateQr", &OpenOmrWasm::Generated::generateQr);
     function("detectQrCode", &OpenOmrWasm::Generated::detectQrCode);
