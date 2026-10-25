@@ -76,6 +76,8 @@ export default defineConfig(({ mode }) => {
 			zodCompiler(),
 		],
 		optimizeDeps: { exclude: ['svelte-navigator', '@sqlite.org/sqlite-wasm'] },
+		// Workers import rune-based translations too; production uses a separate plugin pipeline.
+		worker: { plugins: () => [svelte()] },
 		build: {
 			sourcemap: true,
 			rolldownOptions: {
