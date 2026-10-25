@@ -215,7 +215,7 @@
 		}
 
 		// Transfer a bounded preview frame to a dedicated WASM worker.
-		let diagnostics: GradingSheetDiagnostics | null = null;
+		let diagnostics: GradingSheetDiagnostics | null;
 		let quality;
 		try {
 			const detected = await detector.analyze(videoElement, i18n.locale);
@@ -223,6 +223,11 @@
 			quality = detected?.quality;
 		} catch (error) {
 			console.warn('Failed to analyse camera frame:', error);
+			if (session !== cameraSession || cameraState !== 'searching') return;
+			stopCamera();
+			errorMessage = error instanceof Error ? error.message : String(error);
+			cameraState = 'error';
+			return;
 		}
 
 		// The user may have cancelled or switched modes while the frame was analysed.
