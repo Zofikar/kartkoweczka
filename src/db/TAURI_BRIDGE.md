@@ -62,3 +62,8 @@ yarn tauri:build
 
 Both commands run Vite with `DATABASE_BACKEND=tauri`. Browser-only OPFS, SQLite WASM, Comlink, and
 database worker code are therefore removed from the desktop frontend bundle.
+
+The live OMR worker must not invoke the native bridge: Tauri IPC is installed on
+the WebView's `window`, not on worker globals. After decoding a revision QR, the
+worker requests its answer counts from `liveDetector.ts`. The WebView reads the
+revision through repositories and sends only the counts (or an error) back.

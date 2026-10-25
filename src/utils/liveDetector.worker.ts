@@ -5,14 +5,34 @@ import { getOpenOmr, imageDataToOpenOmrImage } from './openOmr';
 import { collectGridEdges } from './gridEdges';
 
 let canvas: OffscreenCanvas | undefined;
+let pendingAnswerCounts:
+	{ resolve: (counts: Uint8Array) => void; reject: (error: Error) => void } | undefined;
+
+function getAnswerCounts(revisionId: string): Promise<Uint8Array> {
+	return new Promise((resolve, reject) => {
+		pendingAnswerCounts = { resolve, reject };
+		self.postMessage({ revisionId });
+	});
+}
+
 self.onmessage = async (
 	event: MessageEvent<{
 		bitmap?: ImageBitmap;
 		locale: Locale;
 		preload?: boolean;
 		debugImages?: boolean;
+		answerCounts?: Uint8Array;
+		answerCountsError?: string;
 	}>
 ) => {
+	if (event.data.answerCounts || event.data.answerCountsError !== undefined) {
+		const pending = pendingAnswerCounts;
+		pendingAnswerCounts = undefined;
+		if (event.data.answerCountsError !== undefined)
+			pending?.reject(new Error(event.data.answerCountsError));
+		else pending?.resolve(event.data.answerCounts!);
+		return;
+	}
 	const { bitmap, locale } = event.data;
 	if (event.data.preload) {
 		try {
@@ -36,6 +56,7 @@ self.onmessage = async (
 		const diagnostics = await diagnoseGradingSheetImageData(frame, {
 			includeNormalizedImage: event.data.debugImages === true,
 			checkExposure: false,
+			getAnswerCounts,
 			onTiming: (stage, milliseconds) => {
 				timings[stage] = milliseconds;
 			},

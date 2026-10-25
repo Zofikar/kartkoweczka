@@ -148,10 +148,12 @@ export async function diagnoseGradingSheetImageData(
 		includeNormalizedImage = true,
 		checkExposure = true,
 		onTiming,
+		getAnswerCounts = getRevisionAnswerCounts,
 	}: {
 		includeNormalizedImage?: boolean;
 		checkExposure?: boolean;
 		onTiming?: (stage: string, milliseconds: number) => void;
+		getAnswerCounts?: (revisionId: string) => Promise<Uint8Array>;
 	} = {}
 ): Promise<GradingSheetDiagnostics> {
 	let measuredAt = performance.now();
@@ -270,13 +272,7 @@ export async function diagnoseGradingSheetImageData(
 		const qrCode = revisionToQrCode(revision);
 		stages.push('revision-detected');
 
-		const storedRevision = await getTestRevision(qrCode.metadata!.revisionId);
-		if (!storedRevision) throw new Error(i18n.t('scanner.unknownRevision'));
-		grader.setAnswerCounts(
-			Uint8Array.from(
-				buildQuestionResponseRows(storedRevision.content).map((row) => row.answerLabels.length)
-			)
-		);
+		grader.setAnswerCounts(await getAnswerCounts(qrCode.metadata!.revisionId));
 		const grades = grader.gradeSheet(ANSWER_CELL_SIZE, ANSWER_INNER_CELL_SIZE);
 		timing('grading');
 		try {
@@ -304,6 +300,15 @@ export async function diagnoseGradingSheetImageData(
 		grader?.delete();
 		image.data.delete();
 	}
+}
+
+/** Native database access must run in the WebView, never inside the camera worker. */
+export async function getRevisionAnswerCounts(revisionId: string): Promise<Uint8Array> {
+	const storedRevision = await getTestRevision(revisionId);
+	if (!storedRevision) throw new Error(i18n.t('scanner.unknownRevision'));
+	return Uint8Array.from(
+		buildQuestionResponseRows(storedRevision.content).map((row) => row.answerLabels.length)
+	);
 }
 
 function diagnosticsFailure(

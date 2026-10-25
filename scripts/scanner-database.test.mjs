@@ -109,6 +109,17 @@ const bytesToUuid = () => 'revision';`,
 			{ includeNormalizedImage: false, checkExposure: false }
 		);
 		assert.equal(exposureChecks, 2);
+		let revisionRequested;
+		await scanner.diagnoseGradingSheetImageData(
+			{},
+			{
+				getAnswerCounts: async (revisionId) => {
+					revisionRequested = revisionId;
+					return new Uint8Array([4, 2]);
+				},
+			}
+		);
+		assert.equal(revisionRequested, 'revision');
 	} finally {
 		delete globalThis.__scannerTest;
 	}
