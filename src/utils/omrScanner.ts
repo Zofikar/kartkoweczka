@@ -1,4 +1,5 @@
 import type { SnapshotQuestion } from '@/db/repositories';
+import { getTestRevision } from '@/db/repositories';
 import type {
 	ArucoDetection,
 	ImageQuality,
@@ -269,6 +270,13 @@ export async function diagnoseGradingSheetImageData(
 		const qrCode = revisionToQrCode(revision);
 		stages.push('revision-detected');
 
+		const storedRevision = await getTestRevision(qrCode.metadata!.revisionId);
+		if (!storedRevision) throw new Error(i18n.t('scanner.unknownRevision'));
+		grader.setAnswerCounts(
+			Uint8Array.from(
+				buildQuestionResponseRows(storedRevision.content).map((row) => row.answerLabels.length)
+			)
+		);
 		const grades = grader.gradeSheet(ANSWER_CELL_SIZE, ANSWER_INNER_CELL_SIZE);
 		timing('grading');
 		try {
