@@ -995,10 +995,10 @@ namespace OpenOmr
         // FB provides a provisional solution, not a substitute BR landmark.
         // Rectify once for a bounded search, then map recovered corners back
         // to the original image before fitting the final transform.
+        cv::Mat provisional;
         bool recoveredMarker = false;
         std::optional<MarkerPosition> recoveredPosition;
         if (m_positioned->markers.size() == 4) {
-            cv::Mat provisional;
             { auto const warpStarted = cv::getTickCount();
             cv::warpPerspective(m_source, provisional, transform, sheetOriginalSize,
                 cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(255));
@@ -1087,7 +1087,9 @@ namespace OpenOmr
                 + "Framing rejected after marker recovery: expected sheet region extends outside the source image.\n";
             return false;
         }
-        cv::warpPerspective(m_source, m_normalized, transform, sheetOriginalSize,
+        // Failed recovery leaves the homography unchanged: reuse the exact pixels.
+        if (!recoveredMarker && !provisional.empty()) m_normalized = std::move(provisional);
+        else cv::warpPerspective(m_source, m_normalized, transform, sheetOriginalSize,
             cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(255));
         m_warpMilliseconds += (cv::getTickCount() - warpStarted) * 1000.0 / cv::getTickFrequency(); }
         if (m_inspectNormalization) m_initialNormalized = m_normalized.clone();
@@ -1188,10 +1190,15 @@ namespace OpenOmr
         }
         auto const config = sheetVersionConfig(m_positioned->version);
         if (!config) return std::nullopt;
+        // Give QR detection room around the printed code after normalization.
+        // This changes only the search boundary, not the generated sheet geometry.
+        auto const searchPadding = cv::Point{56, 56};
         auto const topLeft = scalePoint(
-            config->identityCodeArea.tl(), config->referenceSize, m_normalized.size());
+            config->identityCodeArea.tl() - searchPadding,
+            config->referenceSize, m_normalized.size());
         auto const size = scaleSize(
-            config->identityCodeArea.size(), config->referenceSize, m_normalized.size());
+            config->identityCodeArea.size() + cv::Size{116, 86},
+            config->referenceSize, m_normalized.size());
         auto detections = OpenOmr::detectQrCode(
             m_normalized, cv::Rect(topLeft, size));
         auto convert = [](QrDetection const& detection)
@@ -1211,19 +1218,30 @@ namespace OpenOmr
 
     namespace
     {
-        double darkRatio(cv::Mat const& gray, cv::Rect area)
+        double paperBrightness(cv::Mat const& gray, cv::Rect area)
+        {
+            area &= cv::Rect({}, gray.size());
+            if (area.empty()) return 255.0;
+            auto pixels = gray(area).clone();
+            cv::Mat sorted;
+            cv::sort(pixels.reshape(1, 1), sorted, cv::SORT_ASCENDING);
+            return sorted.at<uint8_t>(0, sorted.cols * 3 / 4);
+        }
+
+        double darkRatio(cv::Mat const& gray, cv::Rect area, double threshold)
         {
             area &= cv::Rect({}, gray.size());
             if (area.empty()) return 0.0;
             cv::Mat dark;
-            cv::threshold(gray(area), dark, 128, 255, cv::THRESH_BINARY_INV);
+            cv::threshold(gray(area), dark, threshold, 255, cv::THRESH_BINARY_INV);
             return static_cast<double>(cv::countNonZero(dark)) / area.area();
         }
 
         double correctionRatio(
             cv::Mat const& gray,
             cv::Rect outer,
-            cv::Rect inner)
+            cv::Rect inner,
+            double threshold)
         {
             outer &= cv::Rect({}, gray.size());
             inner &= outer;
@@ -1237,26 +1255,18 @@ namespace OpenOmr
             // the writable ring between the two printed squares.
             cv::rectangle(mask, cv::Rect({}, outer.size()), cv::Scalar(0), 3);
             cv::Mat dark;
-            cv::threshold(gray(outer), dark, 128, 255, cv::THRESH_BINARY_INV);
+            cv::threshold(gray(outer), dark, threshold, 255, cv::THRESH_BINARY_INV);
             cv::bitwise_and(dark, mask, dark);
             auto const samples = cv::countNonZero(mask);
             return samples == 0 ? 0.0
                 : static_cast<double>(cv::countNonZero(dark)) / samples;
         }
 
-        double frameRatio(cv::Mat const& gray, cv::Rect area)
-        {
-            area &= cv::Rect({}, gray.size());
-            if (area.empty()) return 0.0;
-            cv::Mat mask(area.size(), CV_8UC1, cv::Scalar(0));
-            cv::rectangle(mask, cv::Rect({}, area.size()), cv::Scalar(255), 3);
-            cv::Mat dark;
-            cv::threshold(gray(area), dark, 128, 255, cv::THRESH_BINARY_INV);
-            cv::bitwise_and(dark, mask, dark);
-            auto const samples = cv::countNonZero(mask);
-            return samples == 0 ? 0.0
-                : static_cast<double>(cv::countNonZero(dark)) / samples;
-        }
+    }
+
+    void SheetGrader::setAnswerCounts(std::vector<uint8_t> const& answerCounts)
+    {
+        m_answerCounts = answerCounts;
     }
 
     std::vector<uint8_t> SheetGrader::gradeSheet(
@@ -1278,65 +1288,53 @@ namespace OpenOmr
         else if (m_normalized.channels() == 4) cv::cvtColor(m_normalized, gray, cv::COLOR_RGBA2GRAY);
         else cv::cvtColor(m_normalized, gray, cv::COLOR_BGR2GRAY);
 
-        auto const gridTopLeft = scalePoint(
-            config->gridArea.tl(), config->referenceSize, gray.size());
-        // API dimensions are authoritative when supplied; config dimensions
-        // define generated defaults and row capacity.
+        // The caller supplies the printed response layout. Pixels never create rows.
+        std::vector<Question> questions;
+        for (auto count : m_answerCounts) {
+            if (count == 0 || count > config->maxAnswerCount) return {};
+            questions.emplace_back(0, 0, std::vector<std::string>(count));
+        }
+        auto const blocks = planQuestionBlocks(*config, questions);
+        if (!blocks) return {};
         auto const step = cellSize;
         auto const innerSize = innerCellSize;
+        cv::Mat gradient;
+        cv::Sobel(gray, gradient, CV_32F, 0, 1, 3);
+        gradient = cv::abs(gradient);
 
-        auto const rowsPerBlock = config->gridArea.height / config->cellSize.height;
-        auto const gridRight = scalePoint(
-            config->gridArea.br(), config->referenceSize, gray.size()).x;
-        auto const gutter = scaleSize(
-            {config->questionColumnGutter, config->questionColumnGutter},
-            config->referenceSize, gray.size()).width;
-        auto blockX = gridTopLeft.x;
-        while (blockX + 2 * step.width <= gridRight) {
-            // The first row's top edge is contiguous exactly across this
-            // block. Probe cell-width segments to recover its local width.
-            std::uint32_t blockAnswers = 0;
-            for (std::uint32_t cell = 0; cell <= config->maxAnswerCount; ++cell) {
-                double bestRatio = 0.0;
+        for (auto const& block : *blocks) {
+            auto const blockX = scalePoint({block.x, 0}, config->referenceSize, gray.size()).x;
+            auto const gridY = scalePoint(config->gridArea.tl(), config->referenceSize, gray.size()).y;
+            // Search only near the expected line. Smooth shadows have little
+            // gradient; weak evidence keeps the nominal coordinate.
+            auto const findBorder = [&](int expectedY) {
+                auto bestY = expectedY;
+                double bestScore = 20.0;
                 auto const radius = std::max(1, step.height / 8);
                 for (int offset = -radius; offset <= radius; ++offset) {
-                    auto const edge = cv::Rect{
-                        blockX + static_cast<int>(cell) * step.width + 3,
-                        gridTopLeft.y + offset - 2,
-                        std::max(1, step.width - 6), 5};
-                    bestRatio = std::max(bestRatio, darkRatio(gray, edge));
-                }
-                if (bestRatio <= 0.25) break;
-                if (cell > 0) blockAnswers = cell;
-            }
-            if (blockAnswers == 0) break;
-
-            // Printed/photo geometry can drift by a few pixels after homography.
-            // Locate each border locally rather than requiring it to intersect
-            // a five-pixel strip at the exact nominal coordinate. Keep the
-            // search well within half a cell so adjacent rows cannot alias.
-            auto const findBorder = [&](int expectedY) -> std::optional<int> {
-                auto const radius = std::max(1, step.height / 8);
-                double bestRatio = 0.25;
-                std::optional<int> bestY;
-                for (int offset = -radius; offset <= radius; ++offset) {
-                    auto const edge = cv::Rect{
-                        blockX + 3, expectedY + offset - 2,
-                        std::max(1, step.width - 6), 5};
-                    auto const ratio = darkRatio(gray, edge);
-                    if (ratio > bestRatio) {
-                        bestRatio = ratio;
+                    auto area = cv::Rect(blockX + 3, expectedY + offset - 2,
+                        static_cast<int>(block.answerCount + 1) * step.width - 6, 5);
+                    area &= cv::Rect({}, gray.size());
+                    if (area.empty()) continue;
+                    auto const score = cv::mean(gradient(area))[0];
+                    if (score > bestScore || (score == bestScore
+                        && std::abs(offset) < std::abs(bestY - expectedY))) {
+                        bestScore = score;
                         bestY = expectedY + offset;
                     }
                 }
                 return bestY;
             };
-            auto topBorder = findBorder(gridTopLeft.y);
-            for (int row = 0; row < rowsPerBlock; ++row) {
-                auto const bottomBorder = findBorder(
-                    gridTopLeft.y + (row + 1) * step.height);
-                if (!topBorder || !bottomBorder) break;
-                auto const y = (*topBorder + *bottomBorder) / 2;
+            auto topBorder = findBorder(gridY);
+            for (std::size_t row = 0; row < block.questionCount; ++row) {
+                auto const bottomBorder = findBorder(gridY + static_cast<int>(row + 1) * step.height);
+                auto const y = (topBorder + bottomBorder) / 2;
+                auto const blockAnswers = m_answerCounts[block.firstQuestion + row];
+                // The number cell is not writable. Its upper quartile ignores
+                // the printed identifier while retaining local illumination.
+                auto const paper = paperBrightness(gray, cv::Rect(
+                    blockX + 6, y - step.height / 2 + 6,
+                    step.width - 12, step.height - 12));
 
                 uint8_t flags = 0;
                 for (std::uint32_t answer = 0; answer < blockAnswers; ++answer) {
@@ -1349,16 +1347,17 @@ namespace OpenOmr
                     auto const label = "row " + std::to_string(result.size() + 1)
                         + " answer " + std::to_string(answer + 1);
                     appendOverlay(m_answerOverlays, "grid", label + " expected box", inner);
-                    if (frameRatio(gray, inner) <= 0.12) continue;
-
                     auto answerArea = inner;
-                    answerArea.x += 2;
-                    answerArea.y += 2;
-                    answerArea.width = std::max(1, answerArea.width - 4);
-                    answerArea.height = std::max(1, answerArea.height - 4);
-                    auto const answerMarked = darkRatio(gray, answerArea)
+                    // Keep the printed frame and normalization blur outside
+                    // the answer sample, even when the frame shifts slightly.
+                    auto const inset = std::max(2, innerSize.width / 6);
+                    answerArea.x += inset;
+                    answerArea.y += inset;
+                    answerArea.width = std::max(1, answerArea.width - 2 * inset);
+                    answerArea.height = std::max(1, answerArea.height - 2 * inset);
+                    auto const answerMarked = darkRatio(gray, answerArea, paper * 0.65)
                         >= config->answerFillThreshold;
-                    auto const correctionMarked = correctionRatio(gray, outer, inner)
+                    auto const correctionMarked = correctionRatio(gray, outer, inner, paper * 0.80)
                         >= config->correctionFillThreshold;
                     if (correctionMarked) {
                         appendOverlay(m_answerOverlays, "corrected", label + " correction detected", outer);
@@ -1372,7 +1371,6 @@ namespace OpenOmr
                 result.push_back(flags);
                 topBorder = bottomBorder;
             }
-            blockX += static_cast<int>(blockAnswers + 1U) * step.width + gutter;
         }
         return result;
     }

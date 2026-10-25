@@ -116,6 +116,7 @@ namespace
         assert(identity);
         assert(std::ranges::equal(identity->revisionId, revisionId));
 
+        grader.setAnswerCounts({8, 8, 8});
         auto const answers = grader.gradeSheet(
             config->cellSize, OpenOmr::innerSquareSize(*config));
         assert(answers.size() == 3);
@@ -155,6 +156,9 @@ namespace
         assert(grader.normalize(config->referenceSize));
         auto const identity = grader.detectRevisionId();
         assert(identity && std::ranges::equal(identity->revisionId, testRevisionId(4)));
+        auto counts = std::vector<std::uint8_t>(expected.size(), 4);
+        if (counts.size() == 40) { counts[5] = 6; counts[17] = 2; }
+        grader.setAnswerCounts(counts);
         assert(grader.gradeSheet(
             config->cellSize, OpenOmr::innerSquareSize(*config)) == expected);
     }
@@ -182,7 +186,7 @@ namespace
             + 5 * config->cellSize.width + config->questionColumnGutter;
         std::vector<std::uint8_t> expected(40);
         for (std::uint32_t index = 0; index < 40; ++index) {
-            auto const answer = index < 18 ? index % 6U : index % 4U;
+            auto const answer = index % (index == 5 ? 6U : index == 17 ? 2U : 4U);
             auto const row = index < 18 ? index
                 : index < 36 ? index - 18U : index - 36U;
             auto const blockX = index < 18 ? firstBlockX
@@ -197,6 +201,9 @@ namespace
         assert(grader.normalize(config->referenceSize));
         auto const identity = grader.detectRevisionId();
         assert(identity && std::ranges::equal(identity->revisionId, testRevisionId(5)));
+        auto counts = std::vector<std::uint8_t>(expected.size(), 4);
+        if (counts.size() == 40) { counts[5] = 6; counts[17] = 2; }
+        grader.setAnswerCounts(counts);
         assert(grader.gradeSheet(
             config->cellSize, OpenOmr::innerSquareSize(*config)) == expected);
     }
@@ -223,7 +230,7 @@ namespace
             + 5 * config->cellSize.width + config->questionColumnGutter;
         std::vector<std::uint8_t> expected(40);
         for (std::uint32_t index = 0; index < 40; ++index) {
-            auto const answer = index < 18 ? index % 6U : index % 4U;
+            auto const answer = index % (index == 5 ? 6U : index == 17 ? 2U : 4U);
             markSmall(canonical, *config,
                 index < 18 ? index
                     : index < 36 ? index - 18U : index - 36U,
@@ -250,6 +257,9 @@ namespace
         assert(grader.normalize(config->referenceSize));
         auto const identity = grader.detectRevisionId();
         assert(identity && std::ranges::equal(identity->revisionId, testRevisionId(6)));
+        auto counts = std::vector<std::uint8_t>(expected.size(), 4);
+        if (counts.size() == 40) { counts[5] = 6; counts[17] = 2; }
+        grader.setAnswerCounts(counts);
         assert(grader.gradeSheet(
             config->cellSize, OpenOmr::innerSquareSize(*config)) == expected);
     }

@@ -176,6 +176,7 @@ namespace
         }
         assert(identity && std::ranges::equal(identity->revisionId, revisionId));
 
+        grader.setAnswerCounts(std::vector<std::uint8_t>(rowCount, 8));
         auto const actual = grader.gradeSheet(
             config->cellSize, OpenOmr::innerSquareSize(*config));
         if (actual != expected) {

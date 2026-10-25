@@ -87,6 +87,7 @@ namespace OpenOmr
         void enableNormalizationInspection(bool enabled);
         [[nodiscard]] cv::Mat const& initialNormalizedImage() const noexcept;
         std::optional<RevisionDetection> detectRevisionId();
+        void setAnswerCounts(std::vector<uint8_t> const& answerCounts);
         std::vector<uint8_t> gradeSheet(cv::Size cellSize, cv::Size innerCellSize);
         [[nodiscard]] std::optional<uint32_t> detectedVersion() const noexcept;
         [[nodiscard]] cv::Mat const& normalizedImage() const noexcept;
@@ -96,6 +97,7 @@ namespace OpenOmr
 
     private:
         cv::Mat m_source{};
+        std::vector<uint8_t> m_answerCounts{};
         double m_discoveryMilliseconds{};
         double m_refinementMilliseconds{};
         double m_preparationMilliseconds{};

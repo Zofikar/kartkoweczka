@@ -122,6 +122,7 @@ const revision = grader.detectRevisionId();
 assert.ok(revision);
 assert.deepEqual(readBytes(revision.revisionId), revisionId);
 
+grader.setAnswerCounts(Uint8Array.from([4, 2]));
 const grades = grader.gradeSheet(
     {width: 84, height: 84},
     {width: 42, height: 42},
@@ -144,13 +145,14 @@ for (let x = 322; x < 487; ++x) {
 const driftGrader = new module.SheetGrader();
 const driftMarkers = driftGrader.detectAruco(sheet);
 assert.equal(driftGrader.normalize({width: 1800, height: 2050}), true);
+driftGrader.setAnswerCounts(Uint8Array.from([4, 2]));
 const driftGrades = driftGrader.gradeSheet(
     {width: 84, height: 84}, {width: 42, height: 42},
 );
 assert.deepEqual(Array.from(driftGrades), [0b0100, 0]);
 const driftOverlayBytes = driftGrader.overlayDiagnostics();
 const driftOverlays = JSON.parse(new TextDecoder().decode(Uint8Array.from(driftOverlayBytes)));
-assert.equal(driftOverlays.filter(rect => rect.kind === "grid").length, 8);
+assert.equal(driftOverlays.filter(rect => rect.kind === "grid").length, 6);
 driftOverlayBytes.delete();
 driftGrades.delete();
 driftMarkers.delete();
@@ -166,6 +168,7 @@ for (let y = 342; y < 375; ++y) {
 const sparseGrader = new module.SheetGrader();
 const sparseMarkers = sparseGrader.detectAruco(sheet);
 assert.equal(sparseGrader.normalize({width: 1800, height: 2050}), true);
+sparseGrader.setAnswerCounts(Uint8Array.from([4, 2]));
 const sparseGrades = sparseGrader.gradeSheet(
     {width: 84, height: 84}, {width: 42, height: 42},
 );
@@ -173,6 +176,23 @@ assert.deepEqual(Array.from(sparseGrades), [0b0100, 0b0001]);
 sparseGrades.delete();
 sparseMarkers.delete();
 sparseGrader.delete();
+
+// Shadowed blank paper below the printed rows must never create extra rows.
+for (let y = 420; y < 1730; ++y) {
+    const paper = Math.round(125 - (y - 420) / 200);
+    for (let x = 70; x < 1200; ++x) sheet.data.set(y * sheet.width + x, paper);
+}
+const shadowGrader = new module.SheetGrader();
+const shadowMarkers = shadowGrader.detectAruco(sheet);
+assert.equal(shadowGrader.normalize({width: 1800, height: 2050}), true);
+shadowGrader.setAnswerCounts(Uint8Array.from([4, 2]));
+const shadowGrades = shadowGrader.gradeSheet(
+    {width: 84, height: 84}, {width: 42, height: 42},
+);
+assert.deepEqual(Array.from(shadowGrades), [0b0100, 0b0001]);
+shadowGrades.delete();
+shadowMarkers.delete();
+shadowGrader.delete();
 
 // Delete every Embind-owned handle returned or constructed above. This also
 // verifies that generated classes expose the expected ownership API.
