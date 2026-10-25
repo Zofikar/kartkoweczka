@@ -3,7 +3,13 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import ts from 'typescript';
-import createOpenOmr from '../src/wasm/openOmr.js';
+import { pathToFileURL } from 'node:url';
+const artifact = process.env.OMR_BENCHMARK_MODULE
+	? pathToFileURL(resolve(process.env.OMR_BENCHMARK_MODULE))
+	: new URL('../src/wasm/openOmr.js', import.meta.url);
+const { default: createOpenOmr } = await import(artifact.href);
+const measuredIterations = Number(process.env.OMR_BENCHMARK_ITERATIONS ?? 6);
+assert.ok(Number.isInteger(measuredIterations) && measuredIterations > 0);
 
 const directory = resolve(process.argv[2] ?? 'openOmr/build/capture-fixtures');
 const output = resolve(process.argv[3] ?? '.agents/memory/debug/omr-benchmark.json');
@@ -62,7 +68,10 @@ for (const name of readdirSync(directory)
 	});
 }
 const results = [];
-for (const fixture of fixtures) {
+for (const fixture of fixtures.filter(
+	(fixture) =>
+		!process.env.OMR_BENCHMARK_FILTER || fixture.name.startsWith(process.env.OMR_BENCHMARK_FILTER)
+)) {
 	const bytes = new module.Vector_Bytes();
 	bytes.resize(fixture.pixels.length, 0);
 	module.byteVectorView(bytes).set(fixture.pixels);
@@ -73,7 +82,7 @@ for (const fixture of fixtures) {
 		layout: module.PixelLayout.RGBA,
 	};
 	const samples = [];
-	for (let iteration = 0; iteration < 8; iteration++) {
+	for (let iteration = 0; iteration < measuredIterations + 2; iteration++) {
 		const grader = new module.SheetGrader();
 		const start = performance.now();
 		const markers = grader.detectAruco(image);
@@ -145,6 +154,8 @@ for (const fixture of fixtures) {
 		grader.delete();
 	}
 	results.push({ name: fixture.name, grid: fixture.grid, samples });
+	writeFileSync(output, JSON.stringify({ partial: true, results }));
+	console.log(`Completed ${fixture.name}: ${samples.length} measured iterations`);
 	bytes.delete();
 }
 generated.data.delete();
@@ -157,7 +168,7 @@ writeFileSync(
 			flags: process.execArgv,
 			pixelLayout: 'RGBA',
 			wasmSha256: createHash('sha256')
-				.update(readFileSync(new URL('../src/wasm/openOmr.wasm', import.meta.url)))
+				.update(readFileSync(new URL('openOmr.wasm', artifact)))
 				.digest('hex'),
 			results,
 		},
