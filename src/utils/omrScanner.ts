@@ -1,4 +1,5 @@
 import type { SnapshotQuestion } from '@/db/repositories';
+import { getTestRevision } from '@/db/repositories';
 import type {
 	ArucoDetection,
 	ImageQuality,
@@ -53,12 +54,17 @@ export type OmrDiagnosticStage =
 	| 'graded';
 
 export interface GradingSheetDiagnostics {
+	initialNormalizedImage?: ImageData;
+	initialGridEdges?: import('./gridEdges').GridEdge[];
+	refinementApplied?: boolean;
+	gridEdges?: import('./gridEdges').GridEdge[];
 	overlayRects?: NormalizedDetectionRect[];
 	alignmentDetails?: string;
 	imageData: ImageData;
 	markers: DetectedArucoMarker[];
 	normalizedImage?: ImageData;
 	qrCode: DetectedQrCode | null;
+	normalizedMarkers?: DetectedArucoMarker[];
 	scannedAnswers: number[] | null;
 	quality: 'good' | 'too-dark' | 'too-bright';
 	stages: OmrDiagnosticStage[];
@@ -138,19 +144,50 @@ export function scanFromDiagnostics(diagnostics: GradingSheetDiagnostics): Gradi
 
 export async function diagnoseGradingSheetImageData(
 	imageData: ImageData,
-	{ includeNormalizedImage = true }: { includeNormalizedImage?: boolean } = {}
+	{
+		includeNormalizedImage = true,
+		checkExposure = true,
+		onTiming,
+	}: {
+		includeNormalizedImage?: boolean;
+		checkExposure?: boolean;
+		onTiming?: (stage: string, milliseconds: number) => void;
+	} = {}
 ): Promise<GradingSheetDiagnostics> {
+	let measuredAt = performance.now();
+	function timing(stage: string) {
+		const now = performance.now();
+		onTiming?.(stage, Math.round(now - measuredAt));
+		measuredAt = now;
+	}
 	const openOmr = await getOpenOmr();
+	timing('module');
 	const stages: OmrDiagnosticStage[] = ['module-loaded'];
 	const image = imageDataToOpenOmrImage(openOmr, imageData);
 	stages.push('image-copied');
+	timing('copy');
 	let grader: SheetGrader | undefined;
 
 	try {
 		grader = new openOmr.SheetGrader();
-		const qualityValue = openOmr.checkImageQuality(image);
-		const quality = imageQualityName(openOmr, qualityValue);
+		const quality = checkExposure
+			? imageQualityName(openOmr, openOmr.checkImageQuality(image))
+			: 'good';
+		timing('exposure');
 		const detections = grader.detectAruco(image);
+		timing('markers');
+		if (onTiming) {
+			const bytes = grader.markerTimings();
+			try {
+				const measured: Record<string, number> = JSON.parse(
+					new TextDecoder().decode(Uint8Array.from(bytes))
+				);
+				for (const [stage, milliseconds] of Object.entries(measured))
+					onTiming(stage, Math.round(milliseconds));
+			} finally {
+				bytes.delete();
+			}
+		}
 		let markers: DetectedArucoMarker[];
 		try {
 			markers = Array.from(detections, mapArucoDetection);
@@ -163,7 +200,22 @@ export async function diagnoseGradingSheetImageData(
 		if (markers.length < 3) {
 			return diagnosticsFailure(imageData, markers, quality, stages, i18n.t('errors.markers'));
 		}
+		if (includeNormalizedImage) grader.enableNormalizationInspection(true);
 		const normalizedSuccessfully = grader.normalize(SHEET_SIZE);
+		timing('normalization');
+		if (onTiming) {
+			const bytes = grader.markerTimings();
+			try {
+				const measured: Record<string, number> = JSON.parse(
+					new TextDecoder().decode(Uint8Array.from(bytes))
+				);
+				for (const [stage, milliseconds] of Object.entries(measured)) {
+					if (stage.startsWith('normalization')) onTiming(stage, Math.round(milliseconds));
+				}
+			} finally {
+				bytes.delete();
+			}
+		}
 		const alignmentBytes = grader.alignmentDiagnostics();
 		let alignmentDetails: string;
 		try {
@@ -180,8 +232,15 @@ export async function diagnoseGradingSheetImageData(
 		}
 		stages.push('normalized');
 
+		let initialNormalizedImage: ImageData | undefined;
 		let normalizedImage: ImageData | undefined;
 		if (includeNormalizedImage) {
+			const initial = grader.initialNormalizedImage();
+			try {
+				initialNormalizedImage = openOmrImageToImageData(openOmr, initial);
+			} finally {
+				initial.data.delete();
+			}
 			const normalized = grader.normalizedImage();
 			try {
 				normalizedImage = openOmrImageToImageData(openOmr, normalized);
@@ -191,6 +250,7 @@ export async function diagnoseGradingSheetImageData(
 		}
 
 		const revision = grader.detectRevisionId();
+		timing('revision');
 		if (!revision) {
 			return {
 				overlayRects: readOverlayDiagnostics(grader),
@@ -203,12 +263,22 @@ export async function diagnoseGradingSheetImageData(
 					normalizedImage
 				),
 				alignmentDetails,
+				initialNormalizedImage,
+				refinementApplied: alignmentDetails.includes('Refinement applied.'),
 			};
 		}
 		const qrCode = revisionToQrCode(revision);
 		stages.push('revision-detected');
 
+		const storedRevision = await getTestRevision(qrCode.metadata!.revisionId);
+		if (!storedRevision) throw new Error(i18n.t('scanner.unknownRevision'));
+		grader.setAnswerCounts(
+			Uint8Array.from(
+				buildQuestionResponseRows(storedRevision.content).map((row) => row.answerLabels.length)
+			)
+		);
 		const grades = grader.gradeSheet(ANSWER_CELL_SIZE, ANSWER_INNER_CELL_SIZE);
+		timing('grading');
 		try {
 			stages.push('graded');
 			const scannedAnswers = Array.from(grades, answerMaskToIndex);
@@ -217,6 +287,8 @@ export async function diagnoseGradingSheetImageData(
 				alignmentDetails,
 				overlayRects: readOverlayDiagnostics(grader),
 				imageData,
+				initialNormalizedImage,
+				refinementApplied: alignmentDetails.includes('Refinement applied.'),
 				normalizedImage,
 				markers,
 				qrCode,

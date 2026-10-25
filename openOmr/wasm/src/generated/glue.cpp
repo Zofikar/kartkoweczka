@@ -121,6 +121,22 @@ namespace OpenOmrWasm::Generated
         return CPP2WASM::Convert(response);
     }
 
+    void WasmSheetGrader::enableNormalizationInspection(
+        bool enabled
+    )
+    {
+        auto cpp_enabled = WASM2CPP::Convert(enabled);
+
+        m_impl->enableNormalizationInspection(cpp_enabled);
+    }
+
+    OpenOmrWasm::Image WasmSheetGrader::initialNormalizedImage() const
+    {
+        auto response = m_impl->initialNormalizedImage();
+
+        return CPP2WASM::Convert(response);
+    }
+
     OpenOmrWasm::Image WasmSheetGrader::normalizedImage() const
     {
         auto response = m_impl->normalizedImage();
@@ -138,6 +154,13 @@ namespace OpenOmrWasm::Generated
     std::vector<std::uint8_t> WasmSheetGrader::overlayDiagnostics() const
     {
         auto response = m_impl->overlayDiagnostics();
+
+        return CPP2WASM::Convert(response);
+    }
+
+    std::vector<std::uint8_t> WasmSheetGrader::markerTimings() const
+    {
+        auto response = m_impl->markerTimings();
 
         return CPP2WASM::Convert(response);
     }
@@ -160,6 +183,15 @@ namespace OpenOmrWasm::Generated
         auto response = m_impl->gradeSheet(cpp_cellSize, cpp_innerCellSize);
 
         return CPP2WASM::Convert(response);
+    }
+
+    void WasmSheetGrader::setAnswerCounts(
+        emscripten::val answerCounts
+    )
+    {
+        auto cpp_answerCounts = WASM2CPP::ConvertBytes(answerCounts);
+
+        m_impl->setAnswerCounts(cpp_answerCounts);
     }
 
 }

@@ -75,14 +75,40 @@ for (let y = 246; y < 279; ++y) {
 }
 
 const grader = new module.SheetGrader();
+// Crop away the right sheet edge while retaining the remaining landmarks.
+const croppedBytes = new module.Vector_Bytes();
+const croppedWidth = 1590;
+croppedBytes.resize(croppedWidth * sheet.height, 255);
+const originalPixels = module.byteVectorView(sheet.data);
+const croppedPixels = module.byteVectorView(croppedBytes);
+for (let y = 0; y < sheet.height; y++) {
+    croppedPixels.set(originalPixels.subarray(y * sheet.width, y * sheet.width + croppedWidth), y * croppedWidth);
+}
+const croppedGrader = new module.SheetGrader();
+const croppedMarkers = croppedGrader.detectAruco({data: croppedBytes, width: croppedWidth, height: sheet.height, layout: module.PixelLayout.Gray});
+assert.equal(croppedGrader.normalize({width: 1800, height: 2050}), false);
+croppedMarkers.delete();
+croppedGrader.delete();
+croppedBytes.delete();
 const aruco = grader.detectAruco(sheet);
 assert.equal(aruco.size(), 5);
 assert.deepEqual(
     Array.from(aruco, detection => detection.id).sort((a, b) => a - b),
     [3, 3, 3, 3, 31],
 );
+grader.enableNormalizationInspection(true);
 assert.equal(grader.normalize({width: 1800, height: 2050}), true);
+const initialNormalized = grader.initialNormalizedImage();
+assert.equal(initialNormalized.width, 1800);
+assert.equal(initialNormalized.height, 2050);
+assert.ok(initialNormalized.data.size() > 0);
+initialNormalized.data.delete();
 const alignmentDiagnostics = grader.alignmentDiagnostics();
+const timingBytes = grader.markerTimings();
+const markerTiming = JSON.parse(new TextDecoder().decode(Uint8Array.from(timingBytes)));
+assert.ok(markerTiming.markerDiscovery >= 0);
+assert.ok(markerTiming.markerRefinement >= 0);
+timingBytes.delete();
 assert.match(new TextDecoder().decode(Uint8Array.from(alignmentDiagnostics)), /Detected BR/);
 alignmentDiagnostics.delete();
 
@@ -96,6 +122,7 @@ const revision = grader.detectRevisionId();
 assert.ok(revision);
 assert.deepEqual(readBytes(revision.revisionId), revisionId);
 
+grader.setAnswerCounts(Uint8Array.from([4, 2]));
 const grades = grader.gradeSheet(
     {width: 84, height: 84},
     {width: 42, height: 42},
@@ -118,13 +145,14 @@ for (let x = 322; x < 487; ++x) {
 const driftGrader = new module.SheetGrader();
 const driftMarkers = driftGrader.detectAruco(sheet);
 assert.equal(driftGrader.normalize({width: 1800, height: 2050}), true);
+driftGrader.setAnswerCounts(Uint8Array.from([4, 2]));
 const driftGrades = driftGrader.gradeSheet(
     {width: 84, height: 84}, {width: 42, height: 42},
 );
 assert.deepEqual(Array.from(driftGrades), [0b0100, 0]);
 const driftOverlayBytes = driftGrader.overlayDiagnostics();
 const driftOverlays = JSON.parse(new TextDecoder().decode(Uint8Array.from(driftOverlayBytes)));
-assert.equal(driftOverlays.filter(rect => rect.kind === "grid").length, 8);
+assert.equal(driftOverlays.filter(rect => rect.kind === "grid").length, 6);
 driftOverlayBytes.delete();
 driftGrades.delete();
 driftMarkers.delete();
@@ -140,6 +168,7 @@ for (let y = 342; y < 375; ++y) {
 const sparseGrader = new module.SheetGrader();
 const sparseMarkers = sparseGrader.detectAruco(sheet);
 assert.equal(sparseGrader.normalize({width: 1800, height: 2050}), true);
+sparseGrader.setAnswerCounts(Uint8Array.from([4, 2]));
 const sparseGrades = sparseGrader.gradeSheet(
     {width: 84, height: 84}, {width: 42, height: 42},
 );
@@ -147,6 +176,23 @@ assert.deepEqual(Array.from(sparseGrades), [0b0100, 0b0001]);
 sparseGrades.delete();
 sparseMarkers.delete();
 sparseGrader.delete();
+
+// Shadowed blank paper below the printed rows must never create extra rows.
+for (let y = 420; y < 1730; ++y) {
+    const paper = Math.round(125 - (y - 420) / 200);
+    for (let x = 70; x < 1200; ++x) sheet.data.set(y * sheet.width + x, paper);
+}
+const shadowGrader = new module.SheetGrader();
+const shadowMarkers = shadowGrader.detectAruco(sheet);
+assert.equal(shadowGrader.normalize({width: 1800, height: 2050}), true);
+shadowGrader.setAnswerCounts(Uint8Array.from([4, 2]));
+const shadowGrades = shadowGrader.gradeSheet(
+    {width: 84, height: 84}, {width: 42, height: 42},
+);
+assert.deepEqual(Array.from(shadowGrades), [0b0100, 0b0001]);
+shadowGrades.delete();
+shadowMarkers.delete();
+shadowGrader.delete();
 
 // Delete every Embind-owned handle returned or constructed above. This also
 // verifies that generated classes expose the expected ownership API.

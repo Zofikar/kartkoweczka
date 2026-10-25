@@ -95,11 +95,15 @@ EMSCRIPTEN_BINDINGS(OpenOmrWasm_generated)
     bind_SheetGrader.constructor<>();
     bind_SheetGrader.function("detectAruco", &OpenOmrWasm::Generated::WasmSheetGrader::detectAruco);
     bind_SheetGrader.function("normalize", &OpenOmrWasm::Generated::WasmSheetGrader::normalize);
+    bind_SheetGrader.function("enableNormalizationInspection", &OpenOmrWasm::Generated::WasmSheetGrader::enableNormalizationInspection);
+    bind_SheetGrader.function("initialNormalizedImage", &OpenOmrWasm::Generated::WasmSheetGrader::initialNormalizedImage);
     bind_SheetGrader.function("normalizedImage", &OpenOmrWasm::Generated::WasmSheetGrader::normalizedImage);
     bind_SheetGrader.function("alignmentDiagnostics", &OpenOmrWasm::Generated::WasmSheetGrader::alignmentDiagnostics);
     bind_SheetGrader.function("overlayDiagnostics", &OpenOmrWasm::Generated::WasmSheetGrader::overlayDiagnostics);
+    bind_SheetGrader.function("markerTimings", &OpenOmrWasm::Generated::WasmSheetGrader::markerTimings);
     bind_SheetGrader.function("detectRevisionId", &OpenOmrWasm::Generated::WasmSheetGrader::detectRevisionId);
     bind_SheetGrader.function("gradeSheet", &OpenOmrWasm::Generated::WasmSheetGrader::gradeSheet);
+    bind_SheetGrader.function("setAnswerCounts", &OpenOmrWasm::Generated::WasmSheetGrader::setAnswerCounts);
 
     function("generateQr", &OpenOmrWasm::Generated::generateQr);
     function("detectQrCode", &OpenOmrWasm::Generated::detectQrCode);

@@ -119,6 +119,14 @@ classes:
           sheetOriginalSize: Size
         returns: bool
 
+      enableNormalizationInspection:
+        params:
+          enabled: bool
+
+      initialNormalizedImage:
+        returns: Image
+        const: true
+
       normalizedImage:
         cpp: normalizedImage
         returns: Image
@@ -132,6 +140,10 @@ classes:
         returns: bytes
         const: true
 
+      markerTimings:
+        returns: bytes
+        const: true
+
       detectRevisionId:
         cpp: detectRevisionId
         returns: RevisionDetection?
@@ -142,3 +154,7 @@ classes:
           cellSize: Size
           innerCellSize: Size
         returns: bytes
+
+      setAnswerCounts:
+        params:
+          answerCounts: byteBuffer

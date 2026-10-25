@@ -84,16 +84,30 @@ namespace OpenOmr
     public:
         std::vector<ArUcoDetection> detectAruco(cv::Mat const& image);
         bool normalize(cv::Size sheetOriginalSize);
+        void enableNormalizationInspection(bool enabled);
+        [[nodiscard]] cv::Mat const& initialNormalizedImage() const noexcept;
         std::optional<RevisionDetection> detectRevisionId();
+        void setAnswerCounts(std::vector<uint8_t> const& answerCounts);
         std::vector<uint8_t> gradeSheet(cv::Size cellSize, cv::Size innerCellSize);
         [[nodiscard]] std::optional<uint32_t> detectedVersion() const noexcept;
         [[nodiscard]] cv::Mat const& normalizedImage() const noexcept;
         [[nodiscard]] std::vector<uint8_t> alignmentDiagnostics() const;
         [[nodiscard]] std::vector<uint8_t> overlayDiagnostics() const;
+        [[nodiscard]] std::vector<uint8_t> markerTimings() const;
 
     private:
         cv::Mat m_source{};
+        std::vector<uint8_t> m_answerCounts{};
+        double m_discoveryMilliseconds{};
+        double m_refinementMilliseconds{};
+        double m_preparationMilliseconds{};
+        double m_selectionMilliseconds{};
+        double m_warpMilliseconds{};
+        double m_normalizationStarted{};
+        double m_normalizationMilliseconds{};
         cv::Mat m_normalized{};
+        cv::Mat m_initialNormalized{};
+        bool m_inspectNormalization{};
         std::vector<ArUcoDetection> m_aruco{};
         std::vector<std::array<cv::Point2f, 4>> m_markerCorners{};
         std::vector<DetectedMarker> m_detectedMarkers{};

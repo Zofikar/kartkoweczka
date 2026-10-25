@@ -26,10 +26,14 @@ const { createDatabase } = await loadSource('../src/db/database.ts', [
 
 test('production scans skip normalized image extraction while diagnostics retain it', async () => {
 	let extracted = 0;
+	let exposureChecks = 0;
 	const vector = () => ({ delete() {}, [Symbol.iterator]: function* () {} });
 	const module = {
 		ImageQuality: { TooDark: { value: 1 }, TooBright: { value: 2 } },
-		checkImageQuality: () => ({ value: 0 }),
+		checkImageQuality: () => {
+			exposureChecks++;
+			return { value: 0 };
+		},
 		SheetGrader: class {
 			detectAruco() {
 				return [
@@ -55,12 +59,19 @@ test('production scans skip normalized image extraction while diagnostics retain
 			overlayDiagnostics() {
 				return Object.assign(Array.from(new TextEncoder().encode('[]')), { delete() {} });
 			}
+			enableNormalizationInspection() {}
+			initialNormalizedImage() {
+				return { data: vector() };
+			}
 			normalizedImage() {
 				extracted++;
 				return { data: vector() };
 			}
 			detectRevisionId() {
 				return { revisionId: vector() };
+			}
+			setAnswerCounts(counts) {
+				assert.deepEqual(Array.from(counts), [4, 2]);
 			}
 			gradeSheet() {
 				return vector();
@@ -71,6 +82,8 @@ test('production scans skip normalized image extraction while diagnostics retain
 	globalThis.__scannerTest = module;
 	try {
 		const scanner = await loadSource('../src/utils/omrScanner.ts', [
+			[/import \{ getTestRevision[^\n]+/, 'const getTestRevision = async () => ({content: []});'],
+
 			[
 				/import \{[\s\S]*?\} from '@\/utils\/openOmr';/,
 				`const getOpenOmr = async () => globalThis.__scannerTest;
@@ -79,7 +92,10 @@ const openOmrImageToImageData = () => ({normalized: true});
 const bytesToUuid = () => 'revision';`,
 			],
 			[/import \{ i18n \}[^\n]+/, 'const i18n = {t: (key) => key};'],
-			[/import \{ buildQuestionResponseRows[^\n]+/, 'const buildQuestionResponseRows = () => [];'],
+			[
+				/import \{ buildQuestionResponseRows[^\n]+/,
+				'const buildQuestionResponseRows = () => [{answerLabels: [1,2,3,4]}, {answerLabels: [1,2]}];',
+			],
 		]);
 		const production = await scanner.scanGradingSheetImageData({});
 		assert.equal(extracted, 0);
@@ -87,6 +103,12 @@ const bytesToUuid = () => 'revision';`,
 		const diagnostics = await scanner.diagnoseGradingSheetImageData({});
 		assert.equal(extracted, 1);
 		assert.deepEqual(diagnostics.normalizedImage, { normalized: true });
+		assert.equal(exposureChecks, 2);
+		await scanner.diagnoseGradingSheetImageData(
+			{},
+			{ includeNormalizedImage: false, checkExposure: false }
+		);
+		assert.equal(exposureChecks, 2);
 	} finally {
 		delete globalThis.__scannerTest;
 	}

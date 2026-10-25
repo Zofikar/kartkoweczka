@@ -377,5 +377,23 @@
 		"current": "Aplikacja jest aktualna.",
 		"available": "Aktualizacja {version} jest dostępna. Zainstaluj ją przyciskiem w panelu bocznym.",
 		"updateError": "Nie udało się sprawdzić lub zainstalować aktualizacji. Spróbuj ponownie online."
+	},
+	"cameraDebug": {
+		"gridLegend": "Jasnozielone linie i punkty: zebrane krawędzie górna i lewa siatki. Etykiety pokazują przesunięcie i nachylenie. To diagnostyka, bez korekty obrazu.",
+		"overlayLegend": "Niebieskie przerywane: oczekiwane markery. Różowe ciągłe: markery wykryte niezależnie w wyprostowanym obrazie. Żółte: obszar wyszukiwania QR. Brak różowego obrysu oznacza nieudane ponowne wykrywanie, niekoniecznie brak markera. Podgląd dodaje dodatkowy przebieg detekcji.",
+		"inspectImages": "Podgląd wyprostowanych obrazów",
+		"imageCost": "Wyłączony: wysyłanie pomiarów do serwera deweloperskiego. Włączony: zapis karty i obrazu QR na serwerze, najwyżej raz na 3 sekundy. Obrazy mogą zawierać odpowiedzi i kod wersji. Ten tryb zwiększa koszt przetwarzania; wyłącz go podczas pomiarów wydajności.",
+		"normalized": "Wyprostowana karta",
+		"qrCrop": "Dokładny obszar wyszukiwania QR",
+		"corners": "Wszystkie cztery markery narożne muszą być widoczne.",
+		"confirming": "Potwierdzam zgodność odczytu…",
+		"readable": "Wykryto wersję i odpowiedzi. Zielone obrysy oznaczają markery w klatce źródłowej; współrzędne wersji dotyczą wyprostowanej karty.",
+		"detection": "Markery: {markers} · Etap: {stage} · Wiersze: {rows} · Analiza: {ms} ms",
+		"title": "Diagnostyka kamery",
+		"description": "Korzysta z modu?u kamery skanera. Zapisz klatk? bez skalowania i wczytaj j? w diagnostyce karty, aby por?wna? wykrywanie ze zdj?ciem z aplikacji aparatu.",
+		"torchOn": "Włącz latarke",
+		"torchOff": "Wyłacz latarke",
+		"torchUnavailable": "Światło kamery jest niedostępne lub żądanie zostało odrzucone.",
+		"saveFrame": "Zapisz klatki w pełnej rozdzielczoźci"
 	}
 }

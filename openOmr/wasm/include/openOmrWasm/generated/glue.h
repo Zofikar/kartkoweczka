@@ -32,11 +32,15 @@ namespace OpenOmrWasm::Generated
         WasmSheetGrader();
         std::vector<OpenOmrWasm::ArucoDetection> detectAruco(OpenOmrWasm::Image image);
         bool normalize(OpenOmrWasm::Size sheetOriginalSize);
+        void enableNormalizationInspection(bool enabled);
+        OpenOmrWasm::Image initialNormalizedImage() const;
         OpenOmrWasm::Image normalizedImage() const;
         std::vector<std::uint8_t> alignmentDiagnostics() const;
         std::vector<std::uint8_t> overlayDiagnostics() const;
+        std::vector<std::uint8_t> markerTimings() const;
         std::optional<OpenOmrWasm::RevisionDetection> detectRevisionId();
         std::vector<std::uint8_t> gradeSheet(OpenOmrWasm::Size cellSize, OpenOmrWasm::Size innerCellSize);
+        void setAnswerCounts(emscripten::val answerCounts);
 
     private:
         std::unique_ptr<OpenOmr::SheetGrader> m_impl;

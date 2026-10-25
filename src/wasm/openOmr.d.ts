@@ -55,11 +55,15 @@ export interface SheetGenerator extends ClassHandle {
 export interface SheetGrader extends ClassHandle {
   alignmentDiagnostics(): Vector_Bytes;
   overlayDiagnostics(): Vector_Bytes;
+  markerTimings(): Vector_Bytes;
+  enableNormalizationInspection(_0: boolean): void;
   detectRevisionId(): RevisionDetection | undefined;
   normalize(_0: Size): boolean;
   gradeSheet(_0: Size, _1: Size): Vector_Bytes;
   detectAruco(_0: Image): Vector_ArucoDetection;
+  initialNormalizedImage(): Image;
   normalizedImage(): Image;
+  setAnswerCounts(answerCounts: Uint8Array): void;
 }
 
 export type Point = {
