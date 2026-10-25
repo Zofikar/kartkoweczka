@@ -1,3 +1,22 @@
+# Revision-defined grading layout
+
+Before calling `SheetGrader.gradeSheet`, call
+`setAnswerCounts(Uint8Array)` with one answer count per printed response row,
+including each true/false subrow. Use the same response order as sheet generation.
+The grader uses the generator's block planner; image content cannot add or remove
+rows. Horizontal borders are refined using bounded local Sobel gradients, with
+nominal coordinates retained when edge evidence is weak. Fill measurements use
+the 75th-percentile brightness inside each row's number cell as a paper reference.
+Answer ink must be at most 65% of that brightness; correction-ring ink uses 80%.
+The answer sample excludes an inset of one sixth of the inner-square width to
+avoid printed-frame bleed. Corrections are evaluated even if the inner frame is
+obscured. The number cell is expected to remain unmarked; strong illumination
+changes across a row remain a limitation of this reference.
+
+Run `node scripts/omr-photo-regression.mjs` from the repository root to verify
+the six photographed sheets and their known cancellations. This local regression
+requires Python with OpenCV for JPEG decoding; grading runs through frontend WASM.
+
 # openOmr WebAssembly API
 
 This document describes the API distributed with:
